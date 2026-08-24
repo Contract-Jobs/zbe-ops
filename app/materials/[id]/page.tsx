@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { LocationSelect } from "@/components/LocationSelect";
-import { PageHead, Stamp } from "@/components/ui";
+import { PageHead, Stamp, TableWrap } from "@/components/ui";
 import { day, qty } from "@/lib/format";
 import { isSiteManager, locationName, submitApproval, useStore } from "@/lib/store";
 import type { ApprovalType, LocationKind } from "@/lib/types";
@@ -67,12 +67,13 @@ export default function MaterialDetailPage() {
   };
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[1fr_20rem]">
+    <div>
+      <PageHead kicker="Catalog" title={item.name} />
+      <p className="mb-6 font-mono text-sm text-black/50">
+        {item.unit} · {item.type}
+      </p>
+      <div className="flex flex-col-reverse gap-8 lg:grid lg:grid-cols-[1fr_20rem] lg:gap-10">
       <div>
-        <PageHead kicker="Catalog" title={item.name} />
-        <p className="mb-6 font-mono text-sm text-black/50">
-          {item.unit} · {item.type}
-        </p>
         {kits.length > 0 ? (
           <div className="mb-8">
             <p className="kicker mb-2">Set contents</p>
@@ -87,6 +88,7 @@ export default function MaterialDetailPage() {
           </div>
         ) : null}
         <p className="kicker mb-2">Balances</p>
+        <TableWrap>
         <table className="data mb-10">
           <thead>
             <tr>
@@ -103,14 +105,16 @@ export default function MaterialDetailPage() {
             ))}
           </tbody>
         </table>
+        </TableWrap>
         <p className="kicker mb-2">Movement log</p>
+        <TableWrap>
         <table className="data">
           <thead>
             <tr>
               <th>When</th>
               <th>Type</th>
               <th>Qty</th>
-              <th>From / to</th>
+              <th className="hidden sm:table-cell">From / to</th>
             </tr>
           </thead>
           <tbody>
@@ -121,13 +125,14 @@ export default function MaterialDetailPage() {
                   <Stamp value={l.logType} />
                 </td>
                 <td className="font-mono">{l.quantity}</td>
-                <td className="text-sm">
+                <td className="hidden text-sm sm:table-cell">
                   {locationName(l.fromKind, l.fromId, store)} → {locationName(l.toKind, l.toId, store)}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </TableWrap>
       </div>
 
       <aside className="border border-black/10 bg-paper/40 p-5">
@@ -185,6 +190,7 @@ export default function MaterialDetailPage() {
         </button>
         {msg ? <p className="mt-3 text-sm">{msg}</p> : null}
       </aside>
+      </div>
     </div>
   );
 }

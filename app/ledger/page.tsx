@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { PageHead, Stamp, statusTone } from "@/components/ui";
+import { PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import { isSiteManager, logManualTx, useStore, visibleSiteIds } from "@/lib/store";
 import type { TxType } from "@/lib/types";
@@ -99,7 +99,7 @@ export default function LedgerPage() {
             </option>
           ))}
         </select>
-        <button className="btn" type="submit">
+        <button className="btn w-full md:w-auto" type="submit">
           Post
         </button>
         <input
@@ -111,13 +111,14 @@ export default function LedgerPage() {
         {msg ? <p className="text-sm md:col-span-6">{msg}</p> : null}
       </form>
 
+      <TableWrap>
       <table className="data">
         <thead>
           <tr>
             <th>Date</th>
             <th>Note</th>
-            <th>Category</th>
-            <th>Type</th>
+            <th className="hidden md:table-cell">Category</th>
+            <th className="hidden sm:table-cell">Type</th>
             <th>Amount</th>
           </tr>
         </thead>
@@ -125,19 +126,23 @@ export default function LedgerPage() {
           {rows.map((t) => (
             <tr key={t.id}>
               <td className="whitespace-nowrap">{day(t.transactionDate)}</td>
-              <td>
+              <td className="min-w-0">
                 {t.note}
                 {t.isReversal ? <Stamp value="reversal" tone="bad" /> : null}
+                <span className="mt-1 block sm:hidden">
+                  <Stamp value={t.type} tone={statusTone(t.type)} />
+                </span>
               </td>
-              <td>{store.categories.find((c) => c.id === t.categoryId)?.name ?? "—"}</td>
-              <td>
+              <td className="hidden md:table-cell">{store.categories.find((c) => c.id === t.categoryId)?.name ?? "—"}</td>
+              <td className="hidden sm:table-cell">
                 <Stamp value={t.type} tone={statusTone(t.type)} />
               </td>
-              <td className="font-mono text-sm">{etb(t.amount)}</td>
+              <td className="whitespace-nowrap font-mono text-sm">{etb(t.amount)}</td>
             </tr>
           ))}
         </tbody>
       </table>
+      </TableWrap>
     </div>
   );
 }

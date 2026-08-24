@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { PageHead, Stamp, statusTone } from "@/components/ui";
+import { PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
 import { etb } from "@/lib/format";
 import { locationName, useStore, visibleSiteIds, isSiteManager } from "@/lib/store";
 
@@ -25,14 +25,15 @@ export default function EquipmentPage() {
   return (
     <div>
       <PageHead kicker="Plant" title="Equipment" />
-      <input className="field mb-5 max-w-sm" placeholder="Search name or serial" value={q} onChange={(e) => setQ(e.target.value)} />
+      <input className="field mb-5 w-full max-w-sm" placeholder="Search name or serial" value={q} onChange={(e) => setQ(e.target.value)} />
+      <TableWrap>
       <table className="data">
         <thead>
           <tr>
             <th>Asset</th>
             <th>Where</th>
-            <th>Value</th>
-            <th>Ownership</th>
+            <th className="hidden sm:table-cell">Value</th>
+            <th className="hidden md:table-cell">Ownership</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -52,8 +53,8 @@ export default function EquipmentPage() {
                     ? locationName("warehouse", e.warehouseId, store)
                     : "—"}
               </td>
-              <td className="font-mono text-sm">{etb(e.value)}</td>
-              <td>
+              <td className="hidden font-mono text-sm sm:table-cell">{etb(e.value)}</td>
+              <td className="hidden md:table-cell">
                 <Stamp value={e.ownershipStatus} />
               </td>
               <td>
@@ -63,6 +64,7 @@ export default function EquipmentPage() {
           ))}
         </tbody>
       </table>
+      </TableWrap>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { PageHead, Stamp, statusTone } from "@/components/ui";
+import { PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import { useStore } from "@/lib/store";
 
@@ -14,12 +14,13 @@ export default function TendersPage() {
   return (
     <div>
       <PageHead kicker="Pipeline" title="Tenders" />
+      <TableWrap>
       <table className="data">
         <thead>
           <tr>
             <th>Tender</th>
-            <th>License</th>
-            <th>Submit</th>
+            <th className="hidden md:table-cell">License</th>
+            <th className="hidden sm:table-cell">Submit</th>
             <th>Value</th>
             <th>Status</th>
           </tr>
@@ -28,8 +29,8 @@ export default function TendersPage() {
           {rows.map((t) => (
             <tr key={t.id}>
               <td className="font-medium">{t.name}</td>
-              <td>{store.licenses.find((l) => l.id === t.licenseId)?.name}</td>
-              <td>{t.submissionDate ? day(t.submissionDate) : "—"}</td>
+              <td className="hidden md:table-cell">{store.licenses.find((l) => l.id === t.licenseId)?.name}</td>
+              <td className="hidden sm:table-cell">{t.submissionDate ? day(t.submissionDate) : "—"}</td>
               <td className="font-mono text-sm">{t.value ? etb(t.value) : "—"}</td>
               <td>
                 <Stamp value={t.status} tone={statusTone(t.status)} />
@@ -38,6 +39,7 @@ export default function TendersPage() {
           ))}
         </tbody>
       </table>
+      </TableWrap>
     </div>
   );
 }

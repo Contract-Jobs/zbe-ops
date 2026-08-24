@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { PageHead, Stamp, statusTone } from "@/components/ui";
+import { PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
 import { day } from "@/lib/format";
 import { userName, useStore } from "@/lib/store";
 
@@ -16,7 +16,7 @@ export default function ApprovalsPage() {
   return (
     <div>
       <PageHead kicker="Workflow" title="Approvals" />
-      <div className="mb-5 flex gap-2">
+      <div className="mb-5 flex flex-wrap gap-2">
         {(["pending", "approved", "rejected", "all"] as const).map((s) => (
           <button
             key={s}
@@ -28,13 +28,14 @@ export default function ApprovalsPage() {
           </button>
         ))}
       </div>
+      <TableWrap>
       <table className="data">
         <thead>
           <tr>
             <th>Request</th>
-            <th>Type</th>
-            <th>By</th>
-            <th>When</th>
+            <th className="hidden md:table-cell">Type</th>
+            <th className="hidden sm:table-cell">By</th>
+            <th className="hidden md:table-cell">When</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -46,9 +47,9 @@ export default function ApprovalsPage() {
                   {a.summary}
                 </Link>
               </td>
-              <td className="font-mono text-[0.75rem] uppercase">{a.approvalType.replaceAll("_", " ")}</td>
-              <td>{userName(a.createdBy, store)}</td>
-              <td className="whitespace-nowrap">{day(a.createdAt)}</td>
+              <td className="hidden font-mono text-[0.75rem] uppercase md:table-cell">{a.approvalType.replaceAll("_", " ")}</td>
+              <td className="hidden sm:table-cell">{userName(a.createdBy, store)}</td>
+              <td className="hidden whitespace-nowrap md:table-cell">{day(a.createdAt)}</td>
               <td>
                 <Stamp value={a.status} tone={statusTone(a.status)} />
               </td>
@@ -56,6 +57,7 @@ export default function ApprovalsPage() {
           ))}
         </tbody>
       </table>
+      </TableWrap>
     </div>
   );
 }

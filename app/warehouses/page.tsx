@@ -1,6 +1,6 @@
 "use client";
 
-import { PageHead } from "@/components/ui";
+import { PageHead, TableWrap } from "@/components/ui";
 import { useStore } from "@/lib/store";
 
 export default function WarehousesPage() {
@@ -11,13 +11,14 @@ export default function WarehousesPage() {
       <p className="mb-6 max-w-xl text-black/65">
         Warehouses are not scoped to a site manager. Sales can only leave a yard. Transfers onto a job still go through Approvals.
       </p>
+      <TableWrap>
       <table className="data">
         <thead>
           <tr>
             <th>Yard</th>
             <th>Location</th>
             <th>SKUs on hand</th>
-            <th>Plant parked</th>
+            <th className="hidden sm:table-cell">Plant parked</th>
           </tr>
         </thead>
         <tbody>
@@ -29,12 +30,13 @@ export default function WarehousesPage() {
                 <td className="font-medium">{w.name}</td>
                 <td>{w.location}</td>
                 <td className="font-mono">{skus}</td>
-                <td className="font-mono">{plant}</td>
+                <td className="hidden font-mono sm:table-cell">{plant}</td>
               </tr>
             );
           })}
         </tbody>
       </table>
+      </TableWrap>
     </div>
   );
 }

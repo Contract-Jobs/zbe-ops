@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { PageHead, Stamp, statusTone } from "@/components/ui";
+import { PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import {
   addTask,
@@ -46,17 +46,17 @@ export default function SiteDetailPage() {
       <div className="grid gap-px bg-black/10 sm:grid-cols-3">
         <div className="bg-white p-5">
           <p className="kicker">Labor</p>
-          <p className="mt-2 text-2xl tracking-tight">{etb(spend.labor)}</p>
+          <p className="mt-2 break-words text-2xl tracking-tight">{etb(spend.labor)}</p>
           <p className="text-sm text-black/45">Budget {etb(site.laborBudget)}</p>
         </div>
         <div className="bg-white p-5">
           <p className="kicker">Materials</p>
-          <p className="mt-2 text-2xl tracking-tight">{etb(spend.material)}</p>
+          <p className="mt-2 break-words text-2xl tracking-tight">{etb(spend.material)}</p>
           <p className="text-sm text-black/45">Budget {etb(site.materialBudget)}</p>
         </div>
         <div className="bg-white p-5">
           <p className="kicker">Posted out</p>
-          <p className="mt-2 text-2xl tracking-tight">{etb(spend.out)}</p>
+          <p className="mt-2 break-words text-2xl tracking-tight">{etb(spend.out)}</p>
           <p className="text-sm text-black/45">In {etb(spend.inn)}</p>
         </div>
       </div>
@@ -65,7 +65,7 @@ export default function SiteDetailPage() {
         <p className="kicker mb-3">Tasks</p>
         {!manager || user.siteIds.includes(site.id) ? (
           <form
-            className="mb-4 flex gap-2"
+            className="mb-4 flex flex-col gap-2 sm:flex-row"
             onSubmit={(e) => {
               e.preventDefault();
               if (!title.trim()) return;
@@ -73,17 +73,18 @@ export default function SiteDetailPage() {
               setTitle("");
             }}
           >
-            <input className="field max-w-sm" placeholder="New task" value={title} onChange={(e) => setTitle(e.target.value)} />
-            <button className="btn" type="submit">
+            <input className="field w-full sm:max-w-sm" placeholder="New task" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <button className="btn w-full sm:w-auto" type="submit">
               Add
             </button>
           </form>
         ) : null}
+        <TableWrap>
         <table className="data">
           <thead>
             <tr>
               <th>Title</th>
-              <th>Target</th>
+              <th className="hidden sm:table-cell">Target</th>
               <th>Status</th>
               <th></th>
             </tr>
@@ -95,7 +96,7 @@ export default function SiteDetailPage() {
                   {task.title}
                   {task.reviewNotes ? <p className="text-sm text-black/50">{task.reviewNotes}</p> : null}
                 </td>
-                <td>{task.targetDate ? day(task.targetDate) : "—"}</td>
+                <td className="hidden sm:table-cell">{task.targetDate ? day(task.targetDate) : "—"}</td>
                 <td>
                   <Stamp value={task.status} tone={statusTone(task.status)} />
                   {task.claimedBy ? (
@@ -109,9 +110,9 @@ export default function SiteDetailPage() {
                     </button>
                   ) : null}
                   {task.status === "claimed" ? (
-                    <span className="inline-flex gap-2">
+                    <span className="flex flex-col gap-2 sm:inline-flex sm:flex-row">
                       <input
-                        className="field w-40"
+                        className="field w-full sm:w-40"
                         placeholder="Review notes"
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
@@ -133,6 +134,7 @@ export default function SiteDetailPage() {
             ))}
           </tbody>
         </table>
+        </TableWrap>
       </section>
 
       <div className="mt-10 grid gap-10 lg:grid-cols-2">
@@ -142,8 +144,8 @@ export default function SiteDetailPage() {
             {bals.map((b) => {
               const mat = store.materials.find((m) => m.id === b.catalogId);
               return (
-                <li key={`${b.catalogId}-${b.locationId}`} className="flex justify-between border-b border-black/10 py-2">
-                  <span>{mat?.name}</span>
+                <li key={`${b.catalogId}-${b.locationId}`} className="flex justify-between gap-3 border-b border-black/10 py-2">
+                  <span className="min-w-0 pr-2">{mat?.name}</span>
                   <span className="font-mono">
                     {b.quantity} {mat?.unit}
                   </span>

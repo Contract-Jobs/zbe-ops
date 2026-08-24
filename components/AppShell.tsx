@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   currentUser,
   hydrateStore,
@@ -33,28 +33,63 @@ export function AppShell({ children }: { children: ReactNode }) {
   const user = currentUser(store);
   const pending = store.approvals.filter((a) => a.status === "pending").length;
   const manager = isSiteManager(store);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     hydrateStore();
   }, []);
 
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [menuOpen]);
+
   return (
     <div className="flex min-h-screen">
-      <aside className="sticky top-0 flex h-screen w-[15.5rem] shrink-0 flex-col bg-black text-white">
-        <div className="px-5 py-6">
-          <p className="font-medium tracking-[-0.06em] text-[1.45rem] leading-none">ZBE</p>
-          <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-yellow">
-            Ops desk
-          </p>
+      {menuOpen ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          aria-label="Close menu"
+          onClick={() => setMenuOpen(false)}
+        />
+      ) : null}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 flex w-[15.5rem] flex-col bg-black text-white transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
+          menuOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <div className="flex items-start justify-between px-5 py-6">
+          <div>
+            <p className="font-medium tracking-[-0.06em] text-[1.45rem] leading-none">ZBE</p>
+            <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-yellow">
+              Ops desk
+            </p>
+          </div>
+          <button
+            type="button"
+            className="flex h-10 w-10 items-center justify-center text-white lg:hidden"
+            aria-label="Close menu"
+            onClick={() => setMenuOpen(false)}
+          >
+            <CloseIcon />
+          </button>
         </div>
-        <nav className="flex-1 px-3">
+        <nav className="flex-1 overflow-y-auto px-3">
           {nav.map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`mb-0.5 flex items-center justify-between px-3 py-2 text-[0.95rem] ${
+                className={`mb-0.5 flex items-center justify-between px-3 py-2.5 text-[0.95rem] ${
                   active ? "bg-yellow text-black" : "text-white/80 hover:bg-raised hover:text-white"
                 }`}
               >
@@ -79,16 +114,35 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-black/10 bg-white/90 px-6 py-3 backdrop-blur">
-          <div>
-            <p className="kicker">ZBE Power Engineering</p>
-            <p className="text-sm text-black/70">
-              {manager ? "Site desk — assigned jobs only" : "Central operations"}
-            </p>
+        <header className="sticky top-0 z-20 border-b border-black/10 bg-white/95 backdrop-blur">
+          <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
+            <button
+              type="button"
+              className="flex h-11 w-11 shrink-0 items-center justify-center bg-black text-white lg:hidden"
+              aria-expanded={menuOpen}
+              aria-label="Open menu"
+              onClick={() => setMenuOpen(true)}
+            >
+              <MenuIcon />
+            </button>
+            <div className="min-w-0 flex-1">
+              <p className="kicker truncate">ZBE Power Engineering</p>
+              <p className="truncate text-sm text-black/70">
+                {manager ? "Site desk — assigned jobs only" : "Central operations"}
+              </p>
+            </div>
+            {pending > 0 ? (
+              <Link
+                href="/approvals"
+                className="shrink-0 bg-yellow px-2 py-1 font-mono text-[0.7rem] text-black lg:hidden"
+              >
+                {pending}
+              </Link>
+            ) : null}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-2 overflow-x-auto px-4 pb-3 sm:px-6 lg:flex-wrap">
             <select
-              className="field w-auto min-w-[10rem] bg-white"
+              className="field min-w-[9.5rem] flex-1 bg-white sm:flex-none sm:min-w-[10rem]"
               value={store.session.licenseId}
               onChange={(e) => switchLicense(e.target.value as "all" | string)}
             >
@@ -100,7 +154,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               ))}
             </select>
             <select
-              className="field w-auto min-w-[12rem] bg-white"
+              className="field min-w-[11rem] flex-1 bg-white sm:flex-none sm:min-w-[12rem]"
               value={store.session.userId}
               onChange={(e) => switchUser(e.target.value)}
             >
@@ -110,13 +164,29 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </option>
               ))}
             </select>
-            <span className="hidden font-mono text-[0.7rem] text-black/45 sm:inline">
+            <span className="hidden items-center font-mono text-[0.7rem] text-black/45 lg:inline">
               {user.id}
             </span>
           </div>
         </header>
-        <main className="flex-1 px-6 py-8">{children}</main>
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 sm:py-8">{children}</main>
       </div>
     </div>
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg className="h-4 w-5" viewBox="0 0 20 12" fill="none" aria-hidden>
+      <path d="M0 1h20M0 6h20M0 11h20" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 12 12" fill="none" aria-hidden>
+      <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
   );
 }

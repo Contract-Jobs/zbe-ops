@@ -29,13 +29,13 @@ export default function ApprovalDetailPage() {
   return (
     <div className="max-w-3xl">
       <PageHead kicker="Approval" title={item.summary} />
-      <div className="mb-6 flex items-center gap-3">
+      <div className="mb-6 flex flex-wrap items-center gap-3">
         <Stamp value={item.status} tone={statusTone(item.status)} />
         <span className="font-mono text-[0.75rem] uppercase text-black/50">
           {item.approvalType.replaceAll("_", " ")}
         </span>
       </div>
-      <dl className="grid grid-cols-2 gap-x-8 gap-y-4 border border-black/10 p-5 text-sm">
+      <dl className="grid grid-cols-1 gap-x-8 gap-y-4 border border-black/10 p-4 text-sm sm:grid-cols-2 sm:p-5">
         <Row label="Raised by" value={userName(item.createdBy, store)} />
         <Row label="Raised" value={day(item.createdAt)} />
         {p.quantity != null ? <Row label="Quantity" value={String(p.quantity)} /> : null}
@@ -50,7 +50,7 @@ export default function ApprovalDetailPage() {
       </dl>
       {error ? <p className="mt-4 text-sm text-bad">{error}</p> : null}
       {item.status === "pending" ? (
-        <div className="mt-6 flex gap-3">
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <button type="button" className="btn" onClick={() => act(() => approveApproval(item.id))}>
             Approve and post
           </button>

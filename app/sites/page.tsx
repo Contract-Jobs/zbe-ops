@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { PageHead, Stamp, statusTone } from "@/components/ui";
+import { PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
 import { etb } from "@/lib/format";
 import { siteSpend, useStore, visibleSites } from "@/lib/store";
 
@@ -12,13 +12,14 @@ export default function SitesPage() {
   return (
     <div>
       <PageHead kicker="Jobs" title="Sites" />
+      <TableWrap>
       <table className="data">
         <thead>
           <tr>
             <th>Site</th>
-            <th>License</th>
-            <th>Labor budget</th>
-            <th>Material budget</th>
+            <th className="hidden md:table-cell">License</th>
+            <th className="hidden sm:table-cell">Labor budget</th>
+            <th className="hidden sm:table-cell">Material budget</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -33,12 +34,15 @@ export default function SitesPage() {
                     {site.name}
                   </Link>
                   <p className="text-sm text-black/50">{site.address}</p>
+                  <p className="mt-1 font-mono text-[0.7rem] text-black/45 sm:hidden">
+                    Labor {etb(spend.labor)} · Mat {etb(spend.material)}
+                  </p>
                 </td>
-                <td>{license?.name}</td>
-                <td className="font-mono text-sm">
+                <td className="hidden md:table-cell">{license?.name}</td>
+                <td className="hidden font-mono text-sm sm:table-cell">
                   {etb(spend.labor)} / {etb(site.laborBudget)}
                 </td>
-                <td className="font-mono text-sm">
+                <td className="hidden font-mono text-sm sm:table-cell">
                   {etb(spend.material)} / {etb(site.materialBudget)}
                 </td>
                 <td>
@@ -49,6 +53,7 @@ export default function SitesPage() {
           })}
         </tbody>
       </table>
+      </TableWrap>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { PageHead } from "@/components/ui";
+import { PageHead, TableWrap } from "@/components/ui";
 import { qty } from "@/lib/format";
 import { isSiteManager, locationName, useStore, visibleSiteIds } from "@/lib/store";
 
@@ -34,7 +34,8 @@ export default function InventoryPage() {
       {manager ? (
         <p className="mb-4 text-sm text-black/60">Site desk shows only stock on your jobs — not central yards.</p>
       ) : null}
-      <input className="field mb-5 max-w-sm" placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} />
+      <input className="field mb-5 w-full max-w-sm" placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} />
+      <TableWrap>
       <table className="data">
         <thead>
           <tr>
@@ -60,6 +61,7 @@ export default function InventoryPage() {
           ))}
         </tbody>
       </table>
+      </TableWrap>
     </div>
   );
 }

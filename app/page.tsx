@@ -2,7 +2,7 @@
 
 import { siteSpend, useStore, visibleSites } from "@/lib/store";
 import { etb } from "@/lib/format";
-import { PageHead, Stamp, statusTone } from "@/components/ui";
+import { PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
 import Link from "next/link";
 
 export default function BoardPage() {
@@ -28,13 +28,14 @@ export default function BoardPage() {
       <div className="mt-10 grid gap-10 lg:grid-cols-[1.15fr_0.85fr]">
         <section>
           <p className="kicker mb-3">Budget health</p>
+          <TableWrap>
           <table className="data">
             <thead>
               <tr>
                 <th>Site</th>
                 <th>Labor</th>
                 <th>Material</th>
-                <th></th>
+                <th className="hidden sm:table-cell"></th>
               </tr>
             </thead>
             <tbody>
@@ -60,12 +61,13 @@ export default function BoardPage() {
                       <span className="block text-[0.7rem] text-black/45">of {etb(site.materialBudget)}</span>
                       <Bar used={s.material} max={site.materialBudget} />
                     </td>
-                    <td className="text-right text-black/50">{etb(s.out)} out</td>
+                    <td className="hidden text-right text-black/50 sm:table-cell">{etb(s.out)} out</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+          </TableWrap>
         </section>
 
         <section>
@@ -100,7 +102,7 @@ function Stat({ label, value, href }: { label: string; value: string; href: stri
   return (
     <Link href={href} className="block bg-white p-5 hover:bg-paper/60">
       <p className="kicker">{label}</p>
-      <p className="mt-3 text-[1.85rem] tracking-[-0.04em]">{value}</p>
+      <p className="mt-3 break-words text-[1.45rem] tracking-[-0.04em] sm:text-[1.85rem]">{value}</p>
     </Link>
   );
 }
@@ -108,7 +110,7 @@ function Stat({ label, value, href }: { label: string; value: string; href: stri
 function Bar({ used, max }: { used: number; max: number }) {
   const pct = max <= 0 ? 0 : Math.min(100, Math.round((used / max) * 100));
   return (
-    <span className="mt-1 block h-1 w-28 bg-black/10">
+    <span className="mt-1 block h-1 w-full max-w-28 bg-black/10">
       <span className="block h-1 bg-yellow" style={{ width: `${pct}%` }} />
     </span>
   );

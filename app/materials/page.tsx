@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { PageHead, Stamp } from "@/components/ui";
+import { PageHead, Stamp, TableWrap } from "@/components/ui";
 import { qty } from "@/lib/format";
 import { useStore } from "@/lib/store";
 
@@ -24,17 +24,18 @@ export default function MaterialsPage() {
     <div>
       <PageHead kicker="Catalog" title="Materials" />
       <input
-        className="field mb-5 max-w-sm"
+        className="field mb-5 w-full max-w-sm"
         placeholder="Search catalog"
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
+      <TableWrap>
       <table className="data">
         <thead>
           <tr>
             <th>Name</th>
             <th>Unit</th>
-            <th>Type</th>
+            <th className="hidden sm:table-cell">Type</th>
             <th>On hand</th>
           </tr>
         </thead>
@@ -47,7 +48,7 @@ export default function MaterialsPage() {
                 </Link>
               </td>
               <td className="font-mono text-sm">{m.unit}</td>
-              <td>
+              <td className="hidden sm:table-cell">
                 <Stamp value={m.type} />
               </td>
               <td className="font-mono">{qty(m.total, m.unit)}</td>
@@ -55,6 +56,7 @@ export default function MaterialsPage() {
           ))}
         </tbody>
       </table>
+      </TableWrap>
     </div>
   );
 }

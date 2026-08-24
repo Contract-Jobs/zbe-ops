@@ -12,10 +12,12 @@ export function PageHead({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-      <div>
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-3 sm:mb-8 sm:gap-4">
+      <div className="min-w-0">
         <p className="kicker">{kicker}</p>
-        <h1 className="mt-2 text-[2rem] font-normal leading-none tracking-[-0.04em]">{title}</h1>
+        <h1 className="mt-2 text-[1.65rem] font-normal leading-[1.05] tracking-[-0.04em] sm:text-[2rem] sm:leading-none">
+          {title}
+        </h1>
       </div>
       {action}
     </div>
@@ -54,6 +56,10 @@ export function statusTone(status: string): "ink" | "ok" | "warn" | "bad" | "yel
 
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="border border-dashed border-black/20 px-4 py-10 text-center text-black/50">{children}</p>;
+}
+
+export function TableWrap({ children }: { children: ReactNode }) {
+  return <div className="table-wrap">{children}</div>;
 }
 
 export function RowLink({ href, children }: { href: string; children: ReactNode }) {

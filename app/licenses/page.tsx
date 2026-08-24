@@ -25,18 +25,18 @@ export default function LicensesPage() {
             <article key={l.id} className="bg-white p-6">
               <h2 className="text-xl tracking-tight">{l.name}</h2>
               <p className="mt-1 font-mono text-[0.7rem] text-black/40">{l.id}</p>
-              <dl className="mt-6 grid grid-cols-3 gap-4 text-sm">
+              <dl className="mt-6 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
                 <div>
                   <dt className="kicker">Sites</dt>
                   <dd className="mt-1 font-mono text-lg">{sites}</dd>
                 </div>
                 <div>
                   <dt className="kicker">In</dt>
-                  <dd className="mt-1">{etb(inn)}</dd>
+                  <dd className="mt-1 break-words">{etb(inn)}</dd>
                 </div>
                 <div>
                   <dt className="kicker">Out</dt>
-                  <dd className="mt-1">{etb(out)}</dd>
+                  <dd className="mt-1 break-words">{etb(out)}</dd>
                 </div>
               </dl>
             </article>

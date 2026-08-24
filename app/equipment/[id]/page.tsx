@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { LocationSelect } from "@/components/LocationSelect";
-import { PageHead, Stamp, statusTone } from "@/components/ui";
+import { PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import { locationName, submitApproval, useStore } from "@/lib/store";
 import type { ApprovalType, LocationKind } from "@/lib/types";
@@ -70,9 +70,10 @@ export default function EquipmentDetailPage() {
   };
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[1fr_20rem]">
+    <div>
+      <PageHead kicker="Asset" title={item.name} />
+      <div className="flex flex-col-reverse gap-8 lg:grid lg:grid-cols-[1fr_20rem] lg:gap-10">
       <div>
-        <PageHead kicker="Asset" title={item.name} />
         <div className="mb-8 flex flex-wrap gap-2">
           <Stamp value={item.status} tone={statusTone(item.status)} />
           <Stamp value={item.ownershipStatus} />
@@ -97,6 +98,7 @@ export default function EquipmentDetailPage() {
           </div>
         </dl>
         <p className="kicker mb-2">Event log</p>
+        <TableWrap>
         <table className="data">
           <thead>
             <tr>
@@ -117,6 +119,7 @@ export default function EquipmentDetailPage() {
             ))}
           </tbody>
         </table>
+        </TableWrap>
       </div>
       <aside className="border border-black/10 bg-paper/40 p-5">
         <p className="kicker mb-3">Raise an event</p>
@@ -146,6 +149,7 @@ export default function EquipmentDetailPage() {
         </button>
         {msg ? <p className="mt-3 text-sm">{msg}</p> : null}
       </aside>
+      </div>
     </div>
   );
 }

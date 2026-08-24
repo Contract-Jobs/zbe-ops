@@ -41,6 +41,7 @@
 
 html {
   background: var(--black);
+  overflow-x: clip;
 }
 
 body {
@@ -52,6 +53,7 @@ body {
   line-height: 1.45;
   letter-spacing: -0.015em;
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
 }
 
 ::selection {
@@ -164,4 +166,24 @@ textarea {
 
 .data tr:hover td {
   background: color-mix(in hsl, var(--paper) 55%, transparent);
+}
+
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.btn {
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .data th,
+  .data td {
+    padding: 0.55rem 0.5rem;
+  }
+
+  .data {
+    font-size: 0.86rem;
+  }
 }
