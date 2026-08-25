@@ -2,6 +2,8 @@
 
 Internal yard / site / ledger desk for [ZBE Power Engineering](https://zbepowereng.com). Built against the contractor API in `docs/api.md`.
 
+Agent next: [`docs/handoff.md`](docs/handoff.md) · visual language: [`docs/design-guide.md`](docs/design-guide.md).
+
 This first cut is a working operations console with a typed in-memory store that follows those routes: approvals gate stock and plant movements; manual ledger lines post immediately; site managers only see their jobs and cannot pull from warehouses.
 
 ## Run it
