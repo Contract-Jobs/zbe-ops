@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
+import { CategoryForm } from "@/components/forms/master";
+import { ConfirmDialog, FormPanel, PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import { isSiteManager, logManualTx, useStore, visibleSiteIds } from "@/lib/store";
-import type { TxType } from "@/lib/types";
+import type { TxCategory, TxType } from "@/lib/types";
 
 export default function LedgerPage() {
   const store = useStore();
@@ -17,6 +18,9 @@ export default function LedgerPage() {
   const [categoryId, setCategoryId] = useState(store.categories[0]?.id ?? "");
   const [licenseId, setLicenseId] = useState(store.licenses[0]?.id ?? "");
   const [msg, setMsg] = useState<string | null>(null);
+  const [catOpen, setCatOpen] = useState(false);
+  const [dropCat, setDropCat] = useState<TxCategory | null>(null);
+  const canMutate = !manager;
 
   const rows = useMemo(() => {
     return store.transactions.filter((t) => {
@@ -33,15 +37,39 @@ export default function LedgerPage() {
 
   return (
     <div>
-      <PageHead kicker="Money" title="Ledger" />
+      <PageHead
+        kicker="Money"
+        title="Ledger"
+        action={canMutate ? (
+          <button type="button" className="btn" onClick={() => setCatOpen(true)}>
+            New category
+          </button>
+        ) : undefined}
+      />
       <p className="mb-6 max-w-xl text-black/65">
         Manual income and expense post immediately — they do not wait in Approvals. Stock and plant movements still do, and they write their own lines when approved.
       </p>
+      {catOpen ? (
+        <FormPanel kicker="Money" title="New category" onClose={() => setCatOpen(false)}>
+          <CategoryForm onCancel={() => setCatOpen(false)} onDone={() => setCatOpen(false)} />
+        </FormPanel>
+      ) : null}
 
       <div className="mb-8 grid gap-px bg-black/10 sm:grid-cols-3 lg:grid-cols-5">
         {grouped.map((c) => (
           <div key={c.id} className="bg-white p-4">
-            <p className="kicker">{c.name}</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="kicker">{c.name}</p>
+              {canMutate ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost px-2 py-0.5 text-sm"
+                  onClick={() => setDropCat(c)}
+                >
+                  Delete
+                </button>
+              ) : null}
+            </div>
             <p className="mt-2 font-mono text-sm">{etb(c.out)}</p>
           </div>
         ))}
@@ -143,6 +171,13 @@ export default function LedgerPage() {
         </tbody>
       </table>
       </TableWrap>
+      <ConfirmDialog
+        open={dropCat !== null}
+        title="Are you sure?"
+        body={`${dropCat?.name ?? "This category"} will be removed. There is no restore on this record.`}
+        onCancel={() => setDropCat(null)}
+        onConfirm={() => setDropCat(null)}
+      />
     </div>
   );
 }

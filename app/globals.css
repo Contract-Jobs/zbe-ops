@@ -142,6 +142,18 @@ textarea {
   color: var(--ink);
 }
 
+.btn-bad {
+  background: var(--bad);
+  color: var(--white);
+  border-color: var(--bad);
+}
+
+.btn-bad:hover {
+  background: var(--ink);
+  color: var(--white);
+  border-color: var(--ink);
+}
+
 .data {
   width: 100%;
   border-collapse: collapse;

@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { PageHead, Stamp, statusTone } from "@/components/ui";
+import { ConfirmDialog, PageHead, Stamp, statusTone } from "@/components/ui";
 import { day } from "@/lib/format";
 import { approveApproval, locationName, rejectApproval, useStore, userName } from "@/lib/store";
 
@@ -12,6 +12,7 @@ export default function ApprovalDetailPage() {
   const router = useRouter();
   const item = store.approvals.find((a) => a.id === id);
   const [error, setError] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<"approve" | "reject" | null>(null);
 
   if (!item) return <p>Approval not found.</p>;
 
@@ -51,14 +52,31 @@ export default function ApprovalDetailPage() {
       {error ? <p className="mt-4 text-sm text-bad">{error}</p> : null}
       {item.status === "pending" ? (
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <button type="button" className="btn" onClick={() => act(() => approveApproval(item.id))}>
+          <button type="button" className="btn" onClick={() => setConfirm("approve")}>
             Approve and post
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => act(() => rejectApproval(item.id))}>
+          <button type="button" className="btn btn-ghost" onClick={() => setConfirm("reject")}>
             Reject
           </button>
         </div>
       ) : null}
+      <ConfirmDialog
+        open={confirm === "approve"}
+        title="Are you sure?"
+        body="This posts the event: stock, plant status, and any money line will change."
+        confirmLabel="Approve and post"
+        danger={false}
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => act(() => approveApproval(item.id))}
+      />
+      <ConfirmDialog
+        open={confirm === "reject"}
+        title="Are you sure?"
+        body="The queued event will be dropped. Nothing moves."
+        confirmLabel="Reject"
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => act(() => rejectApproval(item.id))}
+      />
     </div>
   );
 }

@@ -23,7 +23,14 @@ Remote: `git@github.com:Contract-Jobs/zbe-ops.git`
 
 ## What this app is
 
-A contractor operations console, not a generic ERP. The UI talks to a typed in-memory store shaped like the routes in `docs/api.md`, so a real `/api/*` can replace it later without rewriting screens.
+A contractor operations console, not a generic ERP. Screens read a typed in-memory store shaped like `docs/api.md`, so a real `/api/*` + React Query can replace the store later without a visual rewrite.
+
+Two kinds of write in the UI:
+
+1. **Wired** (hits `lib/store.ts`, persists in `localStorage`): queue movements/events, approve/reject, ledger **Post**, task Add / Claim / Complete.
+2. **UI-only** (form closes, nothing is saved): create / edit / delete of catalog, plant records, sites, yards, tenders, licenses, categories, set parts, task edit/delete, lifecycle notes. Submit goes through `uiOnly` in `components/forms/ui-only.ts`.
+
+Do not invent a generic CRUD engine. Each record keeps its own form because the API fields differ (equipment create forbids `rentRate`; edit forbids location / value / rent rate).
 
 ---
 
@@ -33,16 +40,16 @@ Code: `lib/store.ts`. Types: `lib/types.ts`. Seed: `lib/seed.ts`. Persist: `loca
 
 **Approvals vs ledger**
 
-- Stock and plant movements **queue**. `submitApproval` → pending → **Approve and post** runs `applyApproval` (balances, equipment status, auto money lines). Reject does nothing to stock.
+- Stock and plant movements **queue**. `submitApproval` → pending → **Approve and post** (after confirm) runs `applyApproval` (balances, equipment status, auto money lines). Reject does nothing to stock.
 - Manual income/expense **posts immediately** (`logManualTx`). They do not wait in Approvals.
 
 **Demo users** (top-bar switcher)
 
 | User | Role | Sees |
 |---|---|---|
-| Abebe Tadesse | `operations` | Everything |
-| Hana Bekele | `site_manager` | Westin only |
-| Dawit Mekonnen | `site_manager` | EBC only |
+| Abebe Tadesse | `operations` | Everything, including New / Edit / Delete |
+| Hana Bekele | `site_manager` | Westin only; no master-data create/edit/delete |
+| Dawit Mekonnen | `site_manager` | EBC only; same restriction |
 
 Hard rules in the store:
 
@@ -55,15 +62,61 @@ Hard rules in the store:
 
 **Seed world:** Westin Addis Ababa, EBC studio block, East Industrial Park — line 4. Yards: Bole central yard, Kaliti store. Licenses: Electrical contracting, ICT infrastructure. If demos look wrong, localStorage is dirty — reset.
 
-When adding a feature: match `docs/api.md` first, then the store, then the screen.
+When adding a feature: match `docs/api.md` first, then the store (if it should persist), then the screen.
+
+---
+
+## Layout of the code
+
+```
+app/                     one client page per URL
+components/AppShell.tsx  black rail, mobile drawer, hydrate, user/license switch
+components/ui.tsx        chrome — PageHead, Stamp, FormPanel, ConfirmDialog, RecordActions
+components/forms/        record forms (the fields)
+components/LocationSelect.tsx
+lib/store.ts             stand-in backend + useStore()
+lib/seed.ts              demo data
+lib/types.ts             records matching the API
+lib/format.ts            etb / qty / day / stamp
+docs/api.md
+```
+
+**Chrome** means the frame around content (panel, overlay, New/Edit/Delete row) — not the browser. `RecordActions` is that button row. `FormPanel` is the paper create/edit sheet. `ConfirmDialog` is the sharp “Are you sure?” overlay. `RecordMode` / `closedMode` are the open/closed/edit/delete state used on list and detail pages.
+
+**Forms** (do not dump these back into `ui.tsx`):
+
+| File | Forms |
+|---|---|
+| `forms/material.tsx` | Material, set part |
+| `forms/equipment.tsx` | Equipment (create vs edit fields differ) |
+| `forms/site.tsx` | Site, task, lifecycle note |
+| `forms/master.tsx` | Tender, license, yard, category |
+| `forms/ui-only.ts` | `preventDefault` + close; replace with `useMutation` later |
+
+There is no `components/crud.tsx`.
+
+**Routes**
+
+| Path | Screen |
+|---|---|
+| `/` | Board |
+| `/approvals`, `/approvals/[id]` | Queue + decide (confirm, then store) |
+| `/sites`, `/sites/[id]` | Jobs, tasks, on-site stock/plant |
+| `/materials`, `/materials/[id]` | Catalog + raise movement |
+| `/equipment`, `/equipment/[id]` | Plant + raise event |
+| `/inventory` | Balances (read) |
+| `/warehouses` | Yards |
+| `/tenders` | Pipeline |
+| `/licenses` | Money tree |
+| `/ledger` | Manual post + category UI |
 
 ---
 
 ## What the UI covers
 
-Board, Approvals (list + decide), Sites (budget, tasks claim/complete, on-site stock/plant, lifecycle), Materials (catalog + raise movement), Inventory, Equipment (list + raise event), Yards, Tenders (read), Licenses (read), Ledger (totals + manual post).
+Board, Approvals (list + decide with confirm), Sites, Materials (catalog + raise movement), Inventory, Equipment (list + raise event, including purchase), Yards, Tenders, Licenses, Ledger.
 
-Mobile: hamburger drawer below `lg`, stacked forms, tables hide extra columns / swipe in `.table-wrap`.
+Mobile: hamburger drawer below `lg`, stacked forms, tables hide extra columns / swipe in `.table-wrap`. No page-level horizontal scroll at ~390px.
 
 ---
 
@@ -71,31 +124,10 @@ Mobile: hamburger drawer below `lg`, stacked forms, tables hide extra columns / 
 
 - Real auth / login
 - Postgres or any `/api/*` server
-- Catalog create/edit/delete, sub-item CRUD
-- Equipment create; not every plant route has a first-class screen
+- Persistence behind the record forms (create / edit / delete / restore) — UI is there, `uiOnly` is the stub
 - Reversal of logs or transactions
-- Tender / license / warehouse CRUD
-- Site create/edit, lifecycle logging UI
 - Analytics routes
 - Pagination matching ListParams
-
----
-
-## Files
-
-```
-app/                     routes (client pages on the store)
-components/AppShell.tsx  drawer, license/user switch, hydrate
-components/ui.tsx        PageHead, Stamp, TableWrap, statusTone
-components/LocationSelect.tsx
-lib/store.ts
-lib/seed.ts
-lib/types.ts
-lib/format.ts            etb / qty / day / stamp
-docs/api.md
-docs/handoff.md
-docs/design-guide.md
-```
 
 ---
 
@@ -107,4 +139,4 @@ docs/design-guide.md
 - Never hardcode hex — tokens (`bg-yellow` is copper; `--yellow` is the accent name)
 - Verify in the browser at desktop **and** ~390px. A screenshot is not a test.
 
-Suggested later work (confirm with the project owner first): real API, auth (not Clerk for team/org), reversals, catalog CRUD, analytics.
+Suggested later work (confirm with the project owner first): React Query on the existing forms (`onSubmit` instead of `uiOnly`), real `/api/*`, auth (not Clerk for team/org), reversals, analytics.

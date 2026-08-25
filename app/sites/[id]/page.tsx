@@ -2,7 +2,18 @@
 
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
+import { LifecycleForm, SiteForm, TaskForm } from "@/components/forms/site";
+import {
+  closedMode,
+  DeleteConfirm,
+  FormPanel,
+  PageHead,
+  RecordActions,
+  Stamp,
+  TableWrap,
+  statusTone,
+  type RecordMode,
+} from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import {
   addTask,
@@ -15,6 +26,7 @@ import {
   userName,
   visibleSiteIds,
 } from "@/lib/store";
+import type { Site, Task } from "@/lib/types";
 
 export default function SiteDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +35,9 @@ export default function SiteDetailPage() {
   const site = store.sites.find((s) => s.id === id);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
+  const [mode, setMode] = useState<RecordMode<Site>>(closedMode);
+  const [taskMode, setTaskMode] = useState<RecordMode<Task>>(closedMode);
+  const [logOpen, setLogOpen] = useState(false);
 
   if (!site || !allowed.has(site.id)) return <p>Site not found, or you are not assigned to it.</p>;
 
@@ -32,6 +47,7 @@ export default function SiteDetailPage() {
   const eqs = store.equipment.filter((e) => e.siteId === site.id);
   const bals = store.balances.filter((b) => b.locationKind === "site" && b.locationId === site.id);
   const manager = isSiteManager(store);
+  const canMutate = !manager;
   const user = currentUser(store);
 
   return (
@@ -39,9 +55,30 @@ export default function SiteDetailPage() {
       <PageHead
         kicker="Site"
         title={site.name}
-        action={<Stamp value={site.status} tone={statusTone(site.status)} />}
+        action={
+          <span className="flex flex-wrap items-center gap-2">
+            <Stamp value={site.status} tone={statusTone(site.status)} />
+            {canMutate ? (
+              <RecordActions
+                onEdit={() => setMode({ kind: "edit", record: site })}
+                onDelete={() => setMode({ kind: "delete", record: site, label: site.name })}
+              />
+            ) : null}
+          </span>
+        }
       />
       <p className="mb-8 text-black/60">{site.address}</p>
+      {mode.kind === "edit" ? (
+        <FormPanel kicker="Site" title="Edit site" onClose={() => setMode(closedMode())}>
+          <SiteForm
+            initial={site}
+            licenses={store.licenses}
+            users={store.users}
+            onCancel={() => setMode(closedMode())}
+            onDone={() => setMode(closedMode())}
+          />
+        </FormPanel>
+      ) : null}
 
       <div className="grid gap-px bg-black/10 sm:grid-cols-3">
         <div className="bg-white p-5">
@@ -73,67 +110,83 @@ export default function SiteDetailPage() {
               setTitle("");
             }}
           >
-            <input className="field w-full sm:max-w-sm" placeholder="New task" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <input
+              className="field w-full sm:max-w-sm"
+              placeholder="New task"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
             <button className="btn w-full sm:w-auto" type="submit">
               Add
             </button>
           </form>
         ) : null}
+        {taskMode.kind === "edit" ? (
+          <FormPanel kicker="Task" title="Edit task" onClose={() => setTaskMode(closedMode())}>
+            <TaskForm initial={taskMode.record} onCancel={() => setTaskMode(closedMode())} onDone={() => setTaskMode(closedMode())} />
+          </FormPanel>
+        ) : null}
         <TableWrap>
-        <table className="data">
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th className="hidden sm:table-cell">Target</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {tasks.map((task) => (
-              <tr key={task.id}>
-                <td>
-                  {task.title}
-                  {task.reviewNotes ? <p className="text-sm text-black/50">{task.reviewNotes}</p> : null}
-                </td>
-                <td className="hidden sm:table-cell">{task.targetDate ? day(task.targetDate) : "—"}</td>
-                <td>
-                  <Stamp value={task.status} tone={statusTone(task.status)} />
-                  {task.claimedBy ? (
-                    <span className="ml-2 text-sm text-black/50">{userName(task.claimedBy, store)}</span>
-                  ) : null}
-                </td>
-                <td className="text-right">
-                  {task.status === "open" ? (
-                    <button type="button" className="btn btn-ghost" onClick={() => claimTask(task.id)}>
-                      Claim
-                    </button>
-                  ) : null}
-                  {task.status === "claimed" ? (
-                    <span className="flex flex-col gap-2 sm:inline-flex sm:flex-row">
-                      <input
-                        className="field w-full sm:w-40"
-                        placeholder="Review notes"
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        className="btn"
-                        onClick={() => {
-                          completeTask(task.id, notes || "Approved");
-                          setNotes("");
-                        }}
-                      >
-                        Complete
-                      </button>
-                    </span>
-                  ) : null}
-                </td>
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th className="hidden sm:table-cell">Target</th>
+                <th>Status</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {tasks.map((task) => (
+                <tr key={task.id}>
+                  <td>
+                    {task.title}
+                    {task.reviewNotes ? <p className="text-sm text-black/50">{task.reviewNotes}</p> : null}
+                  </td>
+                  <td className="hidden sm:table-cell">{task.targetDate ? day(task.targetDate) : "—"}</td>
+                  <td>
+                    <Stamp value={task.status} tone={statusTone(task.status)} />
+                    {task.claimedBy ? (
+                      <span className="ml-2 text-sm text-black/50">{userName(task.claimedBy, store)}</span>
+                    ) : null}
+                  </td>
+                  <td className="text-right">
+                    <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                      {task.status === "open" ? (
+                        <button type="button" className="btn btn-ghost" onClick={() => claimTask(task.id)}>
+                          Claim
+                        </button>
+                      ) : null}
+                      {task.status === "claimed" ? (
+                        <span className="flex flex-col gap-2 sm:inline-flex sm:flex-row">
+                          <input
+                            className="field w-full sm:w-40"
+                            placeholder="Review notes"
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                          />
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={() => {
+                              completeTask(task.id, notes || "Approved");
+                              setNotes("");
+                            }}
+                          >
+                            Complete
+                          </button>
+                        </span>
+                      ) : null}
+                      <RecordActions
+                        onEdit={() => setTaskMode({ kind: "edit", record: task })}
+                        onDelete={() => setTaskMode({ kind: "delete", record: task, label: task.title })}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </TableWrap>
       </section>
 
@@ -161,7 +214,19 @@ export default function SiteDetailPage() {
           </ul>
         </section>
         <section>
-          <p className="kicker mb-3">Lifecycle</p>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="kicker">Lifecycle</p>
+            {canMutate ? (
+              <button type="button" className="btn btn-ghost" onClick={() => setLogOpen(true)}>
+                Log note
+              </button>
+            ) : null}
+          </div>
+          {logOpen ? (
+            <FormPanel kicker="Lifecycle" title="Log a change" onClose={() => setLogOpen(false)}>
+              <LifecycleForm onCancel={() => setLogOpen(false)} onDone={() => setLogOpen(false)} />
+            </FormPanel>
+          ) : null}
           <ol className="space-y-3">
             {logs.map((l) => (
               <li key={l.id} className="border-l-2 border-yellow pl-3 text-sm">
@@ -174,6 +239,8 @@ export default function SiteDetailPage() {
           </ol>
         </section>
       </div>
+      <DeleteConfirm mode={mode} restore onClose={() => setMode(closedMode())} />
+      <DeleteConfirm mode={taskMode} restore={false} onClose={() => setTaskMode(closedMode())} />
     </div>
   );
 }

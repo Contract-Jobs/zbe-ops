@@ -70,9 +70,10 @@ Instrument Sans 400 / 500 / 600 / 700. IBM Plex Mono 400 / 500 for IDs, quantiti
 - Sidebar: copper “Ops desk” kicker. Active nav = copper fill / black type. Pending count in mono.
 - Hamburger: `h-11 w-11` square black. Close on route change. Lock body scroll while open.
 - Pending badge in the mobile header → `/approvals`.
-- `.btn` copper fill, black border, hover inverts to black fill / white type. `.btn-ghost` and `.btn-ink` as in `globals.css`.
+- `.btn` copper fill, black border, hover inverts to black fill / white type. `.btn-ghost` and `.btn-ink` as in `globals.css`. `.btn-bad` for confirm-delete.
 - `.field` full width, 1px line, copper focus ring (`outline: 2px solid var(--yellow)`).
 - `<Stamp>`: mono, uppercase, hairline. `statusTone()` — ok / yellow / bad / warn.
+- Record create/edit: paper `FormPanel` in `components/ui.tsx`. Delete: sharp overlay (`ConfirmDialog`). New/Edit/Delete buttons: `RecordActions`.
 
 ---
 
