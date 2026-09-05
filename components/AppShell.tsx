@@ -27,6 +27,8 @@ const nav = [
   { href: "/ledger", label: "Ledger" },
 ];
 
+// const queryClient = new QueryClient();
+
 export function AppShell({ children }: { children: ReactNode }) {
   const store = useStore();
   const pathname = usePathname();
@@ -51,6 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [menuOpen]);
 
   return (
+    // <QueryClientProvider client={queryClient}>
     <div className="flex min-h-screen">
       {menuOpen ? (
         <button
@@ -62,13 +65,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       ) : null}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[15.5rem] flex-col bg-black text-white transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
-          menuOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed inset-y-0 left-0 z-40 flex w-[15.5rem] flex-col bg-black text-white transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${menuOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
       >
         <div className="flex items-start justify-between px-5 py-6">
           <div>
-            <p className="font-medium tracking-[-0.06em] text-[1.45rem] leading-none">ZBE</p>
+            <p className="font-medium tracking-[-0.06em] text-[1.45rem] leading-none">
+              ZBE
+            </p>
             <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-[0.18em] text-yellow">
               Ops desk
             </p>
@@ -84,18 +88,24 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <nav className="flex-1 overflow-y-auto px-3">
           {nav.map((item) => {
-            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            const active =
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`mb-0.5 flex items-center justify-between px-3 py-2.5 text-[0.95rem] ${
-                  active ? "bg-yellow text-black" : "text-white/80 hover:bg-raised hover:text-white"
-                }`}
+                className={`mb-0.5 flex items-center justify-between px-3 py-2.5 text-[0.95rem] ${active
+                  ? "bg-yellow text-black"
+                  : "text-white/80 hover:bg-raised hover:text-white"
+                  }`}
               >
                 <span>{item.label}</span>
                 {item.href === "/approvals" && pending > 0 ? (
-                  <span className={`font-mono text-[0.7rem] ${active ? "text-black" : "text-yellow"}`}>
+                  <span
+                    className={`font-mono text-[0.7rem] ${active ? "text-black" : "text-yellow"}`}
+                  >
                     {pending}
                   </span>
                 ) : null}
@@ -104,11 +114,16 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
         <div className="px-5 py-4">
-          <button type="button" className="text-left font-mono text-[0.65rem] text-white/40 hover:text-yellow" onClick={() => resetStore()}>
+          <button
+            type="button"
+            className="text-left font-mono text-[0.65rem] text-white/40 hover:text-yellow"
+            onClick={() => resetStore()}
+          >
             Reset demo data
           </button>
           <p className="mt-2 font-mono text-[0.65rem] leading-relaxed text-white/40">
-            Yard movements wait in Approvals. Manual ledger entries post immediately.
+            Yard movements wait in Approvals. Manual ledger entries post
+            immediately.
           </p>
         </div>
       </aside>
@@ -128,7 +143,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="min-w-0 flex-1">
               <p className="kicker truncate">ZBE Power Engineering</p>
               <p className="truncate text-sm text-black/70">
-                {manager ? "Site desk — assigned jobs only" : "Central operations"}
+                {manager
+                  ? "Site desk — assigned jobs only"
+                  : "Central operations"}
               </p>
             </div>
             {pending > 0 ? (
@@ -144,7 +161,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             <select
               className="field min-w-[9.5rem] flex-1 bg-white sm:flex-none sm:min-w-[10rem]"
               value={store.session.licenseId}
-              onChange={(e) => switchLicense(e.target.value as "all" | string)}
+              onChange={(e) =>
+                switchLicense(e.target.value as "all" | string)
+              }
             >
               <option value="all">All licenses</option>
               {store.licenses.map((l) => (
@@ -169,16 +188,24 @@ export function AppShell({ children }: { children: ReactNode }) {
             </span>
           </div>
         </header>
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 sm:py-8">{children}</main>
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 sm:py-8">
+          {children}
+        </main>
       </div>
     </div>
+    //   <ReactQueryDevtools initialIsOpen={true} />
+    // </QueryClientProvider>
   );
 }
 
 function MenuIcon() {
   return (
     <svg className="h-4 w-5" viewBox="0 0 20 12" fill="none" aria-hidden>
-      <path d="M0 1h20M0 6h20M0 11h20" stroke="currentColor" strokeWidth="1.4" />
+      <path
+        d="M0 1h20M0 6h20M0 11h20"
+        stroke="currentColor"
+        strokeWidth="1.4"
+      />
     </svg>
   );
 }
