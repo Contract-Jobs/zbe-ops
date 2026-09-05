@@ -5,122 +5,253 @@ This document comprehensively outlines **every distinct backend feature**, its r
 ## Global List Parameters (ListParams)
 
 All list endpoints (`GET` routes that return multiple items) universally support the following query parameters for pagination, searching, sorting, and filtering:
+
 - **`page`**: Page number (default: 1).
 - **`limit`**: Items per page (default: 20).
 - **`search`**: Text-based fuzzy search across key fields.
 - **`sortBy`**: Field to sort by.
 - **`sortOrder`**: `asc` or `desc`.
-- **Filters**: Multi-select filters can be passed as arrays (e.g., `?status=active&status=closed`) or comma-separated strings (e.g. `?status=active,closed`). Single-value filters (e.g., `?siteId=...`) are also supported.
+- **Filters**: Multi-select filters can be passed as arrays (e.g., `?status=active&status=closed`) or comma-separated strings.
 
-> [!NOTE]  
-> **For the Frontend Team:** Strict TypeScript definitions for all API filters (e.g., `EquipmentFilters`, `MaterialFilters`, `TransactionFilters`, etc.) are exported from `lib/services/types.ts`. You should import these types directly into your frontend to ensure your query parameters are strictly typed against the backend schemas.
+---
+
+## Global Error Responses
+
+Whenever an API route encounters a failure, it returns a standardized JSON structure with `success: false` and an `error` object. The HTTP status code maps to the `code` property.
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_FAILED", // string: UNAUTHORIZED | FORBIDDEN | NOT_FOUND | CONFLICT | VALIDATION_FAILED | INTERNAL_ERROR
+    "message": "Invalid request payload",
+    "details": [
+      {
+        "path": ["name"],
+        "message": "Required"
+      }
+    ]
+  }
+}
+```
+
+**Common Status Codes & Codes**:
+
+- `400 Bad Request` -> `VALIDATION_FAILED` (Zod errors or invalid JSON format).
+- `401 Unauthorized` -> `UNAUTHORIZED` (Missing or invalid auth session).
+- `403 Forbidden` -> `FORBIDDEN` (RBAC/Policy violation).
+- `404 Not Found` -> `NOT_FOUND` (Resource doesn't exist).
+- `409 Conflict` -> `CONFLICT` (Business logic constraint, e.g., closing a site with active equipment).
+- `422 Unprocessable Entity` -> `VALIDATION_FAILED` (Business logic validation, e.g., missing destination location).
+- `500 Internal Server Error` -> `INTERNAL_ERROR` (Unhandled exception).
+
+---
 
 ## 1. Materials & Inventory Features
 
-| Feature | Route | Method | Constraints & Requirements |
-|---------|-------|--------|----------------------------|
-| **Create Material (Catalog)** | `/api/materials` | `POST` | `name` is required. Optional: `unit` (default: "pcs"), `type` ("single" or "set"). If `type`="set", an array of `subitems` can be passed to create them in bulk. |
-| **Update Material** | `/api/materials/[id]` | `PATCH` | Updates material details. Passing `subitems` when `type`="set" will overwrite existing sub-items. |
-| **Get Materials** | `/api/materials` | `GET` | Returns paginated catalog items with `totalQuantity`. **Sort**: `name`, `createdAt`. **Filters**: `categoryId`, `unit`, `type`. Includes nested subitems. |
-| **Get Material Details** | `/api/materials/[id]` | `GET` | Retrieve single catalog entry. Includes nested subitems. |
-| **Delete Material** | `/api/materials/[id]` | `DELETE`| Soft deletes material from catalog. Cascades to sub-items. |
-| **Restore Material** | `/api/materials/[id]/restore` | `POST` | Restores soft-deleted material. |
-| **List Sub-Items** | `/api/materials/[id]/sub-items` | `GET` | Returns all sub-items belonging to a material set. |
-| **Add Sub-Item** | `/api/materials/[id]/sub-items` | `POST` | Adds a new sub-item to a material set. Requires `name` and `quantity`. |
-| **Update Sub-Item** | `/api/materials/[id]/sub-items/[subId]`| `PATCH` | Updates an individual sub-item. |
-| **Remove Sub-Item** | `/api/materials/[id]/sub-items/[subId]`| `DELETE`| Removes a sub-item from a material set. |
-| **Get Inventory Balances** | `/api/inventory/balances` | `GET` | Returns quantities across sites/warehouses. Site managers can only filter their sites. |
-| **Trace Material History** | `/api/inventory/trace/[catalogId]`| `GET` | Returns detailed movement history and current balances across all locations. |
-| **Purchase Material** | `/api/materials/[id]/purchase` | `POST` | Requires `quantity`, `unitPrice`. Needs `toSiteId` or `toWarehouseId`. Approvals workflow. Auto-generates a `money_out` transaction. |
-| **Transfer Material** | `/api/materials/[id]/transfer` | `POST` | Requires `quantity`, source, and destination. Site managers cannot withdraw from warehouses. Approvals workflow. |
-| **Sell Material** | `/api/materials/[id]/sale` | `POST` | Requires `quantity`, `unitPrice`, `buyerName`. **Only** central warehouses can sell. Auto-generates a `money_in` transaction. Approvals workflow. |
-| **Consume Material**| `/api/materials/[id]/consume` | `POST` | Requires `quantity`, source location. Approvals workflow. |
-| **Report Missing Material**| `/api/materials/[id]/report-missing` | `POST` | Requires `quantity`, source location. Approvals workflow. |
-| **Get Material Log** | `/api/inventory/logs/[id]` | `GET` | Retrieve single material log details. |
-| **List Material Logs** | `/api/inventory/logs` | `GET` | Retrieve list of material movements. **Sort**: `createdAt`. **Filters**: `materialId`, `siteId`, `licenseId`, `logType`. |
-| **Reverse Material Movement** | `/api/inventory/logs/[id]/reverse`| `POST` | Requires original log ID. Goes to Approvals Workflow. Cannot reverse a reversal log. |
+> [!TIP]
+> **Auto-Creation on the Fly (Materials)**
+
+| Feature                       | Route                                   | Method   | Request Payload                                                                                                           | Response Payload                                                                                           | Constraints, RBAC & Side-Effects                                                                                                 |
+| :---------------------------- | :-------------------------------------- | :------- | :------------------------------------------------------------------------------------------------------------------------ | :--------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------- |
+| **Create Material**           | `/api/materials`                        | `POST`   | `{ name: string, unit?: string, type?: "single" \| "set", subitems?: {name: string, quantity: number, unit?: string}[] }` | `{ data: { id: string, name: string, unit: string, type: string, createdAt: date, subitems: [...] } }`     | **RBAC**: Admin/Superadmin.<br>**Constraints**: `name` is required.<br>**Side-Effects**: Saves to material_catalog and subitems. |
+| **Update Material**           | `/api/materials/[id]`                   | `PATCH`  | `{ name?: string, unit?: string, type?: string, subitems?: [...] }`                                                       | `{ data: { id: string, name: string, unit: string, type: string, createdAt: date, subitems: [...] } }`     | **RBAC**: Admin/Superadmin.<br>**Side-Effects**: Overwrites existing subitems if provided.                                       |
+| **Get Materials**             | `/api/materials`                        | `GET`    | `ListParams`                                                                                                              | `{ data: { id: string, name: string, totalQuantity: number, subitems: [...] }[], pagination: Pagination }` | **RBAC**: All roles.                                                                                                             |
+| **Get Inventory Balances**    | `/api/inventory/balances`               | `GET`    | `ListParams & { materialId?, siteId?, warehouseId? }`                                                                     | `{ data: InventoryBalance[], pagination }`                                                                 | **RBAC**: Site managers restricted to own site.                                                                                  |
+| **Get Material Details**      | `/api/materials/[id]`                   | `GET`    | None                                                                                                                      | `{ data: { id: string, name: string, totalQuantity: number, subitems: [...] } }`                           | **RBAC**: All roles.                                                                                                             |
+| **Delete Material**           | `/api/materials/[id]`                   | `DELETE` | None                                                                                                                      | `{ data: { id: string, name: string, deletedAt: date } }`                                                  | **RBAC**: Admin/Superadmin.<br>**Side-Effects**: Soft delete.                                                                    |
+| **Restore Material**          | `/api/materials/[id]/restore`           | `POST`   | None                                                                                                                      | `{ data: { id: string, name: string, deletedAt: null } }`                                                  | **RBAC**: Admin/Superadmin.                                                                                                      |
+| **List Sub-Items**            | `/api/materials/[id]/sub-items`         | `GET`    | None                                                                                                                      | `{ data: { id: string, materialId: string, name: string, quantity: number }[] }`                           | **RBAC**: All roles.                                                                                                             |
+| **Add Sub-Item**              | `/api/materials/[id]/sub-items`         | `POST`   | `{ name: string, quantity: number, unit?: string }`                                                                       | `{ data: { id: string, materialId: string, name: string, quantity: number } }`                             | **RBAC**: Admin/Superadmin.                                                                                                      |
+| **Update Sub-Item**           | `/api/materials/[id]/sub-items/[subId]` | `PATCH`  | `{ name?: string, quantity?: number, unit?: string }`                                                                     | `{ data: { id: string, materialId: string, name: string, quantity: number } }`                             | **RBAC**: Admin/Superadmin.                                                                                                      |
+| **Remove Sub-Item**           | `/api/materials/[id]/sub-items/[subId]` | `DELETE` | None                                                                                                                      | `{ data: { id: string, deletedAt: date } }`                                                                | **RBAC**: Admin/Superadmin.                                                                                                      |
+| **Trace Material History**    | `/api/inventory/trace/[catalogId]`      | `GET`    | None                                                                                                                      | `{ data: { balances: InventoryBalance[], history: MaterialLog[] } }`                                       | **RBAC**: Site Managers restricted.                                                                                              |
+| **Create Material Log**       | `/api/inventory/logs`                   | `POST`   | `{ action: string, quantity: number, ... }`                                                               | `{ data: MaterialLog }`                                                                | **Workflow**: Creates pending Approval (auto-approved if Admin/Superadmin).<br>**Constraints**: Validates specific fields based on action.                 |
+| **Get Material Logs**         | `/api/inventory/logs`                   | `GET`    | `ListParams & { materialId?, siteId?, warehouseId?, logType? }`                                                           | `{ data: MaterialLog[], pagination }`                                                                      | **RBAC**: All roles (restricted view).                                                                                           |
+| **Get Material Log**          | `/api/inventory/logs/[id]`              | `GET`    | None                                                                                                                      | `{ data: MaterialLog }`                                                                                    | **RBAC**: All roles.                                                                                                             |
+| **Reverse Material Movement** | `/api/inventory/logs/[id]/reverse`      | `POST`   | None                                                                                                                      | `{ data: MaterialLog }`                                                                                    | **RBAC**: Admin/Superadmin.<br>**Constraints**: Cannot reverse a reversal log.                                                   |
+
+#### Material Log Payloads (Discriminated by `action`)
+
+When calling `POST /api/inventory/logs`, the payload must match one of the following based on the `action`:
+
+- **`purchase`**: `{ action: "purchase", materialId: string | "new", quantity: number, purchaseCost: string, destination?: { id: string, type: "site" | "warehouse" }, categoryId?: string, licenseId?: string, notes?: string, newMaterial?: object }`
+- **`transfer`**: `{ action: "transfer", materialId: string, quantity: number, source?: { id: string, type: "site" | "warehouse" }, destination?: { id: string, type: "site" | "warehouse" }, notes?: string }`
+- **`sold`**: `{ action: "sold", materialId: string, quantity: number, sellingPrice: string, source?: { id: string, type: "site" | "warehouse" }, categoryId?: string, licenseId?: string, buyerName?: string, notes?: string }`
+- **`used_up`**: `{ action: "used_up", materialId: string, quantity: number, source?: { id: string, type: "site" | "warehouse" }, notes?: string }`
+- **`missing`**: `{ action: "missing", materialId: string, quantity: number, source?: { id: string, type: "site" | "warehouse" }, notes?: string }`
 
 ## 2. Equipment Features
 
-| Feature | Route | Method | Constraints & Requirements |
-|---------|-------|--------|----------------------------|
-| **Create Equipment** | `/api/equipment` | `POST` | `name` required. Can include `serialNumber`, initial `originalValue` (`rentRate` is strictly forbidden). |
-| **Update Equipment** | `/api/equipment/[id]` | `PATCH` | Edit basic equipment properties. Modifying `siteId`, `warehouseId`, `value`, or `rentRate` is strictly forbidden (must use log actions). |
-| **Get Equipment List** | `/api/equipment` | `GET` | Returns paginated equipment. **Sort**: `name`, `createdAt`, `value`, `rentRate`. **Filters**: `siteId`, `warehouseId`, `licenseId`, `status`, `ownershipStatus`. |
-| **Get Equipment Details** | `/api/equipment/[id]` | `GET` | Retrieve single equipment details. |
-| **Delete / Restore Equipment** | `/api/equipment/[id]` | `DEL`/`POST`| Soft delete and restore endpoints (using `/restore`). |
-| **Purchase Equipment** | `/api/equipment/[id]/purchase` | `POST` | Requires `price`, `vendorName`, destination. Approvals workflow. |
-| **Transfer Equipment** | `/api/equipment/[id]/transfer` | `POST` | Requires source and destination. Approvals workflow. |
-| **Rent Equipment IN** | `/api/equipment/[id]/rent-in` | `POST` | Requires `price` (rate), `rentStartDate`. Equipment cannot be currently `isOnLoan`. Approvals workflow. |
-| **Return Rented Eq. IN** | `/api/equipment/[id]/return-in` | `POST` | Requires `rentReturnDate`. Must originate from current site. Equipment gets `returned` status. Auto-posts `money_out` rental cost. Approvals workflow. |
-| **Rent Equipment OUT** | `/api/equipment/[id]/rent-out` | `POST` | Requires `price` (rate), `rentStartDate`, source, `buyerName`. Cannot be currently `isOnLoan`. Approvals workflow. |
-| **Return Rented Eq. OUT**| `/api/equipment/[id]/return-out` | `POST` | Requires `rentReturnDate`, destination. Must be `isOnLoan`. Auto-posts `money_in` rental revenue. Status becomes `deployed`/`available`. Approvals workflow. |
-| **Sell Equipment** | `/api/equipment/[id]/sale` | `POST` | Requires `buyerName`, `price`, source. Status becomes `sold`. Approvals workflow. |
-| **Report Degraded** | `/api/equipment/[id]/degrade` | `POST` | Adjusts `value` down by `price`. Approvals workflow. |
-| **Report Appreciated** | `/api/equipment/[id]/appreciate` | `POST` | Adjusts `value` up by `price`. Approvals workflow. |
-| **Maintenance Dispatch**| `/api/equipment/[id]/maintenance-dispatch` | `POST` | Status becomes `maintenance`. Approvals workflow. |
-| **Maintenance Return**| `/api/equipment/[id]/maintenance-return` | `POST` | Requires `price` (repair cost). Status becomes `deployed`/`available`. Auto-posts `money_out` maintenance transaction. Approvals workflow. |
-| **Consume Equipment**| `/api/equipment/[id]/consume` | `POST` | Status becomes `disposed`. Approvals workflow. |
-| **Report Missing**| `/api/equipment/[id]/report-missing` | `POST` | Status becomes `missing`. Approvals workflow. |
-| **Get / List Equipment Logs** | `/api/equipment/logs` | `GET` | Retrieve paginated equipment events. **Sort**: `createdAt`. **Filters**: `equipmentId`, `siteId`, `warehouseId`, `logType`. |
-| **Reverse Equipment Event** | `/api/equipment/logs/[id]/reverse`| `POST` | Goes to Approvals Workflow. Cannot reverse a reversal log. |
+> [!TIP]
+> **Auto-Creation on the Fly (Equipment)**
 
-## 3. Projects, Sites & Tasks
+| Feature                     | Route                              | Method   | Request Payload                                                                                                                                   | Response Payload                            | Constraints, RBAC & Side-Effects                                                                                                                               |
+| --------------------------- | ---------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Create Equipment**        | `/api/equipment`                   | `POST`   | `{ name: string, serialNumber?: string, siteId?: string, warehouseId?: string, licenseId?: string, originalValue?: string, vendorName?: string }` | `{ data: Equipment }`                       | **RBAC**: Admin/Superadmin.<br>**Constraints**: `rentRate` forbidden.<br>**Side-Effects**: Creates `added` equipment_log.                                      |
+| **Update Equipment**        | `/api/equipment/[id]`              | `PATCH`  | `{ name?: string, serialNumber?: string, licenseId?: string, vendorName?: string }`                                                               | `{ data: Equipment }`                       | **RBAC**: Admin/Superadmin.<br>**Constraints**: Modifying location or value is forbidden.<br>**Side-Effects**: Creates `updated` equipment_log with JSON diff. |
+| **Get Equipment List**      | `/api/equipment`                   | `GET`    | `ListParams & { siteId?, warehouseId?, licenseId?, status? }`                                                                                     | `{ data: Equipment[], pagination }`         | **RBAC**: All roles.                                                                                                                                           |
+| **Get Equipment Details**   | `/api/equipment/[id]`              | `GET`    | None                                                                                                                                              | `{ data: Equipment }`                       | **RBAC**: All roles.                                                                                                                                           |
+| **Delete Equipment**        | `/api/equipment/[id]`              | `DELETE` | None                                                                                                                                              | `{ data: { id: string, deletedAt: date } }` | **RBAC**: Admin/Superadmin.<br>**Side-Effects**: Creates `deleted` equipment_log.                                                                              |
+| **Restore Equipment**       | `/api/equipment/[id]/restore`      | `POST`   | None                                                                                                                                              | `{ data: { id: string, deletedAt: null } }` | **RBAC**: Admin/Superadmin.<br>**Side-Effects**: Creates `restored` equipment_log.                                                                             |
+| **Create Equipment Log**      | `/api/equipment/logs`                      | `POST`   | `{ action: string, equipmentId: string, ... }`                                                                 | `{ data: EquipmentLog }`                  | **Workflow**: Creates pending Approval (auto-approved if Admin/Superadmin).<br>**Constraints**: Validates specific fields based on action.                                                        |
+| **Get Equipment Logs**      | `/api/equipment/logs`              | `GET`    | `ListParams & { equipmentId?, siteId?, warehouseId?, logType? }`                                                                                  | `{ data: EquipmentLog[], pagination }`      | **RBAC**: All roles (restricted view).                                                                                                                         |
+| **Get Equipment Log**       | `/api/equipment/logs/[id]`         | `GET`    | None                                                                                                                                              | `{ data: EquipmentLog }`                    | **RBAC**: All roles.                                                                                                                                           |
+| **Reverse Equipment Event** | `/api/equipment/logs/[id]/reverse` | `POST`   | None                                                                                                                                              | `{ data: EquipmentLog }`                    | **Workflow**: Creates pending Approval (auto-approved if Admin/Superadmin).<br>**Constraints**: Cannot reverse a reversal.                                                                         |
 
-| Feature | Route | Method | Constraints & Requirements |
-|---------|-------|--------|----------------------------|
-| **List Sites** | `/api/sites` | `GET` | Paginated sites. **Sort**: `name`, `createdAt`, `laborBudget`, `materialBudget`. **Filters**: `status`, `licenseId`. |
-| **Create Site** | `/api/sites` | `POST` | `name` and `licenseId` required. |
-| **Update Site** | `/api/sites/[id]` | `PATCH` | Edit site details, budgets, status. |
-| **Get / Delete / Restore Site** | `/api/sites/[id]` | `GET/DEL/POST`| CRUD operations. Site managers only see assigned sites. |
-| **Get Site Summary** | `/api/sites/[id]/summary` | `GET` | Returns aggregated overview of the site. |
-| **Get Site Budget** | `/api/sites/[id]/budget` | `GET` | Returns labor and material budget info. |
-| **Get Site Lifecycle Logs** | `/api/sites/[id]/lifecycle` | `GET` | Returns historical changes to the site. **Sort**: `createdAt`. |
-| **Create Site Task** | `/api/sites/[id]/tasks` | `POST` | `title` required. |
-| **List Tasks** | `/api/sites/[id]/tasks` | `GET` | **Sort**: `targetDate`, `createdAt`. |
-| **Get / Update / Delete Task** | `/api/sites/[id]/tasks/[taskId]` | `GET/PATCH/DEL`| Manage site tasks and milestones. |
-| **Claim Task Completion** | `/api/sites/[id]/tasks/[taskId]/claim`| `POST` | User claims task is done. Places task in "Claimed" status. |
-| **Approve Task Completion** | `/api/sites/[id]/tasks/[taskId]/complete`| `POST` | Manager approves claim with review notes. Marks task "Completed". |
+#### Equipment Log Payloads (Discriminated by `action`)
 
-## 4. Master Data (Tenders, Licenses, Warehouses)
+When calling `POST /api/equipment/logs`, the payload must match one of the following based on the `action`:
 
-| Feature | Route | Method | Constraints & Requirements |
-|---------|-------|--------|----------------------------|
-| **List Tenders** | `/api/tenders` | `GET` | **Sort**: `name`, `createdAt`, `submissionDate`, `status`. **Filters**: `status`, `licenseId`. |
-| **CRUD Tender** | `/api/tenders/[id]` & `/restore`| `POST/GET/PATCH/DEL` | `name` and `licenseId` required for creation. |
-| **List Licenses** | `/api/licenses` | `GET` | **Sort**: `name`, `createdAt`. |
-| **CRUD License** | `/api/licenses/[id]` & `/restore`| `POST/GET/PATCH/DEL`| `name` required. Top-level financial entities. |
-| **List Warehouses** | `/api/warehouses` | `GET` | **Sort**: `name`, `createdAt`, `location`. |
-| **CRUD Warehouse** | `/api/warehouses/[id]` & `/restore`| `POST/GET/PATCH/DEL`| `name` required. Central locations not restricted by site managers. |
+- **`purchased`**: `{ action: "purchased", equipmentId: string | "new", purchaseCost: string, destination?: { id: string, type: "site" | "warehouse" }, vendorName?: string, licenseId?: string, notes?: string, newEquipment?: object }`
+- **`transferred`**: `{ action: "transferred", equipmentId: string, source?: { id: string, type: "site" | "warehouse" }, destination?: { id: string, type: "site" | "warehouse" }, notes?: string }`
+- **`sold`**: `{ action: "sold", equipmentId: string, sellingPrice: string, source?: { id: string, type: "site" | "warehouse" }, buyerName?: string, licenseId?: string, notes?: string }`
+- **`used_up`**: `{ action: "used_up", equipmentId: string, source?: { id: string, type: "site" | "warehouse" }, notes?: string }`
+- **`missing`**: `{ action: "missing", equipmentId: string, source?: { id: string, type: "site" | "warehouse" }, notes?: string }`
+- **`maintenance_dispatch`**: `{ action: "maintenance_dispatch", equipmentId: string, source?: { id: string, type: "site" | "warehouse" }, vendorName?: string, notes?: string }`
+- **`maintenance_return`**: `{ action: "maintenance_return", equipmentId: string, destination?: { id: string, type: "site" | "warehouse" }, repairCost?: string, notes?: string }`
+- **`degraded`**: `{ action: "degraded", equipmentId: string, valueAdjustment?: string, notes?: string }`
+- **`appreciated`**: `{ action: "appreciated", equipmentId: string, valueAdjustment?: string, notes?: string }`
 
-## 5. Financial Transactions & Ledger
+## 3. Rentals
 
-| Feature | Route | Method | Constraints & Requirements |
-|---------|-------|--------|----------------------------|
-| **List Ledgers** | `/api/ledgers` | `GET` | **Sort**: `timestamp`, `amount`. **Filters**: `siteId`, `licenseId`, `sourceRefType`, `isReversal`, `loggedBy`. Site managers can only view their sites' ledgers. |
-| **Log Manual Income / Expense** | `/api/transactions` | `POST` | `type` (`money_in` or `money_out`), `amount`, `licenseId` required. Direct transactions bypass the Approval Workflow. |
-| **Log Security Deposit** | `/api/transactions` | `POST` | Pass `equipmentId` with transaction details. |
-| **List Transactions** | `/api/transactions` | `GET` | **Sort**: `transactionDate`, `createdAt`, `amount`. **Filters**: `siteId`, `categoryId`, `licenseId`, `equipmentId`, `type`. |
-| **Get Transaction** | `/api/transactions/[id]` | `GET` | |
-| **Reverse Transaction** | `/api/transactions/[id]/reverse`| `POST` | Generates inverse transaction. Cannot reverse already reversed. |
-| **List Categories** | `/api/transactions/categories` | `GET` | **Sort**: `name`, `createdAt`. |
-| **CRUD Transaction Categories** | `/api/transactions/categories` | `POST/DEL`| Create and manage categories for manual logging. |
-| **Get Cost Breakdown** | `/api/transactions/cost-breakdown`| `GET` | Aggregates project ledger transactions grouped by category, including material/equipment allocations. |
+> [!TIP]
+> **Auto-Creation on the Fly (Rentals)**
+> For **Create Rental**, you can pass `equipmentId = "new"`. If you do, you **must** provide the `newEquipment` object in the payload. The system will automatically create the equipment and then execute the rental against it.
 
-## 6. Approvals Workflow
+| Feature                | Route                      | Method | Request Payload                                                                                                                                                                                                                                                                               | Response Payload                                                                   | Constraints, RBAC & Side-Effects                                                                                                                      |
+| :--------------------- | :------------------------- | :----- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **List Rentals**       | `/api/rentals`             | `GET`  | `ListParams & { siteId?, licenseId?, equipmentId?, status? }`                                                                                                                                                                                                                                 | `{ data: RentalAgreement[], pagination }`                                          | **RBAC**: All roles (restricted view).                                                                                                                |
+| **Get Rental Details** | `/api/rentals/[id]`        | `GET`  | None                                                                                                                                                                                                                                                                                          | `{ data: RentalAgreement }`                                                        | **RBAC**: All roles (restricted view).                                                                                                                |
+| **Create Rental**      | `/api/rentals`             | `POST` | `{ type: "rent_in" \| "rent_out", equipmentId: string, dailyRate: string, upfrontFee?: string, rentStartDate: string, expectedReturnDate?: string, vendorName?: string, buyerName?: string, toSiteId?: string, fromSiteId?: string, licenseId?: string, notes?: string, newEquipment?: any }` | `{ data: { agreement: RentalAgreement, event: RentalEvent, approval: Approval } }` | **Workflow**: Creates pending Approval (auto-approved if Admin/Superadmin).                                                                                                               |
+| **Adjust Rental**      | `/api/rentals/[id]/adjust` | `POST` | `{ adjustmentAmount: string, notes?: string }`                                                                                                                                                                                                                                                | `{ data: { event: RentalEvent, approval: Approval } }`                             | **Workflow**: Creates pending Approval (auto-approved if Admin/Superadmin).<br>**Side-Effects**: Adjusts the financial terms mid-rental.                                                  |
+| **Return Rental**      | `/api/rentals/[id]/return` | `POST` | `{ rentReturnDate: string, notes?: string }`                                                                                                                                                                                                                                                  | `{ data: { event: RentalEvent, approval: Approval } }`                             | **Workflow**: Creates pending Approval (auto-approved if Admin/Superadmin).<br>**Side-Effects**: Will close the `RentalAgreement` upon approval and trigger auto-invoicing if applicable. |
 
-| Feature | Route | Method | Constraints & Requirements |
-|---------|-------|--------|----------------------------|
-| **List Approvals** | `/api/approvals` | `GET` | **Sort**: `createdAt`, `status`. **Filters**: `status`, `approvalType`. |
-| **Get Approval** | `/api/approvals/[id]` | `GET` | Retrieve pending/approved/rejected requests. |
-| **Approve Event** | `/api/approvals/[id]/approve`| `POST` | Applies state changes to balances, equipment states, and project ledger. May trigger auto-calculation of rental cost/revenue. |
-| **Reject Event** | `/api/approvals/[id]/reject` | `POST` | Stops the event from modifying state. |
+## 4. Projects, Sites & Tasks
 
-## 7. Analytics
+| Feature                     | Route                                     | Method   | Request Payload                                                                                                                                                                                  | Response Payload                                                                                                                                                                                                                                                                                                                                                                                                                                   | Constraints, RBAC & Side-Effects                                                                                                         |
+| :-------------------------- | :---------------------------------------- | :------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------- |
+| **List Sites**              | `/api/sites`                              | `GET`    | `ListParams & { status?, licenseId? }`                                                                                                                                                           | `{ data: Site[], pagination }`                                                                                                                                                                                                                                                                                                                                                                                                                     | **RBAC**: Site Managers only see assigned sites.                                                                                         |
+| **Create Site**             | `/api/sites`                              | `POST`   | `{ name: string, licenseId: string, location?: string, laborBudget?: string, materialBudget?: string, tenderId?: string, managerId?: string }`                                                   | `{ data: Site }`                                                                                                                                                                                                                                                                                                                                                                                                                                   | **RBAC**: Admin/Superadmin.                                                                                                              |
+| **Update Site**             | `/api/sites/[id]`                         | `PATCH`  | `{ name?: string, status?: "active" \| "closed", reason?: string, location?: string, laborBudget?: string, materialBudget?: string, tenderId?: string, licenseId?: string, managerId?: string }` | `{ data: Site }`                                                                                                                                                                                                                                                                                                                                                                                                                                   | **RBAC**: Admin/Superadmin. Site Managers restricted.<br>**Side-Effects**: Computes differential JSON and logs to `site_lifecycle_logs`. |
+| **Get Site Details**        | `/api/sites/[id]`                         | `GET`    | None                                                                                                                                                                                             | `{ data: Site }`                                                                                                                                                                                                                                                                                                                                                                                                                                   | **RBAC**: Site Managers see assigned only.                                                                                               |
+| **Delete Site**             | `/api/sites/[id]`                         | `DELETE` | None                                                                                                                                                                                             | `{ data: { id: string, deletedAt: date } }`                                                                                                                                                                                                                                                                                                                                                                                                        | **RBAC**: Admin/Superadmin.                                                                                                              |
+| **Restore Site**            | `/api/sites/[id]/restore`                 | `POST`   | None                                                                                                                                                                                             | `{ data: { id: string, deletedAt: null } }`                                                                                                                                                                                                                                                                                                                                                                                                        | **RBAC**: Admin/Superadmin.                                                                                                              |
+| **Get Site Summary**        | `/api/sites/[id]/summary`                 | `GET`    | None                                                                                                                                                                                             | `{ data: { site: Site, tasks: { total: number, completed: number, completionPercent: number }, budget: { laborBudget: string, materialBudget: string, totalAllocated: string, spent: string, remaining: string }, inventory: { materialId: string, assetName: string, quantity: number, avgUnitPrice: string }[], pendingApprovals: number, recentTasks: { id: string, title: string, isCompleted: boolean, notes: string, review: string }[] } }` | **RBAC**: All roles (restricted by site).                                                                                                |
+| **Get Lifecycle Logs**      | `/api/sites/[id]/lifecycle`               | `GET`    | `ListParams`                                                                                                                                                                                     | `{ data: SiteLifecycleLog[], pagination }`                                                                                                                                                                                                                                                                                                                                                                                                         | **RBAC**: All roles (restricted by site).                                                                                                |
+| **Create Site Task**        | `/api/sites/[id]/tasks`                   | `POST`   | `{ title: string, targetDate?: string, notes?: string }`                                                                                                                                         | `{ data: SiteTask }`                                                                                                                                                                                                                                                                                                                                                                                                                               | **RBAC**: Site Managers and above.                                                                                                       |
+| **List Tasks**              | `/api/sites/[id]/tasks`                   | `GET`    | `ListParams`                                                                                                                                                                                     | `{ data: SiteTask[], pagination }`                                                                                                                                                                                                                                                                                                                                                                                                                 | **RBAC**: All roles (restricted by site).                                                                                                |
+| **Update Task**             | `/api/sites/[id]/tasks/[taskId]`          | `PATCH`  | `{ title?: string, targetDate?: string, notes?: string, review?: string }`                                                                                                                       | `{ data: SiteTask }`                                                                                                                                                                                                                                                                                                                                                                                                                               | **RBAC**: Site Managers and above.                                                                                                       |
+| **Delete Task**             | `/api/sites/[id]/tasks/[taskId]`          | `DELETE` | None                                                                                                                                                                                             | `{ data: { id: string, deletedAt: date } }`                                                                                                                                                                                                                                                                                                                                                                                                        | **RBAC**: Site Managers and above.                                                                                                       |
+| **Claim Task Completion**   | `/api/sites/[id]/tasks/[taskId]/claim`    | `POST`   | None                                                                                                                                                                                             | `{ data: SiteTask }`                                                                                                                                                                                                                                                                                                                                                                                                                               | **Workflow**: Creates pending Approval (auto-approved if Admin/Superadmin).<br>**RBAC**: Site Manager. Task status moves to "Claimed".                                                                                  |
+| **Approve Task Completion** | `/api/sites/[id]/tasks/[taskId]/complete` | `POST`   | `{ review?: string }`                                                                                                                                                                            | `{ data: SiteTask }`                                                                                                                                                                                                                                                                                                                                                                                                                               | **RBAC**: Admin/Superadmin. Task status moves to "Completed".                                                                            |
 
-| Feature | Route | Method | Constraints & Requirements |
-|---------|-------|--------|----------------------------|
-| **Get Spend Analytics** | `/api/analytics/spend` | `GET` | High-level aggregated spend data across licenses/sites. |
-| **Get Inventory Analytics**| `/api/analytics/inventory` | `GET` | High-level inventory value aggregations. |
-| **Get Budget Health** | `/api/analytics/budget-health`| `GET` | Compares actual ledger costs against `laborBudget` and `materialBudget`. |
-| **Get License Analytics** | `/api/analytics/licenses` | `GET` | Aggregated metrics per license. |
+## 5. Master Data (Tenders, Licenses, Warehouses)
+
+| Feature               | Route                          | Method   | Request Payload                                                                                                              | Response Payload                            | Constraints, RBAC & Side-Effects |
+| --------------------- | ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | -------------------------------- |
+| **List Tenders**      | `/api/tenders`                 | `GET`    | `ListParams & { status?, licenseId? }`                                                                                       | `{ data: Tender[], pagination }`            | **RBAC**: Admin/Superadmin.      |
+| **Create Tender**     | `/api/tenders`                 | `POST`   | `{ name: string, licenseId: string, location?: string, estimatedBudget?: string, submissionDate?: string, status?: string }` | `{ data: Tender }`                          | **RBAC**: Admin/Superadmin.      |
+| **Get Tender**        | `/api/tenders/[id]`            | `GET`    | None                                                                                                                         | `{ data: Tender }`                          | **RBAC**: Admin/Superadmin.      |
+| **Update Tender**     | `/api/tenders/[id]`            | `PATCH`  | `{ name?: string, location?: string, estimatedBudget?: string, submissionDate?: string, status?: string }`                   | `{ data: Tender }`                          | **RBAC**: Admin/Superadmin.      |
+| **Delete Tender**     | `/api/tenders/[id]`            | `DELETE` | None                                                                                                                         | `{ data: { id: string, deletedAt: date } }` | **RBAC**: Admin/Superadmin.      |
+| **Restore Tender**    | `/api/tenders/[id]/restore`    | `POST`   | None                                                                                                                         | `{ data: { id: string, deletedAt: null } }` | **RBAC**: Admin/Superadmin.      |
+| **List Licenses**     | `/api/licenses`                | `GET`    | `ListParams`                                                                                                                 | `{ data: License[], pagination }`           | **RBAC**: Admin/Superadmin.      |
+| **Create License**    | `/api/licenses`                | `POST`   | `{ name: string }`                                                                                                           | `{ data: License }`                         | **RBAC**: Admin/Superadmin.      |
+| **Get License**       | `/api/licenses/[id]`           | `GET`    | None                                                                                                                         | `{ data: License }`                         | **RBAC**: Admin/Superadmin.      |
+| **Update License**    | `/api/licenses/[id]`           | `PATCH`  | `{ name?: string }`                                                                                                          | `{ data: License }`                         | **RBAC**: Admin/Superadmin.      |
+| **Delete License**    | `/api/licenses/[id]`           | `DELETE` | None                                                                                                                         | `{ data: { id: string, deletedAt: date } }` | **RBAC**: Admin/Superadmin.      |
+| **Restore License**   | `/api/licenses/[id]/restore`   | `POST`   | None                                                                                                                         | `{ data: { id: string, deletedAt: null } }` | **RBAC**: Admin/Superadmin.      |
+| **List Warehouses**   | `/api/warehouses`              | `GET`    | `ListParams`                                                                                                                 | `{ data: Warehouse[], pagination }`         | **RBAC**: Admin/Superadmin.      |
+| **Create Warehouse**  | `/api/warehouses`              | `POST`   | `{ name: string, location?: string }`                                                                                        | `{ data: Warehouse }`                       | **RBAC**: Admin/Superadmin.      |
+| **Get Warehouse**     | `/api/warehouses/[id]`         | `GET`    | None                                                                                                                         | `{ data: Warehouse }`                       | **RBAC**: Admin/Superadmin.      |
+| **Update Warehouse**  | `/api/warehouses/[id]`         | `PATCH`  | `{ name?: string, location?: string }`                                                                                       | `{ data: Warehouse }`                       | **RBAC**: Admin/Superadmin.      |
+| **Delete Warehouse**  | `/api/warehouses/[id]`         | `DELETE` | None                                                                                                                         | `{ data: { id: string, deletedAt: date } }` | **RBAC**: Admin/Superadmin.      |
+| **Restore Warehouse** | `/api/warehouses/[id]/restore` | `POST`   | None                                                                                                                         | `{ data: { id: string, deletedAt: null } }` | **RBAC**: Admin/Superadmin.      |
+
+## 6. Financial Transactions & Ledger
+
+| Feature                    | Route                               | Method   | Request Payload                                                                                                                                                                                            | Response Payload                              | Constraints, RBAC & Side-Effects                                                                                                                      |
+| :------------------------- | :---------------------------------- | :------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Log Manual Transaction** | `/api/transactions`                 | `POST`   | `{ type: "money_in" \| "money_out", amount: string, licenseId: string, siteId?: string, warehouseId?: string, categoryId?: string, equipmentId?: string, description?: string, transactionDate?: string }` | `{ data: Transaction }`                       | **RBAC**: Admin/Superadmin. Site Managers restricted to own site.<br>**Workflow**: Creates pending Approval (auto-approved if Admin/Superadmin).<br>**Side-Effects**: Upon approval, injected into the project_ledger. |
+| **List Transactions**      | `/api/transactions`                 | `GET`    | `ListParams & { siteId?, categoryId?, licenseId?, equipmentId?, type? }`                                                                                                                                   | `{ data: Transaction[], pagination }`         | **RBAC**: All roles (restricted view).                                                                                                                |
+| **Get Transaction**        | `/api/transactions/[id]`            | `GET`    | None                                                                                                                                                                                                       | `{ data: Transaction }`                       | **RBAC**: All roles (restricted view).                                                                                                                |
+| **Reverse Transaction**    | `/api/transactions/[id]/reverse`    | `POST`   | None                                                                                                                                                                                                       | `{ data: Transaction }`                       | **RBAC**: Admin/Superadmin.<br>**Constraints**: Generates inverse transaction. Cannot double reverse.                                                 |
+| **List Categories**        | `/api/transactions/categories`      | `GET`    | `ListParams`                                                                                                                                                                                               | `{ data: TransactionCategory[], pagination }` | **RBAC**: All roles.                                                                                                                                  |
+| **Create Category**        | `/api/transactions/categories`      | `POST`   | `{ name: string }`                                                                                                                                                                                         | `{ data: TransactionCategory }`               | **RBAC**: Admin/Superadmin.                                                                                                                           |
+| **Get Category**           | `/api/transactions/categories/[id]` | `GET`    | None                                                                                                                                                                                                       | `{ data: TransactionCategory }`               | **RBAC**: All roles.                                                                                                                                  |
+| **Update Category**        | `/api/transactions/categories/[id]` | `PATCH`  | `{ name: string }`                                                                                                                                                                                         | `{ data: TransactionCategory }`               | **RBAC**: Admin/Superadmin.                                                                                                                           |
+| **Delete Category**        | `/api/transactions/categories/[id]` | `DELETE` | None                                                                                                                                                                                                       | `{ data: { id: string } }`                    | **RBAC**: Admin/Superadmin.                                                                                                                           |
+| **List Ledgers**           | `/api/ledgers`                      | `GET`    | `ListParams & { siteId?, licenseId?, sourceRefType?, isReversal? }`                                                                                                                                        | `{ data: ProjectLedger[], pagination }`       | **RBAC**: Site managers restricted to own site.                                                                                                       |
+
+## 7. Approvals Workflow
+
+| Feature              | Route                 | Method  | Request Payload                                        | Response Payload                   | Constraints, RBAC & Side-Effects                                                                                                      |
+| :------------------- | :-------------------- | :------ | :----------------------------------------------------- | :--------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| **List Approvals**   | `/api/approvals`      | `GET`   | `ListParams & { status?, approvalType? }`              | `{ data: Approval[], pagination }` | **RBAC**: Admins (Full), Site Managers (Own submitted only).                                                                          |
+| **Get Approval**     | `/api/approvals/[id]` | `GET`   | None                                                   | `{ data: Approval }`               | **RBAC**: All roles (restricted view).                                                                                                |
+| **Process Approval** | `/api/approvals/[id]` | `PATCH` | `{ status: "approved" \| "rejected", notes?: string }` | `{ data: Approval }`               | **RBAC**: Admin/Superadmin.<br>**Side-Effects**: Executes actual side-effects (e.g., Ledger entries, inventory shifts) upon approval. |
+
+## 8. Analytics
+
+| Feature                     | Route                          | Method | Request Payload | Response Payload                                                                                                                     | Constraints, RBAC & Side-Effects |
+| --------------------------- | ------------------------------ | ------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
+| **Get Spend Analytics**     | `/api/analytics/spend`         | `GET`  | None            | `{ data: { totalSpend: string, bySite: { siteId: string, amount: string }[], byLicense: { licenseId: string, amount: string }[] } }` | **RBAC**: Admin/Superadmin.      |
+| **Get Budget Overview**     | `/api/analytics/budget`        | `GET`  | None            | `{ data: { totalLaborBudget: string, totalMaterialBudget: string, totalSpent: string } }`                                            | **RBAC**: Admin/Superadmin.      |
+| **Get Inventory Analytics** | `/api/analytics/inventory`     | `GET`  | None            | `{ data: { totalValue: string, materialsValue: string, equipmentValue: string } }`                                                   | **RBAC**: Admin/Superadmin.      |
+| **Get Budget Health**       | `/api/analytics/budget-health` | `GET`  | None            | `{ data: { activeSitesTotalBudget: string, activeSitesTotalSpend: string, healthPercentage: number } }`                              | **RBAC**: Admin/Superadmin.      |
+| **Get License Analytics**   | `/api/analytics/licenses`      | `GET`  | None            | `{ data: { licenseId: string, licenseName: string, activeSitesCount: number, totalSpend: string }[] }`                               | **RBAC**: Admin/Superadmin.      |
+
+## 9. Authentication (Better Auth)
+
+| Feature            | Route                | Method | Request Payload     | Response Payload    | Constraints, RBAC & Side-Effects              |
+| ------------------ | -------------------- | ------ | ------------------- | ------------------- | --------------------------------------------- |
+| **Auth Endpoints** | `/api/auth/[...all]` | `ALL`  | standard BetterAuth | standard BetterAuth | Handled entirely by the BetterAuth framework. |
+
+## Base Data Models
+
+The following describes the exact fields available on the returned entities:
+
+### `MaterialCatalog`
+
+`{ id: uuid, name: string, unit: string, type: string, createdAt: date, updatedAt: date, deletedAt: date | null, totalQuantity?: number, subitems?: MaterialSubitem[] }`
+
+### `MaterialSubitem`
+
+`{ id: uuid, materialId: uuid, name: string, quantity: number, unit: string, createdAt: date, updatedAt: date, deletedAt: date | null }`
+
+### `Equipment`
+
+`{ id: uuid, name: string, serialNumber: string | null, siteId: uuid | null, warehouseId: uuid | null, licenseId: uuid | null, originalValue: string | null, value: string | null, rentRate: string | null, vendorName: string | null, currentStatus: string, ownershipStatus: string, createdAt: date, updatedAt: date, deletedAt: date | null }`
+
+### `MaterialLog`
+
+`{ id: uuid, catalogId: uuid, logType: string, quantity: number, unitPrice: string, fromSiteId: uuid | null, fromWarehouseId: uuid | null, toSiteId: uuid | null, toWarehouseId: uuid | null, licenseId: uuid | null, transactionId: uuid | null, categoryId: uuid | null, buyerName: string | null, notes: string | null, isReversal: boolean, reversalOfId: uuid | null, approvalStatus: string, createdAt: date }`
+
+### `EquipmentLog`
+
+`{ id: uuid, equipmentId: uuid, logType: string, fromSiteId: uuid | null, fromWarehouseId: uuid | null, toSiteId: uuid | null, toWarehouseId: uuid | null, price: string | null, rentStartDate: date | null, rentReturnDate: date | null, buyerName: string | null, vendorName: string | null, notes: string | null, isReversal: boolean, reversalOfId: uuid | null, approvalStatus: string, affectedFields: jsonb, createdAt: date }`
+
+### `RentalAgreement`
+
+`{ id: uuid, equipmentId: uuid, type: string, status: string, siteId: uuid | null, licenseId: uuid | null, vendorName: string | null, buyerName: string | null, rentStartDate: date, expectedReturnDate: date | null, actualReturnDate: date | null, createdAt: date, updatedAt: date }`
+
+### `RentalEvent`
+
+`{ id: uuid, agreementId: uuid, eventType: string, eventDate: date, dailyRate: string | null, upfrontFee: string | null, adjustmentAmount: string | null, notes: string | null, approvalStatus: string, createdAt: date }`
+
+### `Site`
+
+`{ id: uuid, name: string, location: string | null, status: string, laborBudget: string | null, materialBudget: string | null, tenderId: uuid | null, managerId: uuid | null, licenseId: uuid, createdAt: date, updatedAt: date, deletedAt: date | null }`
+
+### `SiteLifecycleLog`
+
+`{ id: uuid, siteId: uuid, event: string, description: string, affectedFields: jsonb, loggedBy: uuid, timestamp: date }`
+
+### `Transaction`
+
+`{ id: uuid, licenseId: uuid, siteId: uuid | null, warehouseId: uuid | null, equipmentId: uuid | null, categoryId: uuid | null, type: string, amount: string, description: string | null, transactionDate: date, isReversal: boolean, reversalOfId: uuid | null, approvalStatus: string, createdAt: date, updatedAt: date, deletedAt: date | null }`
+
+### `Approval`
+
+`{ id: uuid, approvalType: string, status: string, requestedBy: uuid, approvedBy: uuid | null, targetId: uuid, payload: jsonb, notes: string | null, review: string | null, createdAt: date, updatedAt: date }`
