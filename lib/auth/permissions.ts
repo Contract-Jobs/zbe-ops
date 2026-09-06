@@ -1,9 +1,5 @@
 export type Role = "admin" | "superadmin" | "site_manager";
 
-interface SessionUser {
-  id: string;
-  role: Role | null;
-}
 
 const ADMIN_ROLES: Role[] = ["admin", "superadmin"];
 

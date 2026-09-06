@@ -108,11 +108,17 @@ export function onApprovalProcessed(
 // TODO: confirm the exact keys on `approval.payload` with the backend dev.
 // This guesses common shapes (destination/source location refs, a bare
 // siteId for task claims) since `payload: jsonb` isn't itemized in the doc.
+function isLocationRef(v: unknown): v is { type: string; id: string } {
+  return typeof v === "object" && v !== null && "type" in v && "id" in v;
+}
+
 function extractSiteId(approval: Approval): string | undefined {
-  const payload = approval.payload as Record<string, any> | undefined;
+  const payload = approval.payload as Record<string, unknown> | undefined;
   if (!payload) return undefined;
-  if (payload.siteId) return payload.siteId;
-  if (payload.destination?.type === "site") return payload.destination.id;
-  if (payload.source?.type === "site") return payload.source.id;
+  if (typeof payload.siteId === "string") return payload.siteId;
+  if (isLocationRef(payload.destination) && payload.destination.type === "site")
+    return payload.destination.id;
+  if (isLocationRef(payload.source) && payload.source.type === "site")
+    return payload.source.id;
   return undefined;
 }

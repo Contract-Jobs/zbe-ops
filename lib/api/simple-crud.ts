@@ -1,32 +1,4 @@
 
-// // Generates the six API functions shared identically by Tenders, Licenses,
-// // Warehouses, and Categories — plain CRUD + soft delete + restore, no
-// // approval workflow, no action verbs.
-
-// import { apiClient } from "./client"
-// import { buildListParams } from "./list-params"
-// import type { ListParams } from "./list-params"
-
-// interface SoftDeletable {
-//     id: string
-//     deletedAt: string | null
-// }
-
-// export function createSimpleCrudApi<T extends SoftDeletable, TCreate, TUpdate = Partial<TCreate>>(
-//     basePath: string
-// ) {
-//     return {
-//         list: (params: ListParams = {}) => apiClient.get<T[]>(basePath, buildListParams(params)),
-//         get: (id: string) => apiClient.get<T>(`${basePath}/${id}`),
-//         create: (payload: TCreate) => apiClient.post<T>(basePath, payload),
-//         update: (id: string, payload: TUpdate) => apiClient.patch<T>(`${basePath}/${id}`, payload),
-//         delete: (id: string) => apiClient.delete<{ id: string; deletedAt: string }>(`${basePath}/${id}`),
-//         restore: (id: string) => apiClient.post<{ id: string; deletedAt: null }>(`${basePath}/${id}/restore`),
-//     }
-// }
-
-// export type SimpleCrudApi<T, TCreate, TUpdate> = ReturnType<typeof createSimpleCrudApi<T, TCreate, TUpdate>>
-// lib/api/simple-crud.ts
 
 import { apiClient } from "./client"
 import { buildListParams } from "./list-params"

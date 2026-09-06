@@ -17,16 +17,15 @@ export default function SmokeTestPage() {
     const { data: session, isPending: sessionLoading } = useSession()
     const [result, setResult] = useState<{ data: License[]; pagination?: Pagination } | null>(null)
     const [error, setError] = useState<ApiError | Error | null>(null)
-    const [loading, setLoading] = useState(false)
 
     useEffect(() => {
         if (sessionLoading || !session) return
-        setLoading(true)
+        let cancelled = false
         apiClient
             .get<License[]>("/api/licenses")
-            .then(setResult)
-            .catch(setError)
-            .finally(() => setLoading(false))
+            .then((r) => { if (!cancelled) setResult(r) })
+            .catch((e: unknown) => { if (!cancelled) setError(e instanceof Error ? e : new Error(String(e))) })
+        return () => { cancelled = true }
     }, [session, sessionLoading])
 
     return (
@@ -40,7 +39,6 @@ export default function SmokeTestPage() {
 
             <section style={{ marginTop: 16 }}>
                 <strong>Request state:</strong>
-                {loading && <p>fetching...</p>}
 
                 {error && (
                     <div style={{ color: "crimson" }}>

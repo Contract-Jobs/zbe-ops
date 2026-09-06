@@ -110,12 +110,17 @@ async function request<T>(
     });
   }
 
-  // Some endpoints (e.g. a bare delete) may return 204 with no body
+  // Some endpoints (e.g. DELETE) return 204 with no body — return a typed
+  // empty envelope so callers can always destructure { data } safely.
   const text = await response.text();
-  const json = text ? JSON.parse(text) : null;
+  if (response.status === 204 || !text) {
+    return { data: undefined as unknown as T };
+  }
 
-  if (!response.ok || json?.success === false) {
-    const errorPayload: ApiErrorPayload = json?.error ?? {
+  const json = JSON.parse(text) as ApiSuccessEnvelope<T> | ApiErrorEnvelope;
+
+  if (!response.ok || json.success === false) {
+    const errorPayload: ApiErrorPayload = (json as ApiErrorEnvelope).error ?? {
       code: "INTERNAL_ERROR",
       message: response.statusText || "Unknown error",
     };

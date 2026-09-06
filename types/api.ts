@@ -47,9 +47,11 @@ export interface MaterialLog {
 export interface InventoryBalance {
   id: string;
   materialId: string;
-  siteId?: string;
-  warehouseId?: string;
+  siteId: string | null;
+  warehouseId: string | null;
   quantity: number;
+  avgUnitPrice: string;
+  updatedAt: string;
 }
 
 // ---------- Equipment ----------
@@ -151,19 +153,18 @@ export interface SiteLifecycleLog {
   timestamp: string;
 }
 
-// INFERRED — no formal model given; fields drawn from task payloads + summary shape
 export interface SiteTask {
   id: string;
   siteId: string;
   title: string;
   targetDate: string | null;
-  notes: string | null;
-  review: string | null;
   isCompleted: boolean;
-  status: "pending" | "claimed" | "completed" | string; // verify exact values
+  completionClaimBy: string | null;
+  notes: string | null;
+  completedDate: string | null;
+  review: string | null;
   createdAt: string;
   updatedAt: string;
-  deletedAt: string | null;
 }
 
 export interface SiteSummary {
@@ -216,7 +217,6 @@ export interface License {
   id: string;
   name: string;
   createdAt: string;
-  updatedAt: string;
   deletedAt: string | null;
 }
 
@@ -225,7 +225,6 @@ export interface Warehouse {
   name: string;
   location: string | null;
   createdAt: string;
-  updatedAt: string;
   deletedAt: string | null;
 }
 
@@ -250,26 +249,25 @@ export interface Transaction {
   deletedAt: string | null;
 }
 
-// INFERRED — name only confirmed via create payload
 export interface TransactionCategory {
   id: string;
   name: string;
   createdAt: string;
-  updatedAt: string;
   deletedAt: string | null;
 }
 
-// INFERRED — fields drawn from list filters (siteId, licenseId, sourceRefType, isReversal)
 export interface ProjectLedger {
   id: string;
-  siteId: string | null;
+  siteId: string;
   licenseId: string;
+  amount: string;
+  description: string | null;
   sourceRefType: string; // e.g. "material_log" | "equipment_log" | "transaction"
   sourceRefId: string;
-  amount: string;
   isReversal: boolean;
   reversalOfId: string | null;
-  createdAt: string;
+  timestamp: string;
+  loggedBy: string;
 }
 
 export interface CostBreakdown {
