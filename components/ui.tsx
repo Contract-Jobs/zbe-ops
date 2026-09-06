@@ -119,13 +119,23 @@ export function FormPanel({
   );
 }
 
-export function FormActions({ saveLabel, onCancel }: { saveLabel: string; onCancel: () => void }) {
+export function FormActions({
+  saveLabel,
+  onCancel,
+  loading = false,
+  disabled = false,
+}: {
+  saveLabel: string;
+  onCancel: () => void;
+  loading?: boolean;
+  disabled?: boolean;
+}) {
   return (
     <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row">
-      <button className="btn w-full sm:w-auto" type="submit">
-        {saveLabel}
+      <button className="btn w-full sm:w-auto" type="submit" disabled={loading || disabled}>
+        {loading ? "Saving..." : saveLabel}
       </button>
-      <button className="btn btn-ghost w-full sm:w-auto" type="button" onClick={onCancel}>
+      <button className="btn btn-ghost w-full sm:w-auto" type="button" onClick={onCancel} disabled={loading}>
         Cancel
       </button>
     </div>
@@ -145,19 +155,19 @@ export function RecordActions({
   newLabel?: string;
 }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex items-center gap-2">
       {onNew ? (
         <button type="button" className="btn" onClick={onNew}>
           {newLabel}
         </button>
       ) : null}
       {onEdit ? (
-        <button type="button" className="btn btn-ghost" onClick={onEdit}>
+        <button type="button" className="btn btn-ghost text-xs" onClick={onEdit}>
           Edit
         </button>
       ) : null}
       {onDelete ? (
-        <button type="button" className="btn btn-ghost" onClick={onDelete}>
+        <button type="button" className="btn btn-ghost text-xs text-bad" onClick={onDelete}>
           Delete
         </button>
       ) : null}
@@ -165,33 +175,36 @@ export function RecordActions({
   );
 }
 
+/** Confirmation modal with sharp borders. */
 export function ConfirmDialog({
   open,
   title,
   body,
-  confirmLabel = "Confirm delete",
+  confirmLabel = "Confirm",
   danger = true,
-  onCancel,
+  loading = false,
   onConfirm,
+  onCancel,
 }: {
   open: boolean;
   title: string;
   body: string;
   confirmLabel?: string;
   danger?: boolean;
-  onCancel: () => void;
+  loading?: boolean;
   onConfirm: () => void;
+  onCancel: () => void;
 }) {
   useEffect(() => {
     if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCancel();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
     };
-    document.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey);
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKey);
       document.body.style.overflow = previous;
     };
   }, [open, onCancel]);
@@ -212,15 +225,16 @@ export function ConfirmDialog({
         </h2>
         <p className="mt-3 text-sm text-black/70">{body}</p>
         <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <button type="button" className="btn btn-ghost w-full sm:w-auto" onClick={onCancel}>
+          <button type="button" className="btn btn-ghost w-full sm:w-auto" onClick={onCancel} disabled={loading}>
             Cancel
           </button>
           <button
             type="button"
             className={`btn w-full sm:w-auto ${danger ? "btn-bad" : ""}`}
             onClick={onConfirm}
+            disabled={loading}
           >
-            {confirmLabel}
+            {loading ? "Processing..." : confirmLabel}
           </button>
         </div>
       </div>
@@ -231,11 +245,15 @@ export function ConfirmDialog({
 export function DeleteConfirm<T>({
   mode,
   restore,
+  loading = false,
   onClose,
+  onConfirm,
 }: {
   mode: RecordMode<T>;
   restore: boolean;
+  loading?: boolean;
   onClose: () => void;
+  onConfirm?: () => void | Promise<void>;
 }) {
   if (mode.kind !== "delete") return null;
   return (
@@ -247,8 +265,9 @@ export function DeleteConfirm<T>({
           ? `${mode.label} will be removed from the desk. It can be restored later.`
           : `${mode.label} will be removed. There is no restore on this record.`
       }
+      loading={loading}
       onCancel={onClose}
-      onConfirm={onClose}
+      onConfirm={onConfirm ?? onClose}
     />
   );
 }

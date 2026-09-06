@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type { SimpleCrudApi } from "@/lib/api/simple-crud"
 import type { ListParams } from "@/lib/api/list-params"
+import type { Pagination } from "@/lib/api/client"
 
 interface SimpleCrudKeys {
     lists: () => readonly unknown[]
@@ -17,18 +18,32 @@ export function createSimpleCrudHooks<T, TCreate, TUpdate = Partial<TCreate>>(
     api: SimpleCrudApi<T, TCreate, TUpdate>,
     keys: SimpleCrudKeys
 ) {
-    function useList(params: ListParams = {}) {
+    function useList<TSelectData = { data: T[]; pagination?: Pagination }>(
+        params: ListParams = {},
+        options?: {
+            enabled?: boolean
+            select?: (data: { data: T[]; pagination?: Pagination }) => TSelectData
+        }
+    ) {
         return useQuery({
             queryKey: keys.list(params),
             queryFn: () => api.list(params),
+            ...options,
         })
     }
 
-    function useDetail(id: string | undefined) {
+    function useDetail<TSelectData = { data: T; pagination?: Pagination }>(
+        id: string | undefined,
+        options?: {
+            enabled?: boolean
+            select?: (data: { data: T; pagination?: Pagination }) => TSelectData
+        }
+    ) {
         return useQuery({
             queryKey: keys.detail(id ?? ""),
             queryFn: () => api.get(id as string),
-            enabled: !!id,
+            ...options,
+            enabled: !!id && (options?.enabled ?? true),
         })
     }
 

@@ -5,21 +5,28 @@ import { CategoryForm } from "@/components/forms/master";
 import { ConfirmDialog, FormPanel, PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import { isSiteManager, logManualTx, useStore, visibleSiteIds } from "@/lib/store";
-import type { TxCategory, TxType } from "@/lib/types";
+import type { TxType } from "@/lib/types";
+import { useCategories, useDeleteCategory } from "@/hooks/use-categories";
+import type { TransactionCategory } from "@/types/api";
 
 export default function LedgerPage() {
   const store = useStore();
   const manager = isSiteManager(store);
   const sites = visibleSiteIds(store);
+
+  const { data: categoriesData } = useCategories();
+  const deleteCategoryMutation = useDeleteCategory();
+  const categories = categoriesData ? categoriesData.data : (store.categories as unknown as TransactionCategory[]);
+
   const [type, setType] = useState<TxType>("money_out");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [siteId, setSiteId] = useState("");
-  const [categoryId, setCategoryId] = useState(store.categories[0]?.id ?? "");
+  const [categoryId, setCategoryId] = useState(categories[0]?.id ?? "");
   const [licenseId, setLicenseId] = useState(store.licenses[0]?.id ?? "");
   const [msg, setMsg] = useState<string | null>(null);
   const [catOpen, setCatOpen] = useState(false);
-  const [dropCat, setDropCat] = useState<TxCategory | null>(null);
+  const [dropCat, setDropCat] = useState<TransactionCategory | null>(null);
   const canMutate = !manager;
 
   const rows = useMemo(() => {
@@ -30,7 +37,7 @@ export default function LedgerPage() {
     });
   }, [manager, sites, store.session.licenseId, store.transactions]);
 
-  const grouped = store.categories.map((c) => ({
+  const grouped = categories.map((c) => ({
     ...c,
     out: rows.filter((t) => t.categoryId === c.id && t.type === "money_out").reduce((s, t) => s + t.amount, 0),
   }));
@@ -121,7 +128,7 @@ export default function LedgerPage() {
             ))}
         </select>
         <select className="field" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-          {store.categories.map((c) => (
+          {categories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
@@ -161,7 +168,7 @@ export default function LedgerPage() {
                   <Stamp value={t.type} tone={statusTone(t.type)} />
                 </span>
               </td>
-              <td className="hidden md:table-cell">{store.categories.find((c) => c.id === t.categoryId)?.name ?? "—"}</td>
+              <td className="hidden md:table-cell">{categories.find((c) => c.id === t.categoryId)?.name ?? "—"}</td>
               <td className="hidden sm:table-cell">
                 <Stamp value={t.type} tone={statusTone(t.type)} />
               </td>
@@ -175,8 +182,18 @@ export default function LedgerPage() {
         open={dropCat !== null}
         title="Are you sure?"
         body={`${dropCat?.name ?? "This category"} will be removed. There is no restore on this record.`}
+        loading={deleteCategoryMutation.isPending}
         onCancel={() => setDropCat(null)}
-        onConfirm={() => setDropCat(null)}
+        onConfirm={async () => {
+          if (dropCat) {
+            try {
+              await deleteCategoryMutation.mutateAsync(dropCat.id);
+              setDropCat(null);
+            } catch {
+              // Handled
+            }
+          }
+        }}
       />
     </div>
   );

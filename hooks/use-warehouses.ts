@@ -1,6 +1,5 @@
 
 import { createSimpleCrudHooks } from "./use-simple-crud"
-// import { warehousesApi } from "@/lib/api/warehouses"
 import { warehousesApi } from "@/lib/api/warehouses"
 import { queryKeys } from "@/lib/query/keys"
 

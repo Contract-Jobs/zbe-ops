@@ -1,3 +1,5 @@
+export type { Pagination } from "@/lib/api/client";
+
 // ---------- Materials ----------
 
 export interface MaterialCatalog {
