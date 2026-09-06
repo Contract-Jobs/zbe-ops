@@ -21,34 +21,61 @@ import {
   completeTask,
   currentUser,
   isSiteManager,
-  siteSpend,
   useStore,
   userName,
-  visibleSiteIds,
 } from "@/lib/store";
-import type { Site, Task } from "@/lib/types";
+import { useSite, useSiteSummary, useDeleteSite } from "@/hooks/use-sites";
+import { useLicenses } from "@/hooks/use-licenses";
+import type { Task } from "@/lib/types";
+import type { Site } from "@/types/api";
 
 export default function SiteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const store = useStore();
-  const allowed = visibleSiteIds(store);
-  const site = store.sites.find((s) => s.id === id);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [mode, setMode] = useState<RecordMode<Site>>(closedMode);
   const [taskMode, setTaskMode] = useState<RecordMode<Task>>(closedMode);
   const [logOpen, setLogOpen] = useState(false);
 
-  if (!site || !allowed.has(site.id)) return <p>Site not found, or you are not assigned to it.</p>;
+  const { data: siteData, isLoading: siteLoading } = useSite(id);
+  const { data: summaryData } = useSiteSummary(id);
+  const { data: licensesData } = useLicenses();
+  const deleteMutation = useDeleteSite();
 
-  const spend = siteSpend(site.id, store);
-  const tasks = store.tasks.filter((t) => t.siteId === site.id);
-  const logs = store.siteLifecycle.filter((l) => l.siteId === site.id);
-  const eqs = store.equipment.filter((e) => e.siteId === site.id);
-  const bals = store.balances.filter((b) => b.locationKind === "site" && b.locationId === site.id);
+  const site = siteData?.data;
+  const summary = summaryData?.data;
+  const licensesList = licensesData?.data ?? store.licenses;
+
+  const tasks = store.tasks.filter((t) => t.siteId === id);
+  const logs = store.siteLifecycle.filter((l) => l.siteId === id);
+  const eqs = store.equipment.filter((e) => e.siteId === id);
+  const bals = store.balances.filter((b) => b.locationKind === "site" && b.locationId === id);
   const manager = isSiteManager(store);
   const canMutate = !manager;
   const user = currentUser(store);
+
+  async function handleDelete() {
+    if (mode.kind === "delete" && mode.record) {
+      try {
+        await deleteMutation.mutateAsync(mode.record.id);
+        setMode(closedMode());
+      } catch {
+        // Handle silently
+      }
+    }
+  }
+
+  if (siteLoading) return <p className="p-8 text-black/50">Loading site details...</p>;
+  if (!site) return <p className="p-8">Site not found.</p>;
+
+  // Fallbacks if summary is not yet loaded
+  const spend = summary ? {
+    labor: Number(summary.totalLaborSpent),
+    material: Number(summary.totalMaterialSpent),
+    out: 0,
+    inn: 0
+  } : { labor: 0, material: 0, out: 0, inn: 0 };
 
   return (
     <div>
@@ -67,12 +94,12 @@ export default function SiteDetailPage() {
           </span>
         }
       />
-      <p className="mb-8 text-black/60">{site.address}</p>
+      <p className="mb-8 text-black/60">{site.location}</p>
       {mode.kind === "edit" ? (
         <FormPanel kicker="Site" title="Edit site" onClose={() => setMode(closedMode())}>
           <SiteForm
             initial={site}
-            licenses={store.licenses}
+            licenses={licensesList}
             users={store.users}
             onCancel={() => setMode(closedMode())}
             onDone={() => setMode(closedMode())}
@@ -239,7 +266,13 @@ export default function SiteDetailPage() {
           </ol>
         </section>
       </div>
-      <DeleteConfirm mode={mode} restore onClose={() => setMode(closedMode())} />
+      <DeleteConfirm 
+        mode={mode} 
+        restore 
+        loading={deleteMutation.isPending}
+        onClose={() => setMode(closedMode())} 
+        onConfirm={handleDelete}
+      />
       <DeleteConfirm mode={taskMode} restore={false} onClose={() => setTaskMode(closedMode())} />
     </div>
   );

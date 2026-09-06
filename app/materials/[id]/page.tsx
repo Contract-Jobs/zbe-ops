@@ -16,7 +16,9 @@ import {
 } from "@/components/ui";
 import { day, qty } from "@/lib/format";
 import { isSiteManager, locationName, submitApproval, useStore } from "@/lib/store";
-import type { ApprovalType, LocationKind, Material, MaterialSubitem } from "@/lib/types";
+import { useMaterial, useMaterialSubitems, useDeleteMaterial, useDeleteSubitem } from "@/hooks/use-materials";
+import type { ApprovalType, LocationKind } from "@/lib/types";
+import type { MaterialCatalog, MaterialSubitem } from "@/types/api";
 
 const actions: Array<{ type: ApprovalType; label: string }> = [
   { type: "material_purchase", label: "Purchase" },
@@ -29,7 +31,6 @@ const actions: Array<{ type: ApprovalType; label: string }> = [
 export default function MaterialDetailPage() {
   const { id } = useParams<{ id: string }>();
   const store = useStore();
-  const item = store.materials.find((m) => m.id === id);
   const manager = isSiteManager(store);
   const canMutate = !manager;
   const [type, setType] = useState<ApprovalType>("material_transfer");
@@ -42,14 +43,44 @@ export default function MaterialDetailPage() {
   const [toId, setToId] = useState("");
   const [note, setNote] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
-  const [mode, setMode] = useState<RecordMode<Material>>(closedMode);
+  const [mode, setMode] = useState<RecordMode<MaterialCatalog>>(closedMode);
   const [subMode, setSubMode] = useState<RecordMode<MaterialSubitem>>(closedMode);
 
-  if (!item) return <p>Material not found.</p>;
+  const { data: itemData, isLoading: itemLoading } = useMaterial(id);
+  const { data: subitemsData } = useMaterialSubitems(id);
+  const deleteMutation = useDeleteMaterial();
+  const deleteSubMutation = useDeleteSubitem(id);
 
-  const bals = store.balances.filter((b) => b.catalogId === item.id && b.quantity !== 0);
-  const logs = store.materialLogs.filter((l) => l.materialId === item.id);
-  const kits = store.subitems.filter((s) => s.materialId === item.id);
+  const item = itemData?.data;
+  const kits = subitemsData?.data ?? (store.subitems as unknown as MaterialSubitem[]).filter((s) => s.materialId === id);
+
+  const bals = store.balances.filter((b) => b.catalogId === id && b.quantity !== 0);
+  const logs = store.materialLogs.filter((l) => l.materialId === id);
+
+  async function handleDelete() {
+    if (mode.kind === "delete" && mode.record) {
+      try {
+        await deleteMutation.mutateAsync(mode.record.id);
+        setMode(closedMode());
+      } catch {
+        // Handle silently
+      }
+    }
+  }
+
+  async function handleDeleteSubitem() {
+    if (subMode.kind === "delete" && subMode.record) {
+      try {
+        await deleteSubMutation.mutateAsync(subMode.record.id);
+        setSubMode(closedMode());
+      } catch {
+        // Handle silently
+      }
+    }
+  }
+
+  if (itemLoading) return <p className="p-8 text-black/50">Loading material details...</p>;
+  if (!item) return <p className="p-8">Material not found.</p>;
 
   const submit = () => {
     try {
@@ -114,12 +145,13 @@ export default function MaterialDetailPage() {
             </div>
             {subMode.kind === "create" ? (
               <FormPanel kicker="Set" title="Add part" onClose={() => setSubMode(closedMode())}>
-                <SubitemForm onCancel={() => setSubMode(closedMode())} onDone={() => setSubMode(closedMode())} />
+                <SubitemForm materialId={item.id} onCancel={() => setSubMode(closedMode())} onDone={() => setSubMode(closedMode())} />
               </FormPanel>
             ) : null}
             {subMode.kind === "edit" ? (
               <FormPanel kicker="Set" title="Edit part" onClose={() => setSubMode(closedMode())}>
                 <SubitemForm
+                  materialId={item.id}
                   initial={subMode.record}
                   onCancel={() => setSubMode(closedMode())}
                   onDone={() => setSubMode(closedMode())}
@@ -251,8 +283,20 @@ export default function MaterialDetailPage() {
           {msg ? <p className="mt-3 text-sm">{msg}</p> : null}
         </aside>
       </div>
-      <DeleteConfirm mode={mode} restore onClose={() => setMode(closedMode())} />
-      <DeleteConfirm mode={subMode} restore={false} onClose={() => setSubMode(closedMode())} />
+      <DeleteConfirm 
+        mode={mode} 
+        restore 
+        loading={deleteMutation.isPending}
+        onClose={() => setMode(closedMode())} 
+        onConfirm={handleDelete}
+      />
+      <DeleteConfirm 
+        mode={subMode} 
+        restore={false} 
+        loading={deleteSubMutation.isPending}
+        onClose={() => setSubMode(closedMode())} 
+        onConfirm={handleDeleteSubitem}
+      />
     </div>
   );
 }

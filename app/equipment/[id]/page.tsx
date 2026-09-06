@@ -17,7 +17,10 @@ import {
 } from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import { isSiteManager, locationName, submitApproval, useStore } from "@/lib/store";
-import type { ApprovalType, Equipment, LocationKind } from "@/lib/types";
+import { useEquipment, useDeleteEquipment } from "@/hooks/use-equipment";
+import { useLicenses } from "@/hooks/use-licenses";
+import type { ApprovalType, LocationKind } from "@/lib/types";
+import type { Equipment } from "@/types/api";
 
 const actions: Array<{ type: ApprovalType; label: string }> = [
   { type: "equipment_purchase", label: "Purchase" },
@@ -38,8 +41,8 @@ const actions: Array<{ type: ApprovalType; label: string }> = [
 export default function EquipmentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const store = useStore();
-  const item = store.equipment.find((e) => e.id === id);
-  const canMutate = !isSiteManager(store);
+  const manager = isSiteManager(store);
+  const canMutate = !manager;
   const [type, setType] = useState<ApprovalType>("equipment_transfer");
   const [price, setPrice] = useState("");
   const [buyerName, setBuyerName] = useState("");
@@ -49,7 +52,26 @@ export default function EquipmentDetailPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [mode, setMode] = useState<RecordMode<Equipment>>(closedMode);
 
-  if (!item) return <p>Equipment not found.</p>;
+  const { data: itemData, isLoading } = useEquipment(id);
+  const { data: licensesData } = useLicenses();
+  const deleteMutation = useDeleteEquipment();
+
+  const item = itemData?.data;
+  const licensesList = licensesData ? licensesData.data : store.licenses;
+
+  async function handleDelete() {
+    if (mode.kind === "delete" && mode.record) {
+      try {
+        await deleteMutation.mutateAsync(mode.record.id);
+        setMode(closedMode());
+      } catch {
+        // Handle silently
+      }
+    }
+  }
+
+  if (isLoading) return <p className="p-8 text-black/50">Loading equipment...</p>;
+  if (!item) return <p className="p-8">Equipment not found.</p>;
 
   const logs = store.equipmentLogs.filter((l) => l.equipmentId === item.id);
   const here = item.siteId
@@ -101,7 +123,7 @@ export default function EquipmentDetailPage() {
         <FormPanel kicker="Asset" title="Edit equipment" onClose={() => setMode(closedMode())}>
           <EquipmentForm
             initial={item}
-            licenses={store.licenses}
+            licenses={licensesList}
             onCancel={() => setMode(closedMode())}
             onDone={() => setMode(closedMode())}
           />
@@ -121,15 +143,16 @@ export default function EquipmentDetailPage() {
             </div>
             <div>
               <dt className="kicker">Book value</dt>
-              <dd className="mt-1 font-mono">{etb(item.value)}</dd>
+              <dd className="mt-1 font-mono">{item.originalValue ? etb(Number(item.originalValue)) : "—"}</dd>
             </div>
             <div>
               <dt className="kicker">Location</dt>
               <dd className="mt-1">{here}</dd>
             </div>
+            {/* Rent rate is currently missing from the new schema, but UI had it */}
             <div>
               <dt className="kicker">Rent rate</dt>
-              <dd className="mt-1 font-mono">{item.rentRate ? `${etb(item.rentRate)} / day` : "—"}</dd>
+              <dd className="mt-1 font-mono">—</dd>
             </div>
           </dl>
           <p className="kicker mb-2">Event log</p>
@@ -185,7 +208,13 @@ export default function EquipmentDetailPage() {
           {msg ? <p className="mt-3 text-sm">{msg}</p> : null}
         </aside>
       </div>
-      <DeleteConfirm mode={mode} restore onClose={() => setMode(closedMode())} />
+      <DeleteConfirm 
+        mode={mode} 
+        restore 
+        loading={deleteMutation.isPending}
+        onClose={() => setMode(closedMode())} 
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }
