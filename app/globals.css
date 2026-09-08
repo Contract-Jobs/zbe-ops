@@ -1,30 +1,36 @@
 @import "tailwindcss";
 
 :root {
-  --white: #f4efe8;
-  --paper: #eadcc8;
-  --yellow: #e08a3c;
-  --black: #1c1410;
-  --ink: #2c221c;
-  --raised: #322820;
-  --grey-750: #4d4038;
-  --grey-700: #6a5a50;
-  --grey-550: #8c7b6e;
-  --grey-350: #d2c4b6;
-  --grey-150: #ebe3d9;
-  --line: color-mix(in hsl, var(--ink) 16%, transparent);
-  --ok: #3d6b4f;
-  --warn: #9a5b1f;
-  --bad: #8a3a32;
+  --white: #f4f7fa;
+  --paper: #e4ebf2;
+  --yellow: #0072c3;
+  --mark: #ffffff;
+  --black: #0c1824;
+  --ink: #122436;
+  --raised: #1a3044;
+  --grey-750: #3d5166;
+  --grey-700: #5a7084;
+  --grey-550: #7d92a3;
+  --grey-350: #c5d0db;
+  --grey-150: #e8eef3;
+  --line: color-mix(in hsl, var(--ink) 18%, transparent);
+  --line-strong: color-mix(in hsl, var(--ink) 55%, transparent);
+  --line-light: color-mix(in hsl, var(--white) 18%, transparent);
+  --ok: #15803d;
+  --warn: #d97706;
+  --bad: #c53030;
 }
 
 @theme inline {
   --color-white: var(--white);
   --color-paper: var(--paper);
   --color-yellow: var(--yellow);
+  --color-mark: var(--mark);
   --color-black: var(--black);
   --color-ink: var(--ink);
   --color-raised: var(--raised);
+  --color-grey-750: var(--grey-750);
+  --color-grey-700: var(--grey-700);
   --color-grey-550: var(--grey-550);
   --color-grey-350: var(--grey-350);
   --color-grey-150: var(--grey-150);
@@ -41,6 +47,7 @@
 
 html {
   background: var(--black);
+  scrollbar-color: var(--yellow) var(--black);
   overflow-x: clip;
 }
 
@@ -58,7 +65,7 @@ body {
 
 ::selection {
   background: var(--yellow);
-  color: var(--ink);
+  color: var(--white);
 }
 
 a {
@@ -105,9 +112,9 @@ textarea {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  border: 1px solid var(--black);
+  border: 1px solid var(--yellow);
   background: var(--yellow);
-  color: var(--black);
+  color: var(--white);
   padding: 0.5rem 0.8rem;
   font-weight: 500;
   letter-spacing: -0.01em;
@@ -118,10 +125,12 @@ textarea {
 .btn:hover {
   background: var(--black);
   color: var(--white);
+  border-color: var(--black);
 }
 
 .btn-ghost {
   background: transparent;
+  color: var(--black);
   border-color: var(--line);
 }
 
@@ -139,7 +148,7 @@ textarea {
 
 .btn-ink:hover {
   background: var(--yellow);
-  color: var(--ink);
+  color: var(--white);
 }
 
 .btn-bad {
@@ -149,9 +158,21 @@ textarea {
 }
 
 .btn-bad:hover {
-  background: var(--ink);
+  background: #991b1b;
   color: var(--white);
-  border-color: var(--ink);
+  border-color: #991b1b;
+}
+
+.btn-ghost-bad {
+  background: transparent;
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 35%, transparent);
+}
+
+.btn-ghost-bad:hover {
+  background: var(--bad);
+  color: var(--white);
+  border-color: var(--bad);
 }
 
 .data {

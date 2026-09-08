@@ -97,14 +97,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={`mb-0.5 flex items-center justify-between px-3 py-2.5 text-[0.95rem] ${active
-                  ? "bg-yellow text-black"
+                  ? "bg-yellow text-white"
                   : "text-white/80 hover:bg-raised hover:text-white"
                   }`}
               >
                 <span>{item.label}</span>
                 {item.href === "/approvals" && pending > 0 ? (
                   <span
-                    className={`font-mono text-[0.7rem] ${active ? "text-black" : "text-yellow"}`}
+                    className={`font-mono text-[0.7rem] ${active ? "text-white" : "text-yellow"}`}
                   >
                     {pending}
                   </span>
@@ -151,7 +151,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             {pending > 0 ? (
               <Link
                 href="/approvals"
-                className="shrink-0 bg-yellow px-2 py-1 font-mono text-[0.7rem] text-black lg:hidden"
+                className="shrink-0 bg-yellow px-2 py-1 font-mono text-[0.7rem] text-white lg:hidden"
               >
                 {pending}
               </Link>

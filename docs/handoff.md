@@ -136,7 +136,7 @@ Mobile: hamburger drawer below `lg`, stacked forms, tables hide extra columns / 
 - TypeScript strict, no `any`
 - No new dependencies without asking
 - No `console.log`
-- Never hardcode hex — tokens (`bg-yellow` is copper; `--yellow` is the accent name)
+- Never hardcode hex — tokens (`bg-yellow` is official brand blue; `--yellow` is the accent name)
 - Verify in the browser at desktop **and** ~390px. A screenshot is not a test.
 
 Suggested later work (confirm with the project owner first): React Query on the existing forms (`onSubmit` instead of `uiOnly`), real `/api/*`, auth (not Clerk for team/org), reversals, analytics.

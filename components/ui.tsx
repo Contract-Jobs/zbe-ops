@@ -157,7 +157,7 @@ export function RecordActions({
         </button>
       ) : null}
       {onDelete ? (
-        <button type="button" className="btn btn-ghost" onClick={onDelete}>
+        <button type="button" className="btn btn-ghost-bad" onClick={onDelete}>
           Delete
         </button>
       ) : null}

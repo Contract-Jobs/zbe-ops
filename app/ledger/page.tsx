@@ -63,7 +63,7 @@ export default function LedgerPage() {
               {canMutate ? (
                 <button
                   type="button"
-                  className="btn btn-ghost px-2 py-0.5 text-sm"
+                  className="btn btn-ghost-bad px-2 py-0.5 text-sm"
                   onClick={() => setDropCat(c)}
                 >
                   Delete

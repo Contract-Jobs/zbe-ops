@@ -2,31 +2,34 @@
 
 Visual language for this ops desk. Tokens live in `app/globals.css`. Do not hardcode hex in components.
 
-This is a dense internal console: tables, stamps, copper actions. No GSAP. No Lenis. No CAD drawings. Do not restyle it into a SaaS dashboard.
+This is a dense internal console: tables, stamps, blue actions. No GSAP. No Lenis. No CAD drawings. Do not restyle it into a SaaS dashboard.
 
 ---
 
 ## Tokens
 
-`--yellow` is the **accent token** (copper). UI reads `var(--yellow)`, `var(--black)`, `var(--ink)`, `var(--paper)`, `var(--white)`.
+`--yellow` is the **accent token** (official brand blue). UI reads `var(--yellow)`, `var(--black)`, `var(--ink)`, `var(--paper)`, `var(--white)`.
 
 ```css
 :root {
-  --white: #f4efe8;
-  --paper: #eadcc8;
-  --yellow: #e08a3c;
-  --black: #1c1410;
-  --ink: #2c221c;
-  --raised: #322820;
-  --grey-750: #4d4038;
-  --grey-700: #6a5a50;
-  --grey-550: #8c7b6e;
-  --grey-350: #d2c4b6;
-  --grey-150: #ebe3d9;
-  --line: color-mix(in hsl, var(--ink) 16%, transparent);
-  --ok: #3d6b4f;
-  --warn: #9a5b1f;
-  --bad: #8a3a32;
+  --white: #f4f7fa;
+  --paper: #e4ebf2;
+  --yellow: #0072c3;
+  --mark: #ffffff;
+  --black: #0c1824;
+  --ink: #122436;
+  --raised: #1a3044;
+  --grey-750: #3d5166;
+  --grey-700: #5a7084;
+  --grey-550: #7d92a3;
+  --grey-350: #c5d0db;
+  --grey-150: #e8eef3;
+  --line: color-mix(in hsl, var(--ink) 18%, transparent);
+  --line-strong: color-mix(in hsl, var(--ink) 55%, transparent);
+  --line-light: color-mix(in hsl, var(--white) 18%, transparent);
+  --ok: #15803d;
+  --warn: #d97706;
+  --bad: #c53030;
 }
 ```
 
@@ -35,7 +38,7 @@ This is a dense internal console: tables, stamps, copper actions. No GSAP. No Le
 **Rules**
 
 - Page: `--white`. Sidebar: `--black`.
-- Selection: accent fill, `--ink` text.
+- Selection: accent fill, `--white` text.
 - Hairlines: 1px `--line`.
 - **Hard no:** drop shadows, gradients, glass, rounded-xl cards, Inter, purple chrome.
 
@@ -67,12 +70,12 @@ Instrument Sans 400 / 500 / 600 / 700. IBM Plex Mono 400 / 500 for IDs, quantiti
 
 ## Chrome
 
-- Sidebar: copper “Ops desk” kicker. Active nav = copper fill / black type. Pending count in mono.
+- Sidebar: brand-blue “Ops desk” kicker. Active nav = blue fill / white type. Pending count in mono.
 - Hamburger: `h-11 w-11` square black. Close on route change. Lock body scroll while open.
 - Pending badge in the mobile header → `/approvals`.
-- `.btn` copper fill, black border, hover inverts to black fill / white type. `.btn-ghost` and `.btn-ink` as in `globals.css`. `.btn-bad` for confirm-delete.
-- `.field` full width, 1px line, copper focus ring (`outline: 2px solid var(--yellow)`).
-- `<Stamp>`: mono, uppercase, hairline. `statusTone()` — ok / yellow / bad / warn.
+- `.btn` blue fill, blue border, white type, hover inverts to black fill / white type. `.btn-ghost` (dark type, inverts to black on hover), `.btn-ghost-bad` (red hairline and type, inverts to red on hover), `.btn-ink`, and `.btn-bad` (crimson red fill / white type for confirm-delete).
+- `.field` full width, 1px line, brand-blue focus ring (`outline: 2px solid var(--yellow)`).
+- `<Stamp>`: mono, uppercase, hairline. `statusTone()` — ok (green) / yellow (blue tint) / bad (crimson) / warn (amber).
 - Record create/edit: paper `FormPanel` in `components/ui.tsx`. Delete: sharp overlay (`ConfirmDialog`). New/Edit/Delete buttons: `RecordActions`.
 
 ---
