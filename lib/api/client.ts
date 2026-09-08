@@ -20,7 +20,7 @@ export interface ApiErrorPayload {
 }
 
 interface ApiSuccessEnvelope<T> {
-  success?: true; // backend doesn't always send this on success, only checked on failure
+  success?: true;
   data: T;
   pagination?: Pagination;
 }
@@ -85,10 +85,10 @@ async function request<T>(
       searchParams instanceof URLSearchParams
         ? searchParams
         : new URLSearchParams(
-            Object.entries(searchParams).filter(
-              (entry): entry is [string, string] => entry[1] !== undefined,
-            ),
-          );
+          Object.entries(searchParams).filter(
+            (entry): entry is [string, string] => entry[1] !== undefined,
+          ),
+        );
     url.search = params.toString();
   }
 
@@ -110,19 +110,23 @@ async function request<T>(
     });
   }
 
-  // Some endpoints (e.g. a bare delete) may return 204 with no body
-  const text = await response.text();
-  const json = text ? JSON.parse(text) : null;
+
+  const text = await response.text()
+  const json = text ? JSON.parse(text) : null
 
   if (!response.ok || json?.success === false) {
     const errorPayload: ApiErrorPayload = json?.error ?? {
       code: "INTERNAL_ERROR",
       message: response.statusText || "Unknown error",
-    };
-    throw new ApiError(response.status, errorPayload);
+    }
+    throw new ApiError(response.status, errorPayload)
   }
 
-  return json as ApiSuccessEnvelope<T>;
+  if (response.status === 204 || json === null) {
+    return { data: undefined as T }
+  }
+
+  return json as ApiSuccessEnvelope<T>
 }
 
 // ---- Public client ----

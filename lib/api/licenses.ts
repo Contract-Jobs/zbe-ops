@@ -1,5 +1,3 @@
-// lib/api/licenses.ts
-
 import { createSimpleCrudApi } from "./simple-crud"
 import type { License } from "@/types/api"
 

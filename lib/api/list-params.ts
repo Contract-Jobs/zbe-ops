@@ -36,8 +36,6 @@
 //   return search;
 // }
 
-// lib/api/list-params.ts
-
 export type SortOrder = "asc" | "desc"
 export type FilterValue = string | string[] | undefined
 
