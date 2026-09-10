@@ -27,13 +27,6 @@ export interface UpdateSitePayload {
 
 export type SiteListParams = ListParams<{ status?: string[]; licenseId?: string[] }>
 export type SiteLifecycleParams = ListParams<{ eventType?: string[] }>
-export type SiteTaskListParams = ListParams<{
-    status?: string[]
-    targetDateFrom?: string[]
-    targetDateTo?: string[]
-}>
-
-// ---- CRUD ----
 
 export function listSites(params: SiteListParams = {}) {
     return apiClient.get<Site[]>("/api/sites", buildListParams(params))
@@ -108,3 +101,9 @@ export function claimSiteTask(siteId: string, taskId: string, payload: { notes?:
 export function completeSiteTask(siteId: string, taskId: string, payload: { review?: string } = {}) {
     return apiClient.post<SiteTask>(`/api/sites/${siteId}/tasks/${taskId}/complete`, payload)
 }
+
+export type SiteTaskListParams = ListParams<{
+    status?: ("completed" | "pending")[]  // anything else is silently ignored by the backend
+    targetDateFrom?: string[]
+    targetDateTo?: string[]
+}>

@@ -50,8 +50,6 @@ export interface InventoryBalance {
   quantity: number;
 }
 
-// ---------- Equipment ----------
-
 export interface Equipment {
   id: string;
   name: string;
@@ -91,8 +89,6 @@ export interface EquipmentLog {
   createdAt: string;
 }
 
-// ---------- Rentals ----------
-
 export interface RentalAgreement {
   id: string;
   equipmentId: string;
@@ -121,8 +117,6 @@ export interface RentalEvent {
   approvalStatus: ApprovalStatus;
   createdAt: string;
 }
-
-// ---------- Sites & Tasks ----------
 
 export interface Site {
   id: string;
@@ -192,9 +186,6 @@ export interface SiteSummary {
   }[];
 }
 
-// ---------- Master data ----------
-// INFERRED — only create payloads given in the doc; standard soft-delete shape assumed
-
 export interface Tender {
   id: string;
   name: string;
@@ -225,8 +216,6 @@ export interface Warehouse {
   deletedAt: string | null;
 }
 
-// ---------- Finance ----------
-
 export interface Transaction {
   id: string;
   licenseId: string;
@@ -246,7 +235,6 @@ export interface Transaction {
   deletedAt: string | null;
 }
 
-// INFERRED — name only confirmed via create payload
 export interface TransactionCategory {
   id: string;
   name: string;
@@ -255,31 +243,17 @@ export interface TransactionCategory {
   deletedAt: string | null;
 }
 
-// INFERRED — fields drawn from list filters (siteId, licenseId, sourceRefType, isReversal)
 export interface ProjectLedger {
   id: string;
   siteId: string | null;
   licenseId: string;
-  sourceRefType: string; // e.g. "material_log" | "equipment_log" | "transaction"
+  sourceRefType: string;
   sourceRefId: string;
   amount: string;
   isReversal: boolean;
   reversalOfId: string | null;
   createdAt: string;
 }
-
-// export interface CostBreakdown {
-//   siteId: string;
-//   dateFrom?: string;
-//   dateTo?: string;
-//   totalSpend: string;
-//   byCategory: {
-//     categoryId: string | null;
-//     categoryName: string;
-//     total: string;
-//     count: number;
-//   }[];
-// }
 
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 
@@ -529,29 +503,6 @@ export interface SpendAnalytics {
   }[]
 }
 
-// NOTE: `tasks` and `costs` item shapes aren't specified anywhere in the
-// doc — only shown as empty arrays in the example response. Left as
-// unknown[] rather than guessed; narrow this once confirmed.
-export interface BudgetOverview {
-  siteId: string
-  laborBudget: string
-  materialBudget: string
-  totalBudgeted: string
-  totalSpent: string
-  variance: string
-  tasks: unknown[]
-  costs: unknown[]
-}
-
-export interface InventoryAnalytics {
-  totalMaterials: number
-  totalEquipment: number
-  totalMaterialValue: string
-  bySite: unknown[]
-  byWarehouse: unknown[]
-  movementVolume: unknown[]
-}
-
 export interface BudgetHealthEntry {
   siteId: string
   siteName: string
@@ -569,4 +520,39 @@ export interface LicenseAnalytics {
   totalSpent: string
   totalReceived: string
   netCashFlow: string
+}
+
+export interface TaskSummaryRow {
+  taskId: string
+  name: string
+  targetDate: string | null
+  isCompleted: boolean
+}
+
+export interface LedgerCostRow {
+  amount: string
+  description: string | null
+  timestamp: string
+  sourceRefType: "transaction" | "material_log" | "equipment_log"
+  isReversal: boolean
+}
+
+export interface BudgetOverview {
+  siteId: string
+  laborBudget: string | null
+  materialBudget: string | null
+  totalBudgeted: string
+  totalSpent: string
+  variance: string
+  tasks: TaskSummaryRow[]
+  costs: LedgerCostRow[]
+}
+
+export interface InventoryAnalytics {
+  totalMaterials: number
+  totalEquipment: number
+  totalMaterialValue: string
+  bySite: { siteId: string; siteName: string; materialCount: number; totalQuantity: number }[]
+  byWarehouse: { warehouseId: string; warehouseName: string; materialCount: number; totalQuantity: number }[]
+  movementVolume: { movementType: string; count: number; totalQuantity: number }[]
 }
