@@ -17,7 +17,8 @@ import {
 } from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import { isSiteManager, locationName, submitApproval, useStore } from "@/lib/store";
-import type { ApprovalType, Equipment, LocationKind } from "@/lib/types";
+import type { ApprovalType, LocationKind } from "@/lib/types";
+import type { Equipment } from "@/types/api";
 
 const actions: Array<{ type: ApprovalType; label: string }> = [
   { type: "equipment_purchase", label: "Purchase" },
@@ -48,6 +49,7 @@ export default function EquipmentDetailPage() {
   const [toId, setToId] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [mode, setMode] = useState<RecordMode<Equipment>>(closedMode);
+  // item comes from the store (lib/types), cast to api type at form boundaries below
 
   if (!item) return <p>Equipment not found.</p>;
 
@@ -91,8 +93,8 @@ export default function EquipmentDetailPage() {
         action={
           canMutate ? (
             <RecordActions
-              onEdit={() => setMode({ kind: "edit", record: item })}
-              onDelete={() => setMode({ kind: "delete", record: item, label: item.name })}
+              onEdit={() => setMode({ kind: "edit", record: item as unknown as Equipment })}
+              onDelete={() => setMode({ kind: "delete", record: item as unknown as Equipment, label: item.name })}
             />
           ) : undefined
         }
@@ -100,7 +102,7 @@ export default function EquipmentDetailPage() {
       {mode.kind === "edit" ? (
         <FormPanel kicker="Asset" title="Edit equipment" onClose={() => setMode(closedMode())}>
           <EquipmentForm
-            initial={item}
+            initial={mode.kind === "edit" ? mode.record : undefined}
             licenses={store.licenses}
             onCancel={() => setMode(closedMode())}
             onDone={() => setMode(closedMode())}

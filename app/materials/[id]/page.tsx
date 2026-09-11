@@ -16,7 +16,8 @@ import {
 } from "@/components/ui";
 import { day, qty } from "@/lib/format";
 import { isSiteManager, locationName, submitApproval, useStore } from "@/lib/store";
-import type { ApprovalType, LocationKind, Material, MaterialSubitem } from "@/lib/types";
+import type { ApprovalType, LocationKind } from "@/lib/types";
+import type { MaterialCatalog as Material, MaterialSubitem } from "@/types/api";
 
 const actions: Array<{ type: ApprovalType; label: string }> = [
   { type: "material_purchase", label: "Purchase" },
@@ -87,8 +88,8 @@ export default function MaterialDetailPage() {
         action={
           canMutate ? (
             <RecordActions
-              onEdit={() => setMode({ kind: "edit", record: item })}
-              onDelete={() => setMode({ kind: "delete", record: item, label: item.name })}
+              onEdit={() => setMode({ kind: "edit", record: item as unknown as Material })}
+              onDelete={() => setMode({ kind: "delete", record: item as unknown as Material, label: item.name })}
             />
           ) : undefined
         }
@@ -98,7 +99,7 @@ export default function MaterialDetailPage() {
       </p>
       {mode.kind === "edit" ? (
         <FormPanel kicker="Catalog" title="Edit material" onClose={() => setMode(closedMode())}>
-          <MaterialForm initial={item} onCancel={() => setMode(closedMode())} onDone={() => setMode(closedMode())} />
+          <MaterialForm initial={mode.kind === "edit" ? mode.record : undefined} onCancel={() => setMode(closedMode())} onDone={() => setMode(closedMode())} />
         </FormPanel>
       ) : null}
       <div className="flex flex-col-reverse gap-8 lg:grid lg:grid-cols-[1fr_20rem] lg:gap-10">
@@ -114,13 +115,14 @@ export default function MaterialDetailPage() {
             </div>
             {subMode.kind === "create" ? (
               <FormPanel kicker="Set" title="Add part" onClose={() => setSubMode(closedMode())}>
-                <SubitemForm onCancel={() => setSubMode(closedMode())} onDone={() => setSubMode(closedMode())} />
+                <SubitemForm materialId={item.id} onCancel={() => setSubMode(closedMode())} onDone={() => setSubMode(closedMode())} />
               </FormPanel>
             ) : null}
             {subMode.kind === "edit" ? (
               <FormPanel kicker="Set" title="Edit part" onClose={() => setSubMode(closedMode())}>
                 <SubitemForm
-                  initial={subMode.record}
+                  materialId={item.id}
+                  initial={subMode.record as MaterialSubitem}
                   onCancel={() => setSubMode(closedMode())}
                   onDone={() => setSubMode(closedMode())}
                 />
@@ -135,8 +137,8 @@ export default function MaterialDetailPage() {
                       <span className="font-mono">{s.quantity}</span>
                       {canMutate ? (
                         <RecordActions
-                          onEdit={() => setSubMode({ kind: "edit", record: s })}
-                          onDelete={() => setSubMode({ kind: "delete", record: s, label: s.name })}
+                          onEdit={() => setSubMode({ kind: "edit", record: s as unknown as MaterialSubitem })}
+                          onDelete={() => setSubMode({ kind: "delete", record: s as unknown as MaterialSubitem, label: s.name })}
                         />
                       ) : null}
                     </span>

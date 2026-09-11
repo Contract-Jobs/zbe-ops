@@ -15,16 +15,36 @@ import {
 } from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
-import type { Tender } from "@/lib/types";
+import { useTenders, useDeleteTender } from "@/hooks/use-tenders";
+import { useLicenses } from "@/hooks/use-licenses";
+import type { Tender } from "@/types/api";
 
 export default function TendersPage() {
   const store = useStore();
   const canMutate = !isSiteManager(store);
   const [mode, setMode] = useState<RecordMode<Tender>>(closedMode);
+
+  const { data: tendersData, isLoading } = useTenders();
+  const { data: licensesData } = useLicenses();
+  const deleteMutation = useDeleteTender();
+
+  const licensesList = licensesData ? licensesData.data : store.licenses;
+  const allTenders = tendersData ? tendersData.data : (store.tenders as unknown as Tender[]);
   const rows =
     store.session.licenseId === "all"
-      ? store.tenders
-      : store.tenders.filter((t) => t.licenseId === store.session.licenseId);
+      ? allTenders
+      : allTenders.filter((t) => t.licenseId === store.session.licenseId);
+
+  async function handleDelete() {
+    if (mode.kind === "delete" && mode.record) {
+      try {
+        await deleteMutation.mutateAsync(mode.record.id);
+        setMode(closedMode());
+      } catch {
+        // Handled
+      }
+    }
+  }
 
   return (
     <div>
@@ -35,55 +55,73 @@ export default function TendersPage() {
       />
       {mode.kind === "create" ? (
         <FormPanel kicker="Pipeline" title="New tender" onClose={() => setMode(closedMode())}>
-          <TenderForm licenses={store.licenses} onCancel={() => setMode(closedMode())} onDone={() => setMode(closedMode())} />
+          <TenderForm licenses={licensesList} onCancel={() => setMode(closedMode())} onDone={() => setMode(closedMode())} />
         </FormPanel>
       ) : null}
       {mode.kind === "edit" ? (
         <FormPanel kicker="Pipeline" title="Edit tender" onClose={() => setMode(closedMode())}>
           <TenderForm
             initial={mode.record}
-            licenses={store.licenses}
+            licenses={licensesList}
             onCancel={() => setMode(closedMode())}
             onDone={() => setMode(closedMode())}
           />
         </FormPanel>
       ) : null}
-      <TableWrap>
-        <table className="data">
-          <thead>
-            <tr>
-              <th>Tender</th>
-              <th className="hidden md:table-cell">License</th>
-              <th className="hidden sm:table-cell">Submit</th>
-              <th>Value</th>
-              <th>Status</th>
-              {canMutate ? <th></th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((t) => (
-              <tr key={t.id}>
-                <td className="font-medium">{t.name}</td>
-                <td className="hidden md:table-cell">{store.licenses.find((l) => l.id === t.licenseId)?.name}</td>
-                <td className="hidden sm:table-cell">{t.submissionDate ? day(t.submissionDate) : "—"}</td>
-                <td className="font-mono text-sm">{t.value ? etb(t.value) : "—"}</td>
-                <td>
-                  <Stamp value={t.status} tone={statusTone(t.status)} />
-                </td>
-                {canMutate ? (
-                  <td>
-                    <RecordActions
-                      onEdit={() => setMode({ kind: "edit", record: t })}
-                      onDelete={() => setMode({ kind: "delete", record: t, label: t.name })}
-                    />
-                  </td>
-                ) : null}
+      {isLoading && !tendersData ? (
+        <div className="p-8 text-center text-sm text-black/50">Loading tenders...</div>
+      ) : (
+        <TableWrap>
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Tender</th>
+                <th className="hidden md:table-cell">License</th>
+                <th className="hidden sm:table-cell">Submit</th>
+                <th>Value</th>
+                <th>Status</th>
+                {canMutate ? <th></th> : null}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </TableWrap>
-      <DeleteConfirm mode={mode} restore onClose={() => setMode(closedMode())} />
+            </thead>
+            <tbody>
+              {rows.map((t) => {
+                const tenderVal =
+                  "value" in t && typeof t.value === "number"
+                    ? t.value
+                    : t.estimatedBudget
+                      ? Number(t.estimatedBudget)
+                      : 0;
+                return (
+                  <tr key={t.id}>
+                    <td className="font-medium">{t.name}</td>
+                    <td className="hidden md:table-cell">{licensesList.find((l) => l.id === t.licenseId)?.name}</td>
+                    <td className="hidden sm:table-cell">{t.submissionDate ? day(t.submissionDate) : "—"}</td>
+                    <td className="font-mono text-sm">{tenderVal ? etb(tenderVal) : "—"}</td>
+                    <td>
+                      <Stamp value={t.status} tone={statusTone(t.status)} />
+                    </td>
+                    {canMutate ? (
+                      <td>
+                        <RecordActions
+                          onEdit={() => setMode({ kind: "edit", record: t })}
+                          onDelete={() => setMode({ kind: "delete", record: t, label: t.name })}
+                        />
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </TableWrap>
+      )}
+      <DeleteConfirm
+        mode={mode}
+        restore
+        loading={deleteMutation.isPending}
+        onClose={() => setMode(closedMode())}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

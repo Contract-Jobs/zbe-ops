@@ -26,7 +26,8 @@ import {
   userName,
   visibleSiteIds,
 } from "@/lib/store";
-import type { Site, Task } from "@/lib/types";
+import type { Task } from "@/lib/types";
+import type { Site } from "@/types/api";
 
 export default function SiteDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -60,8 +61,8 @@ export default function SiteDetailPage() {
             <Stamp value={site.status} tone={statusTone(site.status)} />
             {canMutate ? (
               <RecordActions
-                onEdit={() => setMode({ kind: "edit", record: site })}
-                onDelete={() => setMode({ kind: "delete", record: site, label: site.name })}
+                onEdit={() => setMode({ kind: "edit", record: site as unknown as Site })}
+                onDelete={() => setMode({ kind: "delete", record: site as unknown as Site, label: site.name })}
               />
             ) : null}
           </span>
@@ -71,7 +72,7 @@ export default function SiteDetailPage() {
       {mode.kind === "edit" ? (
         <FormPanel kicker="Site" title="Edit site" onClose={() => setMode(closedMode())}>
           <SiteForm
-            initial={site}
+            initial={mode.kind === "edit" ? mode.record : undefined}
             licenses={store.licenses}
             users={store.users}
             onCancel={() => setMode(closedMode())}
