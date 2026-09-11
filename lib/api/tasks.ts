@@ -1,19 +1,7 @@
-// Flat task endpoints — /api/tasks/*. These operate on a task without
-// needing its parent siteId, unlike the nested /api/sites/[id]/tasks/*
-// routes (which we'll also build in Phase 7 for the site-scoped views).
-// Both sets of routes return the same SiteTask shape.
-
 import { apiClient } from "./client"
 import { buildListParams } from "./list-params"
 import type { ListParams } from "./list-params"
 import type { SiteTask } from "@/types/api"
-
-export type TaskListParams = ListParams<{
-    siteId?: string[]
-    status?: string[]
-    targetDateFrom?: string[]
-    targetDateTo?: string[]
-}>
 
 export function listTasks(params: TaskListParams = {}) {
     return apiClient.get<SiteTask[]>("/api/tasks", buildListParams(params))
@@ -37,3 +25,10 @@ export function updateTask(id: string, payload: UpdateTaskPayload) {
 export function deleteTask(id: string) {
     return apiClient.delete<void>(`/api/tasks/${id}`)
 }
+
+export type TaskListParams = ListParams<{
+    siteId?: string[]
+    status?: ("completed" | "pending")[]
+    targetDateFrom?: string[]
+    targetDateTo?: string[]
+}>
