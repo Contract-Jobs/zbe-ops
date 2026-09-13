@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { Field, FormActions } from "@/components/ui";
+import { LocationSelect } from "@/components/LocationSelect";
 import { useCreateEquipment, useUpdateEquipment } from "@/hooks/use-equipment";
 import type { Equipment } from "@/types/api";
+import type { LocationKind } from "@/lib/types";
 
 export function EquipmentForm({
   initial,
@@ -20,6 +22,9 @@ export function EquipmentForm({
   const createMutation = useCreateEquipment();
   const updateMutation = useUpdateEquipment();
   const [error, setError] = useState<string | null>(null);
+
+  const [toKind, setToKind] = useState<LocationKind | "">("");
+  const [toId, setToId] = useState("");
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
@@ -49,6 +54,8 @@ export function EquipmentForm({
           serialNumber: serialNumber || undefined,
           licenseId: licenseId || undefined,
           originalValue: originalValue || undefined,
+          siteId: toKind === "site" && toId ? toId : undefined,
+          warehouseId: toKind === "warehouse" && toId ? toId : undefined,
         });
       }
       onDone();
@@ -84,8 +91,12 @@ export function EquipmentForm({
           <Field label="Original value (ETB)">
             <input className="field" name="originalValue" defaultValue="" disabled={isPending} />
           </Field>
+          <div className="sm:col-span-2">
+            <p className="mb-1 text-sm font-medium">Initial Destination</p>
+            <LocationSelect kind={toKind} id={toId} onKind={setToKind} onId={setToId} />
+          </div>
           <p className="text-sm text-black/55 sm:col-span-2">
-            Rent rate is set by hire events, not on create. Location and book value move through Approvals.
+            Rent rate is set by hire events, not on create. Location moves through Approvals after creation.
           </p>
         </>
       ) : (
