@@ -119,13 +119,21 @@ export function FormPanel({
   );
 }
 
-export function FormActions({ saveLabel, onCancel }: { saveLabel: string; onCancel: () => void }) {
+export function FormActions({
+  saveLabel,
+  onCancel,
+  loading,
+}: {
+  saveLabel: string;
+  onCancel: () => void;
+  loading?: boolean;
+}) {
   return (
     <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row">
-      <button className="btn w-full sm:w-auto" type="submit">
-        {saveLabel}
+      <button className="btn w-full sm:w-auto" type="submit" disabled={loading}>
+        {loading ? "Saving…" : saveLabel}
       </button>
-      <button className="btn btn-ghost w-full sm:w-auto" type="button" onClick={onCancel}>
+      <button className="btn btn-ghost w-full sm:w-auto" type="button" onClick={onCancel} disabled={loading}>
         Cancel
       </button>
     </div>
@@ -171,6 +179,7 @@ export function ConfirmDialog({
   body,
   confirmLabel = "Confirm delete",
   danger = true,
+  loading,
   onCancel,
   onConfirm,
 }: {
@@ -179,6 +188,7 @@ export function ConfirmDialog({
   body: string;
   confirmLabel?: string;
   danger?: boolean;
+  loading?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -231,11 +241,15 @@ export function ConfirmDialog({
 export function DeleteConfirm<T>({
   mode,
   restore,
+  loading,
   onClose,
+  onConfirm,
 }: {
   mode: RecordMode<T>;
   restore: boolean;
+  loading?: boolean;
   onClose: () => void;
+  onConfirm?: () => void;
 }) {
   if (mode.kind !== "delete") return null;
   return (
@@ -248,7 +262,7 @@ export function DeleteConfirm<T>({
           : `${mode.label} will be removed. There is no restore on this record.`
       }
       onCancel={onClose}
-      onConfirm={onClose}
+      onConfirm={onConfirm ?? onClose}
     />
   );
 }

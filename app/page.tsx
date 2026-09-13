@@ -1,18 +1,81 @@
 "use client";
 
-import { siteSpend, useStore, visibleSites } from "@/lib/store";
-import { etb } from "@/lib/format";
-import { PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
 import Link from "next/link";
+import { useMemo } from "react";
+import { PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
+import { etb } from "@/lib/format";
+import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
+import { useApprovals } from "@/hooks/use-approvals";
+import { useEquipmentList } from "@/hooks/use-equipment";
+import { useTransactions } from "@/hooks/use-transactions";
+import { useSites } from "@/hooks/use-sites";
+import type { Approval, Equipment, Site, Transaction } from "@/types/api";
 
 export default function BoardPage() {
   const store = useStore();
-  const sites = visibleSites(store);
-  const pending = store.approvals.filter((a) => a.status === "pending");
-  const onLoan = store.equipment.filter((e) => e.isOnLoan);
-  const maintenance = store.equipment.filter((e) => e.status === "maintenance");
-  const spend = store.transactions.filter((t) => !t.isReversal && t.type === "money_out").reduce((s, t) => s + t.amount, 0);
-  const income = store.transactions.filter((t) => !t.isReversal && t.type === "money_in").reduce((s, t) => s + t.amount, 0);
+  const manager = isSiteManager(store);
+  const allowedSiteIds = visibleSiteIds(store);
+
+  const { data: approvalsData } = useApprovals({ status: ["pending"] });
+  const { data: equipmentData } = useEquipmentList();
+  const { data: transactionsData } = useTransactions();
+  const { data: sitesData } = useSites();
+
+  const sites = useMemo(() => {
+    const list = sitesData?.data ?? (store.sites as unknown as Site[]);
+    return list
+      .filter((s) => !s.deletedAt)
+      .filter((s) => (manager ? allowedSiteIds.has(s.id) : true));
+  }, [allowedSiteIds, manager, sitesData?.data, store.sites]);
+
+  const pending = useMemo(() => {
+    const list = approvalsData?.data ?? (store.approvals as unknown as Approval[]);
+    return list.filter((a) => a.status === "pending");
+  }, [approvalsData?.data, store.approvals]);
+
+  const equipment = useMemo(() => {
+    const list = equipmentData?.data ?? (store.equipment as unknown as Equipment[]);
+    return list.filter((e) => !e.deletedAt);
+  }, [equipmentData?.data, store.equipment]);
+
+  const onLoan = useMemo(() => {
+    return equipment.filter((e) => (e as unknown as { isOnLoan?: boolean }).isOnLoan);
+  }, [equipment]);
+
+  const maintenance = useMemo(() => {
+    return equipment.filter(
+      (e) => e.currentStatus === "maintenance" || (e as unknown as { status?: string }).status === "maintenance"
+    );
+  }, [equipment]);
+
+  const transactions = useMemo(() => {
+    return transactionsData?.data ?? (store.transactions as unknown as Transaction[]);
+  }, [transactionsData?.data, store.transactions]);
+
+  const spend = useMemo(() => {
+    return transactions
+      .filter((t) => !t.isReversal && t.type === "money_out")
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+  }, [transactions]);
+
+  const income = useMemo(() => {
+    return transactions
+      .filter((t) => !t.isReversal && t.type === "money_in")
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+  }, [transactions]);
+
+  const getSiteSpend = (siteId: string) => {
+    const txs = transactions.filter((t) => t.siteId === siteId && !t.isReversal);
+    const out = txs.filter((t) => t.type === "money_out").reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const inn = txs.filter((t) => t.type === "money_in").reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const labor = txs
+      .filter((t) => t.type === "money_out" && t.categoryId === "cat_labor")
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    const material = txs
+      .filter((t) => t.type === "money_out" && t.categoryId === "cat_mat")
+      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+    return { out, inn, labor, material };
+  };
 
   return (
     <div>
@@ -29,60 +92,75 @@ export default function BoardPage() {
         <section>
           <p className="kicker mb-3">Budget health</p>
           <TableWrap>
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Site</th>
-                <th>Labor</th>
-                <th>Material</th>
-                <th className="hidden sm:table-cell"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sites.map((site) => {
-                const s = siteSpend(site.id, store);
-                return (
-                  <tr key={site.id}>
-                    <td>
-                      <Link href={`/sites/${site.id}`} className="font-medium hover:text-yellow">
-                        {site.name}
-                      </Link>
-                      <div className="mt-1">
-                        <Stamp value={site.status} tone={statusTone(site.status)} />
-                      </div>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Site</th>
+                  <th>Labor</th>
+                  <th>Material</th>
+                  <th className="hidden sm:table-cell"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {sites.map((site) => {
+                  const s = getSiteSpend(site.id);
+                  const laborBudget = Number(site.laborBudget) || 0;
+                  const materialBudget = Number(site.materialBudget) || 0;
+
+                  return (
+                    <tr key={site.id}>
+                      <td>
+                        <Link href={`/sites/${site.id}`} className="font-medium hover:text-yellow">
+                          {site.name}
+                        </Link>
+                        <div className="mt-1">
+                          <Stamp value={site.status} tone={statusTone(site.status)} />
+                        </div>
+                      </td>
+                      <td className="font-mono text-sm">
+                        {etb(s.labor)}
+                        <span className="block text-[0.7rem] text-black/45">of {etb(laborBudget)}</span>
+                        <Bar used={s.labor} max={laborBudget} />
+                      </td>
+                      <td className="font-mono text-sm">
+                        {etb(s.material)}
+                        <span className="block text-[0.7rem] text-black/45">of {etb(materialBudget)}</span>
+                        <Bar used={s.material} max={materialBudget} />
+                      </td>
+                      <td className="hidden text-right text-black/50 sm:table-cell">{etb(s.out)} out</td>
+                    </tr>
+                  );
+                })}
+                {sites.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-sm text-black/45">
+                      No active sites found.
                     </td>
-                    <td className="font-mono text-sm">
-                      {etb(s.labor)}
-                      <span className="block text-[0.7rem] text-black/45">of {etb(site.laborBudget)}</span>
-                      <Bar used={s.labor} max={site.laborBudget} />
-                    </td>
-                    <td className="font-mono text-sm">
-                      {etb(s.material)}
-                      <span className="block text-[0.7rem] text-black/45">of {etb(site.materialBudget)}</span>
-                      <Bar used={s.material} max={site.materialBudget} />
-                    </td>
-                    <td className="hidden text-right text-black/50 sm:table-cell">{etb(s.out)} out</td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ) : null}
+              </tbody>
+            </table>
           </TableWrap>
         </section>
 
         <section>
           <p className="kicker mb-3">Waiting on you</p>
           <ul className="border border-black/10">
-            {pending.slice(0, 6).map((a) => (
-              <li key={a.id} className="border-b border-black/10 last:border-0">
-                <Link href={`/approvals/${a.id}`} className="block border-l-2 border-yellow px-4 py-3 hover:bg-paper/50">
-                  <p className="text-sm font-medium leading-snug">{a.summary}</p>
-                  <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-wider text-black/45">
-                    {a.approvalType.replaceAll("_", " ")}
-                  </p>
-                </Link>
-              </li>
-            ))}
+            {pending.slice(0, 6).map((a) => {
+              const summary = (a as unknown as { summary?: string }).summary ??
+                (a.notes || `${a.approvalType.replaceAll("_", " ")} #${a.recordId?.slice(0, 8) ?? a.id.slice(0, 8)}`);
+
+              return (
+                <li key={a.id} className="border-b border-black/10 last:border-0">
+                  <Link href={`/approvals/${a.id}`} className="block border-l-2 border-yellow px-4 py-3 hover:bg-paper/50">
+                    <p className="text-sm font-medium leading-snug">{summary}</p>
+                    <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-wider text-black/45">
+                      {a.approvalType.replaceAll("_", " ")}
+                    </p>
+                  </Link>
+                </li>
+              );
+            })}
             {pending.length === 0 ? (
               <li className="px-4 py-8 text-center text-black/45">Queue is clear.</li>
             ) : null}
@@ -115,3 +193,4 @@ function Bar({ used, max }: { used: number; max: number }) {
     </span>
   );
 }
+

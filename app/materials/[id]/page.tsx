@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { MaterialForm, SubitemForm } from "@/components/forms/material";
 import { LocationSelect } from "@/components/LocationSelect";
@@ -15,10 +15,28 @@ import {
   type RecordMode,
 } from "@/components/ui";
 import { day, qty } from "@/lib/format";
-import { isSiteManager, locationName, submitApproval, useStore } from "@/lib/store";
-import type { ApprovalType, LocationKind, Material, MaterialSubitem } from "@/lib/types";
+import { isSiteManager, locationName, useStore } from "@/lib/store";
+import {
+  useMaterial,
+  useDeleteMaterial,
+  useSubItems,
+  useRemoveSubItem,
+  useMaterialLogs,
+  usePurchaseMaterial,
+  useTransferMaterial,
+  useSellMaterial,
+  useConsumeMaterial,
+  useReportMissingMaterial,
+} from "@/hooks/use-materials";
+import { useInventoryBalances } from "@/hooks/use-inventory";
+import { useSites } from "@/hooks/use-sites";
+import { useWarehouses } from "@/hooks/use-warehouses";
+import type { LocationKind } from "@/lib/types";
+import type { MaterialCatalog, MaterialLog, MaterialSubitem, InventoryBalance } from "@/types/api";
 
-const actions: Array<{ type: ApprovalType; label: string }> = [
+type MaterialActionKind = "material_purchase" | "material_transfer" | "material_sale" | "material_consume" | "material_missing";
+
+const actions: Array<{ type: MaterialActionKind; label: string }> = [
   { type: "material_purchase", label: "Purchase" },
   { type: "material_transfer", label: "Transfer" },
   { type: "material_sale", label: "Sell (warehouse only)" },
@@ -28,11 +46,30 @@ const actions: Array<{ type: ApprovalType; label: string }> = [
 
 export default function MaterialDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const store = useStore();
-  const item = store.materials.find((m) => m.id === id);
+
+  const { data: materialData, isLoading: isMaterialLoading } = useMaterial(id);
+  const { data: subItemsData } = useSubItems(id);
+  const { data: balancesData } = useInventoryBalances({ materialId: id ? [id] : undefined });
+  const { data: logsData } = useMaterialLogs({ materialId: id });
+  const { data: sitesData } = useSites();
+  const { data: warehousesData } = useWarehouses();
+
+  const deleteMaterialMutation = useDeleteMaterial();
+  const removeSubItemMutation = useRemoveSubItem(id || "");
+
+  const purchaseMutation = usePurchaseMaterial();
+  const transferMutation = useTransferMaterial();
+  const sellMutation = useSellMaterial();
+  const consumeMutation = useConsumeMaterial();
+  const reportMissingMutation = useReportMissingMaterial();
+
+  const item = materialData?.data ?? (store.materials.find((m) => m.id === id) as unknown as MaterialCatalog | undefined);
   const manager = isSiteManager(store);
   const canMutate = !manager;
-  const [type, setType] = useState<ApprovalType>("material_transfer");
+
+  const [type, setType] = useState<MaterialActionKind>("material_transfer");
   const [quantity, setQuantity] = useState("1");
   const [unitPrice, setUnitPrice] = useState("");
   const [buyerName, setBuyerName] = useState("");
@@ -42,40 +79,119 @@ export default function MaterialDetailPage() {
   const [toId, setToId] = useState("");
   const [note, setNote] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
-  const [mode, setMode] = useState<RecordMode<Material>>(closedMode);
+  const [mode, setMode] = useState<RecordMode<MaterialCatalog>>(closedMode);
   const [subMode, setSubMode] = useState<RecordMode<MaterialSubitem>>(closedMode);
+
+  if (isMaterialLoading && !item) {
+    return <p className="p-8 text-center text-sm text-black/50">Loading material...</p>;
+  }
 
   if (!item) return <p>Material not found.</p>;
 
-  const bals = store.balances.filter((b) => b.catalogId === item.id && b.quantity !== 0);
-  const logs = store.materialLogs.filter((l) => l.materialId === item.id);
-  const kits = store.subitems.filter((s) => s.materialId === item.id);
+  const bals: InventoryBalance[] = balancesData?.data ??
+    (store.balances.filter((b) => b.catalogId === item.id && b.quantity !== 0) as unknown as InventoryBalance[]);
+  const logs: MaterialLog[] = logsData?.data ??
+    (store.materialLogs.filter((l) => l.materialId === item.id) as unknown as MaterialLog[]);
+  const kits: MaterialSubitem[] = subItemsData?.data ??
+    (store.subitems.filter((s) => s.materialId === item.id) as unknown as MaterialSubitem[]);
 
-  const submit = () => {
+  const getLocationName = (kind?: "site" | "warehouse" | LocationKind, locId?: string | null) => {
+    if (!locId) return "—";
+    if (kind === "site" || (!kind && sitesData?.data.some((s) => s.id === locId))) {
+      return sitesData?.data.find((s) => s.id === locId)?.name ?? locationName("site", locId, store);
+    }
+    return warehousesData?.data.find((w) => w.id === locId)?.name ?? locationName("warehouse", locId, store);
+  };
+
+  const isActionPending =
+    purchaseMutation.isPending ||
+    transferMutation.isPending ||
+    sellMutation.isPending ||
+    consumeMutation.isPending ||
+    reportMissingMutation.isPending;
+
+  const submit = async () => {
+    setMsg(null);
     try {
       const qn = Number(quantity);
       if (!qn || qn <= 0) throw new Error("Quantity required");
       if (manager && fromKind === "warehouse") throw new Error("Site managers cannot withdraw from warehouses");
       if (type === "material_sale" && fromKind !== "warehouse") throw new Error("Only warehouses can sell");
-      const summary = `${actions.find((a) => a.type === type)?.label} ${qn} ${item.unit} ${item.name}`;
-      submitApproval(
-        type,
-        {
+
+      const source = fromKind && fromId ? { id: fromId, type: fromKind as "site" | "warehouse" } : undefined;
+      const destination = toKind && toId ? { id: toId, type: toKind as "site" | "warehouse" } : undefined;
+
+      if (type === "material_purchase") {
+        await purchaseMutation.mutateAsync({
           materialId: item.id,
           quantity: qn,
-          unitPrice: unitPrice ? Number(unitPrice) : undefined,
+          purchaseCost: unitPrice ? String(Number(unitPrice) * qn) : "0",
+          destination,
+          notes: note || undefined,
+        });
+      } else if (type === "material_transfer") {
+        await transferMutation.mutateAsync({
+          materialId: item.id,
+          quantity: qn,
+          source,
+          destination,
+          notes: note || undefined,
+        });
+      } else if (type === "material_sale") {
+        await sellMutation.mutateAsync({
+          materialId: item.id,
+          quantity: qn,
+          sellingPrice: unitPrice ? String(Number(unitPrice) * qn) : "0",
+          source,
           buyerName: buyerName || undefined,
-          fromKind: fromKind || undefined,
-          fromId: fromId || undefined,
-          toKind: toKind || undefined,
-          toId: toId || undefined,
-          note: note || undefined,
-        },
-        summary
-      );
+          notes: note || undefined,
+        });
+      } else if (type === "material_consume") {
+        await consumeMutation.mutateAsync({
+          materialId: item.id,
+          quantity: qn,
+          source,
+          notes: note || undefined,
+        });
+      } else if (type === "material_missing") {
+        await reportMissingMutation.mutateAsync({
+          materialId: item.id,
+          quantity: qn,
+          source,
+          notes: note || undefined,
+        });
+      }
+
       setMsg("Queued for approval.");
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Failed");
+    }
+  };
+
+  const handleDeleteMaterial = async () => {
+    if (mode.kind === "delete" && mode.record) {
+      try {
+        if (materialData) {
+          await deleteMaterialMutation.mutateAsync(mode.record.id);
+        }
+        setMode(closedMode());
+        router.push("/materials");
+      } catch (e) {
+        setMsg(e instanceof Error ? e.message : "Failed to delete");
+      }
+    }
+  };
+
+  const handleRemoveSubItem = async () => {
+    if (subMode.kind === "delete" && subMode.record) {
+      try {
+        if (subItemsData) {
+          await removeSubItemMutation.mutateAsync(subMode.record.id);
+        }
+        setSubMode(closedMode());
+      } catch (e) {
+        setMsg(e instanceof Error ? e.message : "Failed to delete sub-item");
+      }
     }
   };
 
@@ -98,7 +214,11 @@ export default function MaterialDetailPage() {
       </p>
       {mode.kind === "edit" ? (
         <FormPanel kicker="Catalog" title="Edit material" onClose={() => setMode(closedMode())}>
-          <MaterialForm initial={item} onCancel={() => setMode(closedMode())} onDone={() => setMode(closedMode())} />
+          <MaterialForm
+            initial={mode.kind === "edit" ? mode.record : undefined}
+            onCancel={() => setMode(closedMode())}
+            onDone={() => setMode(closedMode())}
+          />
         </FormPanel>
       ) : null}
       <div className="flex flex-col-reverse gap-8 lg:grid lg:grid-cols-[1fr_20rem] lg:gap-10">
@@ -114,12 +234,17 @@ export default function MaterialDetailPage() {
             </div>
             {subMode.kind === "create" ? (
               <FormPanel kicker="Set" title="Add part" onClose={() => setSubMode(closedMode())}>
-                <SubitemForm onCancel={() => setSubMode(closedMode())} onDone={() => setSubMode(closedMode())} />
+                <SubitemForm
+                  materialId={item.id}
+                  onCancel={() => setSubMode(closedMode())}
+                  onDone={() => setSubMode(closedMode())}
+                />
               </FormPanel>
             ) : null}
             {subMode.kind === "edit" ? (
               <FormPanel kicker="Set" title="Edit part" onClose={() => setSubMode(closedMode())}>
                 <SubitemForm
+                  materialId={item.id}
                   initial={subMode.record}
                   onCancel={() => setSubMode(closedMode())}
                   onDone={() => setSubMode(closedMode())}
@@ -157,12 +282,24 @@ export default function MaterialDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {bals.map((b) => (
-                  <tr key={`${b.locationKind}-${b.locationId}`}>
-                    <td>{locationName(b.locationKind, b.locationId, store)}</td>
-                    <td className="font-mono">{qty(b.quantity, item.unit)}</td>
+                {bals.map((b) => {
+                  const locationKind = (b as unknown as { locationKind?: LocationKind }).locationKind ??
+                    (b.siteId ? "site" : "warehouse");
+                  const locationId = (b as unknown as { locationId?: string }).locationId ?? (b.siteId || b.warehouseId);
+                  return (
+                    <tr key={`${b.id ?? locationId}`}>
+                      <td>{getLocationName(locationKind, locationId)}</td>
+                      <td className="font-mono">{qty(b.quantity, item.unit)}</td>
+                    </tr>
+                  );
+                })}
+                {bals.length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="py-4 text-center text-sm text-black/45">
+                      No inventory balances found for this material.
+                    </td>
                   </tr>
-                ))}
+                ) : null}
               </tbody>
             </table>
           </TableWrap>
@@ -178,18 +315,32 @@ export default function MaterialDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {logs.map((l) => (
-                  <tr key={l.id}>
-                    <td>{day(l.createdAt)}</td>
-                    <td>
-                      <Stamp value={l.logType} />
-                    </td>
-                    <td className="font-mono">{l.quantity}</td>
-                    <td className="hidden text-sm sm:table-cell">
-                      {locationName(l.fromKind, l.fromId, store)} → {locationName(l.toKind, l.toId, store)}
+                {logs.map((l) => {
+                  const fromId = l.fromSiteId ?? l.fromWarehouseId ?? (l as unknown as { fromId?: string }).fromId;
+                  const fromKind = l.fromSiteId ? "site" : l.fromWarehouseId ? "warehouse" : (l as unknown as { fromKind?: LocationKind }).fromKind;
+                  const toId = l.toSiteId ?? l.toWarehouseId ?? (l as unknown as { toId?: string }).toId;
+                  const toKind = l.toSiteId ? "site" : l.toWarehouseId ? "warehouse" : (l as unknown as { toKind?: LocationKind }).toKind;
+
+                  return (
+                    <tr key={l.id}>
+                      <td>{day(l.timestamp ?? l.createdAt)}</td>
+                      <td>
+                        <Stamp value={l.logType} />
+                      </td>
+                      <td className="font-mono">{l.quantity}</td>
+                      <td className="hidden text-sm sm:table-cell">
+                        {getLocationName(fromKind, fromId)} → {getLocationName(toKind, toId)}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {logs.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-4 text-center text-sm text-black/45">
+                      No movements recorded yet.
                     </td>
                   </tr>
-                ))}
+                ) : null}
               </tbody>
             </table>
           </TableWrap>
@@ -199,7 +350,7 @@ export default function MaterialDetailPage() {
           <p className="kicker mb-3">Raise a movement</p>
           <label className="mb-3 block text-sm">
             Action
-            <select className="field mt-1" value={type} onChange={(e) => setType(e.target.value as ApprovalType)}>
+            <select className="field mt-1" value={type} onChange={(e) => setType(e.target.value as MaterialActionKind)}>
               {actions.map((a) => (
                 <option key={a.type} value={a.type}>
                   {a.label}
@@ -245,14 +396,32 @@ export default function MaterialDetailPage() {
             Note
             <input className="field mt-1" value={note} onChange={(e) => setNote(e.target.value)} />
           </label>
-          <button type="button" className="btn w-full" onClick={submit}>
-            Queue for approval
+          <button
+            type="button"
+            className="btn w-full"
+            disabled={isActionPending}
+            onClick={submit}
+          >
+            {isActionPending ? "Queueing..." : "Queue for approval"}
           </button>
           {msg ? <p className="mt-3 text-sm">{msg}</p> : null}
         </aside>
       </div>
-      <DeleteConfirm mode={mode} restore onClose={() => setMode(closedMode())} />
-      <DeleteConfirm mode={subMode} restore={false} onClose={() => setSubMode(closedMode())} />
+      <DeleteConfirm
+        mode={mode}
+        restore
+        loading={deleteMaterialMutation.isPending}
+        onClose={() => setMode(closedMode())}
+        onConfirm={handleDeleteMaterial}
+      />
+      <DeleteConfirm
+        mode={subMode}
+        restore={false}
+        loading={removeSubItemMutation.isPending}
+        onClose={() => setSubMode(closedMode())}
+        onConfirm={handleRemoveSubItem}
+      />
     </div>
   );
 }
+

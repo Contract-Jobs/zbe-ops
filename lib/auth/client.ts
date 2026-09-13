@@ -3,6 +3,9 @@ import { adminClient } from "better-auth/client/plugins";
 
 const authClient = createAuthClient({
   baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333",
+  fetchOptions: {
+    credentials: "include",
+  },
   plugins: [adminClient()],
 });
 

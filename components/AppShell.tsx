@@ -13,6 +13,8 @@ import {
   switchUser,
   useStore,
 } from "@/lib/store";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSession, signIn, signOut } from "@/lib/auth/client";
 
 const nav = [
   { href: "/", label: "Board" },
@@ -27,11 +29,43 @@ const nav = [
   { href: "/ledger", label: "Ledger" },
 ];
 
-// const queryClient = new QueryClient();
+const AUTH_PERSONAS = [
+  {
+    id: "usr_haile",
+    email: "haileabt@gmail.com",
+    pass: "Haile@zbe",
+    label: "Haile (Superadmin) · ops",
+    storeUserId: "usr_abebe",
+  },
+  {
+    id: "usr_abebe",
+    email: "abebe@zbe.com",
+    pass: "Password123!",
+    label: "Abebe Tadesse · ops",
+    storeUserId: "usr_abebe",
+  },
+  {
+    id: "usr_hana",
+    email: "hana@zbe.com",
+    pass: "Password123!",
+    label: "Hana Bekele · site (Westin)",
+    storeUserId: "usr_hana",
+  },
+  {
+    id: "usr_dawit",
+    email: "dawit@zbe.com",
+    pass: "Password123!",
+    label: "Dawit Mekonnen · site (EBC)",
+    storeUserId: "usr_dawit",
+  },
+];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const store = useStore();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
+  const { data: sessionData, isPending: sessionLoading } = useSession();
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const user = currentUser(store);
   const pending = store.approvals.filter((a) => a.status === "pending").length;
   const manager = isSiteManager(store);
@@ -40,6 +74,27 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     hydrateStore();
   }, []);
+
+  // Auto-authenticate as seeded superadmin in development if not logged in
+  useEffect(() => {
+    let active = true;
+    if (!sessionLoading && !sessionData?.user) {
+      signIn
+        .email({
+          email: "haileabt@gmail.com",
+          password: "Haile@zbe",
+        })
+        .then(() => {
+          if (active) {
+            queryClient.invalidateQueries();
+          }
+        })
+        .catch(() => {});
+    }
+    return () => {
+      active = false;
+    };
+  }, [sessionLoading, sessionData?.user, queryClient]);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -148,14 +203,56 @@ export function AppShell({ children }: { children: ReactNode }) {
                   : "Central operations"}
               </p>
             </div>
-            {pending > 0 ? (
-              <Link
-                href="/approvals"
-                className="shrink-0 bg-yellow px-2 py-1 font-mono text-[0.7rem] text-white lg:hidden"
-              >
-                {pending}
-              </Link>
-            ) : null}
+            <div className="flex items-center gap-2">
+              {sessionData?.user ? (
+                <>
+                  <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-1 font-mono text-[0.68rem] bg-ok/10 text-ok border border-ok/30">
+                    <span className="h-1.5 w-1.5 rounded-full bg-ok" />
+                    POSTGRES LIVE · {sessionData.user.name || sessionData.user.email}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost text-xs py-1 px-2 font-mono"
+                    onClick={async () => {
+                      await signOut();
+                      await queryClient.invalidateQueries();
+                    }}
+                  >
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="btn text-xs py-1 px-2.5 font-mono"
+                  disabled={isAuthenticating}
+                  onClick={async () => {
+                    setIsAuthenticating(true);
+                    try {
+                      await signIn.email({
+                        email: "haileabt@gmail.com",
+                        password: "Haile@zbe",
+                      });
+                      await queryClient.invalidateQueries();
+                    } catch {
+                      // ignore
+                    } finally {
+                      setIsAuthenticating(false);
+                    }
+                  }}
+                >
+                  {isAuthenticating ? "Connecting..." : "Connect DB"}
+                </button>
+              )}
+              {pending > 0 ? (
+                <Link
+                  href="/approvals"
+                  className="shrink-0 bg-yellow px-2 py-1 font-mono text-[0.7rem] text-white lg:hidden"
+                >
+                  {pending}
+                </Link>
+              ) : null}
+            </div>
           </div>
           <div className="flex gap-2 overflow-x-auto px-4 pb-3 sm:px-6 lg:flex-wrap">
             <select
@@ -173,18 +270,39 @@ export function AppShell({ children }: { children: ReactNode }) {
               ))}
             </select>
             <select
-              className="field min-w-[11rem] flex-1 bg-white sm:flex-none sm:min-w-[12rem]"
-              value={store.session.userId}
-              onChange={(e) => switchUser(e.target.value)}
+              className="field min-w-[11rem] flex-1 bg-white sm:flex-none sm:min-w-[14rem]"
+              value={
+                AUTH_PERSONAS.find(
+                  (p) => p.email === sessionData?.user?.email,
+                )?.id ?? store.session.userId
+              }
+              onChange={async (e) => {
+                const targetId = e.target.value;
+                const persona = AUTH_PERSONAS.find((p) => p.id === targetId);
+                if (persona) {
+                  switchUser(persona.storeUserId);
+                  try {
+                    await signIn.email({
+                      email: persona.email,
+                      password: persona.pass,
+                    });
+                    await queryClient.invalidateQueries();
+                  } catch {
+                    // fallback to local switch
+                  }
+                } else {
+                  switchUser(targetId);
+                }
+              }}
             >
-              {store.users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} · {u.role === "site_manager" ? "site" : "ops"}
+              {AUTH_PERSONAS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
                 </option>
               ))}
             </select>
             <span className="hidden items-center font-mono text-[0.7rem] text-black/45 lg:inline">
-              {user.id}
+              {sessionData?.user ? sessionData.user.email : user.id}
             </span>
           </div>
         </header>
