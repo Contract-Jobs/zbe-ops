@@ -1,7 +1,9 @@
 "use client";
 
-import { locationName, useStore } from "@/lib/store";
+import { locationName } from "@/lib/store";
 import type { LocationKind } from "@/lib/types";
+import { useSites } from "@/hooks/use-sites";
+import { useWarehouses } from "@/hooks/use-warehouses";
 
 export function LocationSelect({
   kind,
@@ -18,12 +20,14 @@ export function LocationSelect({
   allowWarehouse?: boolean;
   allowSite?: boolean;
 }) {
-  const store = useStore();
+  const { data: sitesData } = useSites();
+  const { data: warehousesData } = useWarehouses();
+
   const options =
     kind === "warehouse"
-      ? store.warehouses.map((w) => ({ id: w.id, name: w.name }))
+      ? (warehousesData?.data ?? []).map((w) => ({ id: w.id, name: w.name }))
       : kind === "site"
-        ? store.sites.filter((s) => !s.deletedAt).map((s) => ({ id: s.id, name: s.name }))
+        ? (sitesData?.data ?? []).filter((s) => !s.deletedAt).map((s) => ({ id: s.id, name: s.name }))
         : [];
 
   return (

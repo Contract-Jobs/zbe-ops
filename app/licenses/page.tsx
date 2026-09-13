@@ -7,6 +7,8 @@ import { etb } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
 import { useLicenses, useDeleteLicense } from "@/hooks/use-licenses";
 import type { License } from "@/types/api";
+import { useLicenseAnalytics } from "@/hooks/use-analytics";
+import { useSites } from "@/hooks/use-sites";
 
 export default function LicensesPage() {
   const store = useStore();
@@ -15,7 +17,10 @@ export default function LicensesPage() {
   const [showDeleted, setShowDeleted] = useState(false);
 
   const { data: licensesData, isLoading } = useLicenses();
+  const { data: licenseAnalytics } = useLicenseAnalytics();
+  const { data: sites } = useSites();
   const deleteMutation = useDeleteLicense();
+
 
   const licenses = (licensesData ? licensesData.data : (store.licenses as unknown as License[])).filter(
     (l) => showDeleted || !l.deletedAt
@@ -69,13 +74,6 @@ export default function LicensesPage() {
       ) : (
         <div className="grid gap-px bg-black/10 sm:grid-cols-2">
           {licenses.map((l) => {
-            const sites = store.sites.filter((s) => s.licenseId === l.id && !s.deletedAt).length;
-            const out = store.transactions
-              .filter((t) => t.licenseId === l.id && t.type === "money_out" && !t.isReversal)
-              .reduce((s, t) => s + t.amount, 0);
-            const inn = store.transactions
-              .filter((t) => t.licenseId === l.id && t.type === "money_in" && !t.isReversal)
-              .reduce((s, t) => s + t.amount, 0);
             return (
               <article key={l.id} className="bg-white p-6">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -93,15 +91,15 @@ export default function LicensesPage() {
                 <dl className="mt-6 grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
                   <div>
                     <dt className="kicker">Sites</dt>
-                    <dd className="mt-1 font-mono text-lg">{sites}</dd>
+                    <dd className="mt-1 font-mono text-lg">{sites?.data.filter(s => s.licenseId === l.id).length || 0}</dd>
                   </div>
                   <div>
                     <dt className="kicker">In</dt>
-                    <dd className="mt-1 break-words">{etb(inn)}</dd>
+                    <dd className="mt-1 break-words">{etb(licenseAnalytics?.data.filter(lic => lic.licenseId === l.id)?.[0].totalReceived)}</dd>
                   </div>
                   <div>
                     <dt className="kicker">Out</dt>
-                    <dd className="mt-1 break-words">{etb(out)}</dd>
+                    <dd className="mt-1 break-words">{etb(licenseAnalytics?.data.filter(lic => lic.licenseId === l.id)?.[0].totalSpent)}</dd>
                   </div>
                 </dl>
               </article>

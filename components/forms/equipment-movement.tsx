@@ -41,6 +41,7 @@ export interface EquipmentMovementFormProps {
   fixedSource?: { id: string; type: LocationKind; name: string };
   fixedDestination?: { id: string; type: LocationKind; name: string };
   allowedActions?: ActionType[];
+  noBg?: boolean,
   title?: string;
   onSuccess?: () => void;
   onCancel?: () => void;
@@ -53,6 +54,7 @@ export function EquipmentMovementForm({
   fixedSource,
   fixedDestination,
   allowedActions,
+  noBg,
   title,
   onSuccess,
   onCancel,
@@ -64,17 +66,17 @@ export function EquipmentMovementForm({
   const equipment = eqData?.data ?? store.equipment;
 
   const availableActions = actions.filter(a => !allowedActions || allowedActions.includes(a.type));
-  
+
   const [selectedEqId, setSelectedEqId] = useState<string>(equipmentId ?? "new");
   const eId = equipmentId || selectedEqId;
   const isCreating = eId === "new";
 
   const [type, setType] = useState<ActionType>(isCreating ? "purchased" : (allowedActions?.[0] ?? "transferred"));
-  
+
   // Equipment details (for new creation)
   const [eqName, setEqName] = useState("");
   const [eqSerial, setEqSerial] = useState("");
-  
+
   // Financial & entity fields
   const [cost, setCost] = useState("");
   const [buyerName, setBuyerName] = useState("");
@@ -116,7 +118,7 @@ export function EquipmentMovementForm({
     try {
       const source = fixedSource ? { id: fixedSource.id, type: fixedSource.type as "site" | "warehouse" } : (fromKind && fromId ? { id: fromId, type: fromKind as "site" | "warehouse" } : undefined);
       const destination = fixedDestination ? { id: fixedDestination.id, type: fixedDestination.type as "site" | "warehouse" } : (toKind && toId ? { id: toId, type: toKind as "site" | "warehouse" } : undefined);
-      
+
       if (!eId) throw new Error("Please select an equipment");
 
       if (type === "purchased") {
@@ -198,9 +200,9 @@ export function EquipmentMovementForm({
   };
 
   return (
-    <div className={isCreating ? "" : "border border-black/10 bg-paper/40 p-5"}>
+    <div className={isCreating || noBg ? "" : "border border-black/10 bg-paper/40 p-5"}>
       {!isCreating && <p className="kicker mb-3">{title || "Raise a movement"}</p>}
-      
+
       {!equipmentId && (
         <label className="mb-3 block z-10 relative text-sm">
           Equipment

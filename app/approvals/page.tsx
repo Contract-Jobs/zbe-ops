@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
+import { PageHead, Stamp, TableWrap, Username, statusTone } from "@/components/ui";
 import { day } from "@/lib/format";
 import { userName, useStore } from "@/lib/store";
 import { useApprovals } from "@/hooks/use-approvals";
@@ -68,7 +68,7 @@ export default function ApprovalsPage() {
                     <td className="hidden font-mono text-[0.75rem] uppercase md:table-cell">
                       {a.approvalType.replaceAll("_", " ")}
                     </td>
-                    <td className="hidden sm:table-cell">{userName(createdBy, store)}</td>
+                    <td className="hidden sm:table-cell"><Username userId={a.approvedBy} /></td>
                     <td className="hidden whitespace-nowrap md:table-cell">{day(a.createdAt)}</td>
                     <td>
                       <Stamp value={a.status} tone={statusTone(a.status)} />

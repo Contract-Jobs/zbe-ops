@@ -27,6 +27,7 @@ export interface MaterialMovementFormProps {
   fixedDestination?: { id: string; type: LocationKind; name: string };
   allowedActions?: ActionType[];
   title?: string;
+  noBg?: boolean,
   onSuccess?: () => void;
   onCancel?: () => void;
 }
@@ -40,11 +41,12 @@ export function MaterialMovementForm({
   allowedActions,
   title,
   onSuccess,
+  noBg,
   onCancel,
 }: MaterialMovementFormProps) {
   const store = useStore();
   const manager = isSiteManager(store);
-  
+
   const { data: licensesData } = useLicenses();
   const licenses = licensesData?.data ?? store.licenses;
   const { data: categoriesData } = useCategories();
@@ -66,7 +68,7 @@ export function MaterialMovementForm({
   const isCreating = mId === "new";
 
   const [type, setType] = useState<ActionType>(isCreating ? "purchase" : (allowedActions?.[0] ?? "transfer"));
-  
+
   // New Material fields
   const [matName, setMatName] = useState("");
   const [matUnit, setMatUnit] = useState("pcs");
@@ -109,7 +111,7 @@ export function MaterialMovementForm({
 
       const source = fixedSource ? { id: fixedSource.id, type: fixedSource.type as "site" | "warehouse" } : (fromKind && fromId ? { id: fromId, type: fromKind as "site" | "warehouse" } : undefined);
       const destination = fixedDestination ? { id: fixedDestination.id, type: fixedDestination.type as "site" | "warehouse" } : (toKind && toId ? { id: toId, type: toKind as "site" | "warehouse" } : undefined);
-      
+
       if (!mId) throw new Error("Please select a material");
 
       if (type === "purchase") {
@@ -138,7 +140,7 @@ export function MaterialMovementForm({
         if (!unitPrice) throw new Error("Unit Price is required");
         if (!source || source.type !== "warehouse") throw new Error("Source must be a warehouse for sales");
         if (manager) throw new Error("Site managers cannot sell");
-        
+
         await sellMutation.mutateAsync({
           materialId: mId,
           quantity: qn,
@@ -175,9 +177,9 @@ export function MaterialMovementForm({
   };
 
   return (
-    <div className={isCreating ? "" : "border border-black/10 bg-paper/40 p-5"}>
+    <div className={isCreating || noBg ? "" : "border border-black/10 bg-paper/40 p-5"}>
       {!isCreating && <p className="kicker mb-3">{title || "Raise a movement"}</p>}
-      
+
       {!materialId && (
         <label className="mb-3 block z-10 relative text-sm">
           Material
@@ -289,11 +291,11 @@ export function MaterialMovementForm({
               {fixedSource.name}
             </div>
           ) : (
-            <LocationSelect 
-              kind={fromKind} 
-              id={fromId} 
-              onKind={setFromKind} 
-              onId={setFromId} 
+            <LocationSelect
+              kind={fromKind}
+              id={fromId}
+              onKind={setFromKind}
+              onId={setFromId}
               allowSite={type !== "sold"} // Only warehouses can sell
             />
           )}

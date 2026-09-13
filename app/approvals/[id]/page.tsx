@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { ConfirmDialog, PageHead, Stamp, statusTone } from "@/components/ui";
+import { ConfirmDialog, PageHead, Stamp, statusTone, Username } from "@/components/ui";
 import { day } from "@/lib/format";
 import { approveApproval, locationName, rejectApproval, useStore, userName } from "@/lib/store";
 import { useApproval, useApproveApproval, useRejectApproval } from "@/hooks/use-approvals";
@@ -118,7 +118,7 @@ export default function ApprovalDetailPage() {
         </span>
       </div>
       <dl className="grid grid-cols-1 gap-x-8 gap-y-4 border border-black/10 p-4 text-sm sm:grid-cols-2 sm:p-5">
-        <Row label="Raised by" value={userName(createdBy, store)} />
+        <Row label="Raised by" value={<Username userId={createdBy} />} />
         <Row label="Raised" value={day(item.createdAt)} />
         {p.quantity != null ? <Row label="Quantity" value={String(p.quantity)} /> : null}
         {p.unitPrice != null ? <Row label="Unit price" value={String(p.unitPrice)} /> : null}
@@ -128,7 +128,7 @@ export default function ApprovalDetailPage() {
         {p.buyerName ? <Row label="Buyer" value={String(p.buyerName)} /> : null}
         {p.vendorName ? <Row label="Vendor" value={String(p.vendorName)} /> : null}
         {p.note ? <Row label="Note" value={String(p.note)} /> : null}
-        {decidedBy ? <Row label="Decided by" value={userName(decidedBy, store)} /> : null}
+        {decidedBy ? <Row label="Decided by" value={<Username userId={decidedBy} />} /> : null}
       </dl>
       {error ? <p className="mt-4 text-sm text-bad">{error}</p> : null}
       {item.status === "pending" ? (
@@ -174,7 +174,7 @@ export default function ApprovalDetailPage() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <dt className="kicker">{label}</dt>

@@ -27,6 +27,7 @@ const nav = [
   { href: "/tenders", label: "Tenders" },
   { href: "/licenses", label: "Licenses" },
   { href: "/ledger", label: "Ledger" },
+  { href: "/transactions", label: "Transactions" },
 ];
 
 const AUTH_PERSONAS = [

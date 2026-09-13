@@ -1,4 +1,4 @@
-export type Role = "operations" | "site_manager";
+export type Role = "superadmin" | "admin" | "site_manager";
 
 export type License = {
   id: string;
@@ -47,8 +47,10 @@ export type Task = {
   title: string;
   body?: string;
   targetDate?: string;
-  status: TaskStatus;
-  claimedBy?: string;
+  isCompleted: boolean;
+  completionClaimBy: string | null;
+  notes: string | null;
+  completedDate: string | null;
   reviewNotes?: string;
   createdAt: string;
 };
@@ -203,6 +205,7 @@ export type Transaction = {
   amount: number;
   licenseId: string;
   siteId?: string;
+  warehouseId?: string;
   categoryId?: string;
   equipmentId?: string;
   transactionDate: string;

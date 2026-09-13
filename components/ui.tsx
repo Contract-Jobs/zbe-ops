@@ -4,11 +4,16 @@ import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { stamp } from "@/lib/format";
+import { useUser } from "@/hooks/use-user";
+import { useSession } from "@/lib/auth/client";
 
 export type RecordMode<T> =
   | { kind: "closed" }
   | { kind: "create" }
+  | { kind: "view"; record: T }
   | { kind: "edit"; record: T }
+  | { kind: "claim"; record: T }
+  | { kind: "complete"; record: T }
   | { kind: "delete"; record: T; label: string };
 
 export function closedMode<T>(): RecordMode<T> {
@@ -21,7 +26,7 @@ export function PageHead({
   action,
 }: {
   kicker: string;
-  title: string;
+  title: ReactNode;
   action?: ReactNode;
 }) {
   return (
@@ -73,6 +78,29 @@ export function Empty({ children }: { children: ReactNode }) {
 
 export function TableWrap({ children }: { children: ReactNode }) {
   return <div className="table-wrap">{children}</div>;
+}
+
+export function Username({ userId, fallback }: { userId?: string | null; fallback?: ReactNode }) {
+  const { data: session } = useSession();
+  const { data: user, isLoading, error } = useUser(userId);
+
+  if (!userId) {
+    return <span>{fallback ?? "None"}</span>;
+  }
+
+  if (session?.user?.id === userId) {
+    return <span>You</span>;
+  }
+
+  if (isLoading) {
+    return <span className="inline-block w-20 h-4 bg-black/10 animate-pulse rounded align-middle" />;
+  }
+
+  if (error || !user?.name) {
+    return <span>{fallback ?? userId}</span>;
+  }
+
+  return <span>{user.name}</span>;
 }
 
 export function RowLink({ href, children }: { href: string; children: ReactNode }) {
@@ -144,7 +172,7 @@ export function ModalPanel({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-white/5 backdrop-blur-[5px]!">
       <button type="button" className="absolute inset-0" aria-label="Dismiss" onClick={onClose} />
       <div
         role="dialog"
@@ -343,8 +371,8 @@ export function SearchableSelect({
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
-  const filtered = options.filter(o => 
-    o.label.toLowerCase().includes(query.toLowerCase()) || 
+  const filtered = options.filter(o =>
+    o.label.toLowerCase().includes(query.toLowerCase()) ||
     (o.subLabel && o.subLabel.toLowerCase().includes(query.toLowerCase()))
   );
 
@@ -376,7 +404,7 @@ export function SearchableSelect({
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          
+
           <div className="overflow-y-auto flex-1">
             {onCreateNew && (
               <button

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { MaterialForm } from "@/components/forms/material";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
-import { closedMode, DeleteConfirm, FormPanel, PageHead, RecordActions, Stamp, TableWrap, type RecordMode } from "@/components/ui";
+import { closedMode, DeleteConfirm, FormPanel, ModalPanel, PageHead, RecordActions, Stamp, TableWrap, type RecordMode } from "@/components/ui";
 import { qty } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
 import { useMaterials, useDeleteMaterial } from "@/hooks/use-materials";
@@ -74,9 +74,9 @@ export default function MaterialsPage() {
         </FormPanel>
       ) : null}
       {purchaseNew ? (
-        <FormPanel kicker="Catalog" title="Purchase new material" onClose={() => setPurchaseNew(false)}>
-          <MaterialMovementForm materialId="new" onCancel={() => setPurchaseNew(false)} onSuccess={() => setPurchaseNew(false)} />
-        </FormPanel>
+        <ModalPanel kicker="Catalog" title="Purchase new material" onClose={() => setPurchaseNew(false)}>
+          <MaterialMovementForm noBg materialId="new" onCancel={() => setPurchaseNew(false)} onSuccess={() => setPurchaseNew(false)} />
+        </ModalPanel>
       ) : null}
       {mode.kind === "edit" ? (
         <FormPanel kicker="Catalog" title="Edit material" onClose={() => setMode(closedMode())}>

@@ -21,6 +21,8 @@ import { isSiteManager, locationName, useStore, visibleSiteIds } from "@/lib/sto
 import { useEquipmentList, useDeleteEquipment } from "@/hooks/use-equipment";
 import { useLicenses } from "@/hooks/use-licenses";
 import type { Equipment } from "@/types/api";
+import { useSites } from "@/hooks/use-sites";
+import { useWarehouses } from "@/hooks/use-warehouses";
 
 export default function EquipmentPage() {
   const store = useStore();
@@ -28,6 +30,8 @@ export default function EquipmentPage() {
   const canMutate = !manager;
   const sites = visibleSiteIds(store);
   const [q, setQ] = useState("");
+  const { data: sitesData } = useSites();
+  const { data: warehousesData } = useWarehouses();
   const [mode, setMode] = useState<RecordMode<Equipment>>(closedMode);
   const [purchaseNew, setPurchaseNew] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
@@ -90,7 +94,7 @@ export default function EquipmentPage() {
       ) : null}
       {purchaseNew ? (
         <ModalPanel kicker="Plant" title="Purchase equipment" onClose={() => setPurchaseNew(false)}>
-          <EquipmentMovementForm onCancel={() => setPurchaseNew(false)} onSuccess={() => setPurchaseNew(false)} />
+          <EquipmentMovementForm noBg onCancel={() => setPurchaseNew(false)} onSuccess={() => setPurchaseNew(false)} />
         </ModalPanel>
       ) : null}
       {mode.kind === "edit" ? (
@@ -118,6 +122,7 @@ export default function EquipmentPage() {
               <tr>
                 <th>Asset</th>
                 <th>Where</th>
+                <th className="hidden sm:table-cell">Original Value</th>
                 <th className="hidden sm:table-cell">Value</th>
                 <th className="hidden md:table-cell">Ownership</th>
                 <th>Status</th>
@@ -135,12 +140,13 @@ export default function EquipmentPage() {
                   </td>
                   <td>
                     {e.siteId
-                      ? locationName("site", e.siteId, store)
+                      ? (sitesData?.data.find((s) => s.id === e.siteId)?.name ?? locationName("site", e.siteId, store))
                       : e.warehouseId
-                        ? locationName("warehouse", e.warehouseId, store)
-                        : "—"}
+                        ? (warehousesData?.data.find((w) => w.id === e.warehouseId)?.name ?? locationName("warehouse", e.warehouseId, store))
+                        : "Off books"}
                   </td>
                   <td className="hidden font-mono text-sm sm:table-cell">{e.originalValue ? etb(Number(e.originalValue)) : "—"}</td>
+                  <td className="hidden font-mono text-sm sm:table-cell">{e.value ? etb(Number(e.value)) : "—"}</td>
                   <td className="hidden md:table-cell">
                     <Stamp value={e.ownershipStatus} />
                   </td>

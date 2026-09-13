@@ -236,7 +236,7 @@ export default function MaterialDetailPage() {
               </tbody>
             </table>
           </TableWrap>
-          
+
           <p className="kicker mb-2">Activity Ledger</p>
           <TableWrap>
             <table className="data w-full text-left">
@@ -246,14 +246,14 @@ export default function MaterialDetailPage() {
                   <th>Type</th>
                   <th>Qty</th>
                   <th className="hidden sm:table-cell">From / To</th>
-                  <th>Cost</th>
+                  <th>Unit Cost</th>
                 </tr>
               </thead>
               <tbody>
                 {traceHistory ? (
                   traceHistory.map((h, i) => (
                     <tr key={i}>
-                      <td>{day(h.log.createdAt)}</td>
+                      <td>{day(h.log.timestamp)}</td>
                       <td>
                         <Stamp value={h.log.logType} />
                       </td>
@@ -261,7 +261,7 @@ export default function MaterialDetailPage() {
                       <td className="hidden text-sm sm:table-cell">
                         {h.fromLabel || "—"} → {h.toLabel || "—"}
                       </td>
-                      <td className="font-mono">{(h.log as any).purchaseCost ? etb((h.log as any).purchaseCost) : "—"}</td>
+                      <td className="font-mono">{(h.log as any).unitPrice ? etb((h.log as any).unitPrice) : "—"}</td>
                     </tr>
                   ))
                 ) : (
@@ -270,7 +270,7 @@ export default function MaterialDetailPage() {
                     const fromKind = l.fromSiteId ? "site" : l.fromWarehouseId ? "warehouse" : (l as unknown as { fromKind?: LocationKind }).fromKind;
                     const toId = l.toSiteId ?? l.toWarehouseId ?? (l as unknown as { toId?: string }).toId;
                     const toKind = l.toSiteId ? "site" : l.toWarehouseId ? "warehouse" : (l as unknown as { toKind?: LocationKind }).toKind;
-  
+
                     return (
                       <tr key={l.id}>
                         <td>{day(l.timestamp ?? l.createdAt)}</td>

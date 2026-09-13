@@ -126,25 +126,31 @@ export function SiteForm({
 export function TaskForm({
   initial,
   onCancel,
-  onDone,
+  onSubmit,
 }: {
-  initial?: { id: string; title: string; targetDate?: string | null; notes?: string | null };
+  initial?: { id: string; title: string; targetDate?: string | null };
   onCancel: () => void;
-  onDone: () => void;
+  onSubmit?: (data: { title: string; targetDate?: string }) => void;
 }) {
-  // Task edit/delete are UI-only stubs — will wire when task forms need siteId context
   return (
-    <form className="grid gap-3 sm:grid-cols-2" onSubmit={(e) => uiOnly(e, onDone)}>
+    <form
+      className="grid gap-3 sm:grid-cols-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        const title = fd.get("title") as string;
+        const targetDate = (fd.get("targetDate") as string) || undefined;
+        if (onSubmit) {
+          onSubmit({ title, targetDate });
+        }
+      }}
+    >
       <Field label="Title">
         <input className="field" name="title" required defaultValue={initial?.title ?? ""} />
       </Field>
       <Field label="Target date">
         <input className="field" type="date" name="targetDate" defaultValue={dateValue(initial?.targetDate ?? undefined)} />
       </Field>
-      <label className="block text-sm sm:col-span-2">
-        Notes
-        <textarea className="field mt-1 min-h-24" name="notes" defaultValue={initial?.notes ?? ""} />
-      </label>
       <FormActions saveLabel={initial ? "Save task" : "Add task"} onCancel={onCancel} />
     </form>
   );

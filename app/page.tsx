@@ -7,9 +7,9 @@ import { etb } from "@/lib/format";
 import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
 import { useApprovals } from "@/hooks/use-approvals";
 import { useEquipmentList } from "@/hooks/use-equipment";
-import { useTransactions } from "@/hooks/use-transactions";
 import { useSites } from "@/hooks/use-sites";
-import type { Approval, Equipment, Site, Transaction } from "@/types/api";
+import { useSpendAnalytics, useBudgetHealth } from "@/hooks/use-analytics";
+import type { Approval, Equipment, Site } from "@/types/api";
 
 export default function BoardPage() {
   const store = useStore();
@@ -18,8 +18,9 @@ export default function BoardPage() {
 
   const { data: approvalsData } = useApprovals({ status: ["pending"] });
   const { data: equipmentData } = useEquipmentList();
-  const { data: transactionsData } = useTransactions();
   const { data: sitesData } = useSites();
+  const { data: spendData } = useSpendAnalytics();
+  const { data: budgetHealthData } = useBudgetHealth();
 
   const sites = useMemo(() => {
     const list = sitesData?.data ?? (store.sites as unknown as Site[]);
@@ -48,33 +49,21 @@ export default function BoardPage() {
     );
   }, [equipment]);
 
-  const transactions = useMemo(() => {
-    return transactionsData?.data ?? (store.transactions as unknown as Transaction[]);
-  }, [transactionsData?.data, store.transactions]);
+  const spend = Number(spendData?.data?.totalCashOut) || 0;
+  const income = Number(spendData?.data?.totalCashIn) || 0;
 
-  const spend = useMemo(() => {
-    return transactions
-      .filter((t) => !t.isReversal && t.type === "money_out")
-      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
-  }, [transactions]);
-
-  const income = useMemo(() => {
-    return transactions
-      .filter((t) => !t.isReversal && t.type === "money_in")
-      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
-  }, [transactions]);
+  const healths = budgetHealthData?.data ?? [];
 
   const getSiteSpend = (siteId: string) => {
-    const txs = transactions.filter((t) => t.siteId === siteId && !t.isReversal);
-    const out = txs.filter((t) => t.type === "money_out").reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const inn = txs.filter((t) => t.type === "money_in").reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const labor = txs
-      .filter((t) => t.type === "money_out" && t.categoryId === "cat_labor")
-      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const material = txs
-      .filter((t) => t.type === "money_out" && t.categoryId === "cat_mat")
-      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    return { out, inn, labor, material };
+    const health = healths.find(h => h.siteId === siteId);
+    const siteSpend = spendData?.data?.bySite?.find(s => s.siteId === siteId);
+
+    const out = Number(siteSpend?.cashOut) || 0;
+    const inn = Number(siteSpend?.cashIn) || 0;
+    const cash = Number(health?.cashSpent) || 0; // mapping cashSpent to labor
+    const material = Number(health?.assetAllocation) || 0; // mapping assetAllocation to material
+
+    return { out, inn, cash, material };
   };
 
   return (
@@ -83,8 +72,8 @@ export default function BoardPage() {
 
       <div className="grid gap-px bg-black/10 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Pending approvals" value={String(pending.length)} href="/approvals" />
-        <Stat label="Money out (posted)" value={etb(spend)} href="/ledger" />
-        <Stat label="Money in (posted)" value={etb(income)} href="/ledger" />
+        <Stat label="Money out (Approved)" value={etb(spend)} href="/ledger" />
+        <Stat label="Money in (Approved)" value={etb(income)} href="/ledger" />
         <Stat label="Plant on loan" value={String(onLoan.length)} href="/equipment" />
       </div>
 
@@ -96,9 +85,7 @@ export default function BoardPage() {
               <thead>
                 <tr>
                   <th>Site</th>
-                  <th>Labor</th>
-                  <th>Material</th>
-                  <th className="hidden sm:table-cell"></th>
+                  <th>Budget Performance</th>
                 </tr>
               </thead>
               <tbody>
@@ -118,16 +105,10 @@ export default function BoardPage() {
                         </div>
                       </td>
                       <td className="font-mono text-sm">
-                        {etb(s.labor)}
-                        <span className="block text-[0.7rem] text-black/45">of {etb(laborBudget)}</span>
-                        <Bar used={s.labor} max={laborBudget} />
+                        {etb(s.cash)}
+                        <span className="block text-[0.7rem] text-black/45">of {etb(laborBudget + materialBudget)}</span>
+                        <Bar used={s.cash} max={laborBudget + materialBudget} />
                       </td>
-                      <td className="font-mono text-sm">
-                        {etb(s.material)}
-                        <span className="block text-[0.7rem] text-black/45">of {etb(materialBudget)}</span>
-                        <Bar used={s.material} max={materialBudget} />
-                      </td>
-                      <td className="hidden text-right text-black/50 sm:table-cell">{etb(s.out)} out</td>
                     </tr>
                   );
                 })}

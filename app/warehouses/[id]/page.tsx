@@ -150,32 +150,35 @@ export default function WarehouseDetailPage() {
       </div>
 
       {moveMaterialId ? (
-        <FormPanel kicker="Warehouse Inventory" title="Move Material" onClose={() => setMoveMaterialId(null)}>
-          <MaterialMovementForm 
-            materialId={moveMaterialId} 
-            fixedSource={{ id: warehouse.id, type: "warehouse", name: warehouse.name }} 
+        <ModalPanel kicker="Warehouse Inventory" title="Move Material" onClose={() => setMoveMaterialId(null)}>
+          <MaterialMovementForm
+            noBg
+            materialId={moveMaterialId}
+            fixedSource={{ id: warehouse.id, type: "warehouse", name: warehouse.name }}
             allowedActions={["transfer", "sold", "used_up", "missing"]}
             onSuccess={() => setMoveMaterialId(null)}
             onCancel={() => setMoveMaterialId(null)}
           />
-        </FormPanel>
+        </ModalPanel>
       ) : null}
-      
+
       {moveEquipmentId ? (
-        <FormPanel kicker="Warehouse Equipment" title="Move Equipment" onClose={() => setMoveEquipmentId(null)}>
-          <EquipmentMovementForm 
-            equipmentId={moveEquipmentId} 
+        <ModalPanel kicker="Warehouse Equipment" title="Move Equipment" onClose={() => setMoveEquipmentId(null)}>
+          <EquipmentMovementForm
+            noBg
+            equipmentId={moveEquipmentId}
             fixedSource={{ id: warehouse.id, type: "warehouse", name: warehouse.name }}
             allowedActions={["transferred", "sold", "degraded", "appreciated", "maintenance_dispatch", "maintenance_return", "used_up", "missing"]}
             onSuccess={() => setMoveEquipmentId(null)}
             onCancel={() => setMoveEquipmentId(null)}
           />
-        </FormPanel>
+        </ModalPanel>
       ) : null}
 
       {purchaseMaterialOpen ? (
         <ModalPanel kicker="Warehouse Inventory" title="Purchase Material" onClose={() => setPurchaseMaterialOpen(false)}>
-          <MaterialMovementForm 
+          <MaterialMovementForm
+            noBg
             fixedDestination={{ id: warehouse.id, type: "warehouse", name: warehouse.name }}
             allowedActions={["purchase"]}
             onSuccess={() => setPurchaseMaterialOpen(false)}
@@ -186,7 +189,8 @@ export default function WarehouseDetailPage() {
 
       {purchaseEquipmentOpen ? (
         <ModalPanel kicker="Warehouse Equipment" title="Purchase Equipment" onClose={() => setPurchaseEquipmentOpen(false)}>
-          <EquipmentMovementForm 
+          <EquipmentMovementForm
+            noBg
             fixedDestination={{ id: warehouse.id, type: "warehouse", name: warehouse.name }}
             allowedActions={["purchased"]}
             onSuccess={() => setPurchaseEquipmentOpen(false)}

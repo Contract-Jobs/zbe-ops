@@ -22,28 +22,28 @@ export interface MaterialSubitem {
 }
 
 export interface MaterialLog {
-  id: string
-  catalogId?: string
-  materialId?: string
-  logType: string
-  quantity: number
-  unitPrice: string | number
-  fromSiteId: string | null
-  fromWarehouseId: string | null
-  toSiteId: string | null
-  toWarehouseId: string | null
-  licenseId: string | null
-  transactionId: string | null
-  categoryId: string | null
-  buyerName: string | null
-  notes: string | null
-  isReversal: boolean
-  reversalOfId: string | null
-  approvalStatus: ApprovalStatus
-  isApproved?: boolean
-  loggedBy?: string
-  createdAt?: string
-  timestamp?: string
+  id: string;
+  catalogId?: string;
+  materialId?: string;
+  logType: string;
+  quantity: number;
+  unitPrice: string | number;
+  fromSiteId: string | null;
+  fromWarehouseId: string | null;
+  toSiteId: string | null;
+  toWarehouseId: string | null;
+  licenseId: string | null;
+  transactionId: string | null;
+  categoryId: string | null;
+  buyerName: string | null;
+  notes: string | null;
+  isReversal: boolean;
+  reversalOfId: string | null;
+  approvalStatus: ApprovalStatus;
+  isApproved?: boolean;
+  loggedBy?: string;
+  createdAt?: string;
+  timestamp?: string;
 }
 
 export interface InventoryBalance {
@@ -100,7 +100,7 @@ export interface RentalAgreement {
   id: string;
   equipmentId: string;
   type: "rent_in" | "rent_out";
-  status: "active" | "completed" | "cancelled"
+  status: "active" | "completed" | "cancelled";
   siteId: string | null;
   licenseId: string | null;
   vendorName: string | null;
@@ -115,7 +115,7 @@ export interface RentalAgreement {
 export interface RentalEvent {
   id: string;
   agreementId: string;
-  eventType: "initiation" | "rate_change" | "upfront_payment" | "penalty" | "settlement"
+  eventType: "initiation" | "rate_change" | "upfront_payment" | "penalty" | "settlement";
   eventDate: string;
   dailyRate: string | null;
   upfrontFee: string | null;
@@ -154,10 +154,11 @@ export interface SiteTask {
   siteId: string;
   title: string;
   targetDate: string | null;
-  notes: string | null;
-  review: string | null;
   isCompleted: boolean;
-  status: "pending" | "claimed" | "completed" | string; // verify exact values
+  completionClaimBy: string | null;
+  notes: string | null;
+  completedDate: string | null;
+  review: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -254,46 +255,43 @@ export interface ProjectLedger {
   id: string;
   siteId: string | null;
   licenseId: string;
+  amount: string;
+  description: string | null;
   sourceRefType: string;
   sourceRefId: string;
-  amount: string;
   isReversal: boolean;
   reversalOfId: string | null;
-  createdAt: string;
+  timestamp: string;
+  loggedBy: string;
 }
 
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 
-export type ApprovalType =
-  | "material_movement"
-  | "equipment_movement"
-  | "transaction"
-  | "progress_log"
-  | "rental_event";
+export type ApprovalType = "material_movement" | "equipment_movement" | "transaction" | "progress_log" | "rental_event";
 
-export type Role = "superadmin" | "admin" | "site_manager"
+export type Role = "superadmin" | "admin" | "site_manager";
 
 export interface Approval {
-  id: string
-  approvalType: ApprovalType
-  recordId: string
-  status: ApprovalStatus
-  submittedBy: string
-  approvedBy: string | null
-  notes: string | null
-  createdAt: string
-  updatedAt: string
-  deletedAt: string | null
+  id: string;
+  approvalType: ApprovalType;
+  recordId: string;
+  status: ApprovalStatus;
+  submittedBy: string;
+  approvedBy: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
 }
 
 export interface User {
-  id: string
-  name: string
-  email: string
-  role: Role
-  createdAt: string
-  updatedAt: string
-  banned: boolean
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  createdAt: string;
+  updatedAt: string;
+  banned: boolean;
 }
 
 interface LocationRef {
@@ -303,126 +301,126 @@ interface LocationRef {
 
 export type MaterialLogAction =
   | {
-    action: "purchase";
-    materialId: string | "new";
-    quantity: number;
-    purchaseCost: string;
-    destination?: LocationRef;
-    categoryId?: string;
-    licenseId?: string;
-    notes?: string;
-    newMaterial?: {
-      name: string;
-      unit?: string;
-      type?: "single" | "set";
-      subitems?: { name: string; quantity: number; unit?: string }[];
+      action: "purchase";
+      materialId: string | "new";
+      quantity: number;
+      purchaseCost: string;
+      destination?: LocationRef;
+      categoryId?: string;
+      licenseId?: string;
+      notes?: string;
+      newMaterial?: {
+        name: string;
+        unit?: string;
+        type?: "single" | "set";
+        subitems?: { name: string; quantity: number; unit?: string }[];
+      };
+    }
+  | {
+      action: "transfer";
+      materialId: string;
+      quantity: number;
+      source?: LocationRef;
+      destination?: LocationRef;
+      notes?: string;
+    }
+  | {
+      action: "sold";
+      materialId: string;
+      quantity: number;
+      sellingPrice: string;
+      source?: LocationRef;
+      categoryId?: string;
+      licenseId?: string;
+      buyerName?: string;
+      notes?: string;
+    }
+  | {
+      action: "used_up";
+      materialId: string;
+      quantity: number;
+      source?: LocationRef;
+      notes?: string;
+    }
+  | {
+      action: "missing";
+      materialId: string;
+      quantity: number;
+      source?: LocationRef;
+      notes?: string;
     };
-  }
-  | {
-    action: "transfer";
-    materialId: string;
-    quantity: number;
-    source?: LocationRef;
-    destination?: LocationRef;
-    notes?: string;
-  }
-  | {
-    action: "sold";
-    materialId: string;
-    quantity: number;
-    sellingPrice: string;
-    source?: LocationRef;
-    categoryId?: string;
-    licenseId?: string;
-    buyerName?: string;
-    notes?: string;
-  }
-  | {
-    action: "used_up";
-    materialId: string;
-    quantity: number;
-    source?: LocationRef;
-    notes?: string;
-  }
-  | {
-    action: "missing";
-    materialId: string;
-    quantity: number;
-    source?: LocationRef;
-    notes?: string;
-  };
 
 export type EquipmentLogAction =
   | {
-    action: "purchased";
-    equipmentId: string | "new";
-    purchaseCost: string;
-    destination?: LocationRef;
-    vendorName?: string;
-    licenseId?: string;
-    notes?: string;
-    newEquipment?: {
-      name: string;
-      serialNumber?: string;
-      originalValue?: string;
+      action: "purchased";
+      equipmentId: string | "new";
+      purchaseCost: string;
+      destination?: LocationRef;
       vendorName?: string;
+      licenseId?: string;
+      notes?: string;
+      newEquipment?: {
+        name: string;
+        serialNumber?: string;
+        originalValue?: string;
+        vendorName?: string;
+      };
+    }
+  | {
+      action: "transferred";
+      equipmentId: string;
+      source?: LocationRef;
+      destination?: LocationRef;
+      notes?: string;
+    }
+  | {
+      action: "sold";
+      equipmentId: string;
+      sellingPrice: string;
+      source?: LocationRef;
+      buyerName?: string;
+      licenseId?: string;
+      notes?: string;
+    }
+  | {
+      action: "used_up";
+      equipmentId: string;
+      source?: LocationRef;
+      price?: string;
+      notes?: string;
+    }
+  | {
+      action: "missing";
+      equipmentId: string;
+      source?: LocationRef;
+      notes?: string;
+    }
+  | {
+      action: "maintenance_dispatch";
+      equipmentId: string;
+      source?: LocationRef;
+      vendorName?: string;
+      notes?: string;
+    }
+  | {
+      action: "maintenance_return";
+      equipmentId: string;
+      destination?: LocationRef;
+      repairCost?: string;
+      notes?: string;
+    }
+  | {
+      action: "degraded";
+      equipmentId: string;
+      valueAdjustment?: string;
+      notes?: string;
+    }
+  | {
+      action: "appreciated";
+      equipmentId: string;
+      valueAdjustment?: string;
+      notes?: string;
     };
-  }
-  | {
-    action: "transferred";
-    equipmentId: string;
-    source?: LocationRef;
-    destination?: LocationRef;
-    notes?: string;
-  }
-  | {
-    action: "sold";
-    equipmentId: string;
-    sellingPrice: string;
-    source?: LocationRef;
-    buyerName?: string;
-    licenseId?: string;
-    notes?: string;
-  }
-  | {
-    action: "used_up";
-    equipmentId: string;
-    source?: LocationRef;
-    price?: string;
-    notes?: string;
-  }
-  | {
-    action: "missing";
-    equipmentId: string;
-    source?: LocationRef;
-    notes?: string;
-  }
-  | {
-    action: "maintenance_dispatch";
-    equipmentId: string;
-    source?: LocationRef;
-    vendorName?: string;
-    notes?: string;
-  }
-  | {
-    action: "maintenance_return";
-    equipmentId: string;
-    destination?: LocationRef;
-    repairCost?: string;
-    notes?: string;
-  }
-  | {
-    action: "degraded";
-    equipmentId: string;
-    valueAdjustment?: string;
-    notes?: string;
-  }
-  | {
-    action: "appreciated";
-    equipmentId: string;
-    valueAdjustment?: string;
-    notes?: string;
-  };
 
 export interface RentalAdjustPayload {
   adjustmentAmount: string;
@@ -436,133 +434,133 @@ export interface RentalReturnPayload {
 
 export type RentalCreatePayload =
   | {
-    type: "rent_in"
-    equipmentId: string | "new"
-    dailyRate: string
-    upfrontFee?: string
-    rentStartDate: string
-    expectedReturnDate?: string
-    licenseId?: string
-    notes?: string
-    vendorName?: string
-    toSiteId?: string
-    toWarehouseId?: string
-    newEquipment?: { name: string; serialNumber?: string; originalValue?: string; vendorName?: string }
-  }
+      type: "rent_in";
+      equipmentId: string | "new";
+      dailyRate: string;
+      upfrontFee?: string;
+      rentStartDate: string;
+      expectedReturnDate?: string;
+      licenseId?: string;
+      notes?: string;
+      vendorName?: string;
+      toSiteId?: string;
+      toWarehouseId?: string;
+      newEquipment?: { name: string; serialNumber?: string; originalValue?: string; vendorName?: string };
+    }
   | {
-    type: "rent_out"
-    equipmentId: string
-    dailyRate: string
-    upfrontFee?: string
-    rentStartDate: string
-    expectedReturnDate?: string
-    licenseId?: string
-    notes?: string
-    buyerName?: string
-    fromSiteId?: string
-    fromWarehouseId?: string
-  }
+      type: "rent_out";
+      equipmentId: string;
+      dailyRate: string;
+      upfrontFee?: string;
+      rentStartDate: string;
+      expectedReturnDate?: string;
+      licenseId?: string;
+      notes?: string;
+      buyerName?: string;
+      fromSiteId?: string;
+      fromWarehouseId?: string;
+    };
 
 export interface RentalAdjustPayload {
-  dailyRate?: string
-  lumpSumFee?: string
-  notes?: string
+  dailyRate?: string;
+  lumpSumFee?: string;
+  notes?: string;
 }
 
 export interface RentalReturnPayload {
-  actualReturnDate: string
-  finalCostOverride?: string
-  fromSiteId?: string
-  fromWarehouseId?: string
-  toSiteId?: string
-  toWarehouseId?: string
-  notes?: string
+  actualReturnDate: string;
+  finalCostOverride?: string;
+  fromSiteId?: string;
+  fromWarehouseId?: string;
+  toSiteId?: string;
+  toWarehouseId?: string;
+  notes?: string;
 }
 export interface CostBreakdown {
-  siteId: string
-  dateFrom?: string
-  dateTo?: string
-  totalSpend: string
+  siteId: string;
+  dateFrom?: string;
+  dateTo?: string;
+  totalSpend: string;
   byCategory: {
-    categoryId: string | null
-    categoryName: string
-    total: string
-    count: number
-  }[]
+    categoryId: string | null;
+    categoryName: string;
+    total: string;
+    count: number;
+  }[];
 }
 
 export interface SpendAnalytics {
-  totalCashIn: string
-  totalCashOut: string
-  netCashExpenses: string
-  materialAllocation: string
-  equipmentAllocation: string
-  assetAllocation: string
-  totalCost: string
-  byCategory: { categoryId: string | null; categoryName: string; total: string; count: number }[]
+  totalCashIn: string;
+  totalCashOut: string;
+  netCashExpenses: string;
+  materialAllocation: string;
+  equipmentAllocation: string;
+  assetAllocation: string;
+  totalCost: string;
+  byCategory: { categoryId: string | null; categoryName: string; total: string; count: number }[];
   bySite: {
-    siteId: string
-    siteName: string
-    cashIn: string
-    cashOut: string
-    netCashExpenses: string
-    assetAllocation: string
-    totalCost: string
-  }[]
+    siteId: string;
+    siteName: string;
+    cashIn: string;
+    cashOut: string;
+    netCashExpenses: string;
+    assetAllocation: string;
+    totalCost: string;
+  }[];
 }
 
 export interface BudgetHealthEntry {
-  siteId: string
-  siteName: string
-  budgetAllocated: string
-  cashSpent: string
-  assetAllocation: string
-  totalSpent: string
-  variance: string
-  isOverBudget: boolean
+  siteId: string;
+  siteName: string;
+  budgetAllocated: string;
+  cashSpent: string;
+  assetAllocation: string;
+  totalSpent: string;
+  variance: string;
+  isOverBudget: boolean;
 }
 
 export interface LicenseAnalytics {
-  licenseId: string
-  licenseName: string
-  totalSpent: string
-  totalReceived: string
-  netCashFlow: string
+  licenseId: string;
+  licenseName: string;
+  totalSpent: string;
+  totalReceived: string;
+  netCashFlow: string;
 }
 
 export interface TaskSummaryRow {
-  taskId: string
-  name: string
-  targetDate: string | null
-  isCompleted: boolean
+  taskId: string;
+  name: string;
+  targetDate: string | null;
+  isCompleted: boolean;
 }
 
 export interface LedgerCostRow {
-  amount: string
-  description: string | null
-  timestamp: string
-  sourceRefType: "transaction" | "material_log" | "equipment_log"
-  isReversal: boolean
+  amount: string;
+  description: string | null;
+  timestamp: string;
+  sourceRefType: "transaction" | "material_log" | "equipment_log";
+  isReversal: boolean;
 }
 
 export interface BudgetOverview {
-  siteId: string
-  laborBudget: string | null
-  materialBudget: string | null
-  totalBudgeted: string
-  totalSpent: string
-  variance: string
-  tasks: TaskSummaryRow[]
-  costs: LedgerCostRow[]
+  siteId: string;
+  laborBudget: string | null;
+  materialBudget: string | null;
+  totalBudgeted: string;
+  totalSpent: string;
+  variance: string;
+  tasks: TaskSummaryRow[];
+  costs: LedgerCostRow[];
 }
 
 export interface InventoryAnalytics {
-  totalMaterials: number
-  totalEquipment: number
-  totalMaterialValue: string
-  bySite: { siteId: string; siteName: string; materialCount: number; totalQuantity: number }[]
-  byWarehouse: { warehouseId: string; warehouseName: string; materialCount: number; totalQuantity: number }[]
-  movementVolume: { movementType: string; count: number; totalQuantity: number }[]
+  totalMaterials: number;
+  totalEquipment: number;
+  totalMaterialValue: string;
+  bySite: { siteId: string; siteName: string; materialCount: number; totalQuantity: number }[];
+  byWarehouse: { warehouseId: string; warehouseName: string; materialCount: number; totalQuantity: number }[];
+  movementVolume: { movementType: string; count: number; totalQuantity: number }[];
 }
 export interface InventoryLocationSummary {
   id: string;

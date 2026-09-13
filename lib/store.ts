@@ -45,7 +45,7 @@ export type Store = {
 
 function clone(): Store {
   const isDemo = process.env.NEXT_PUBLIC_USE_DEMO === "true";
-  
+
   if (isDemo) {
     return {
       session: { userId: "usr_abebe", licenseId: "all" },
@@ -154,7 +154,7 @@ export function currentUser(store: Store = state): User {
       role: "admin",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      banned: false
+      banned: false,
     } as unknown as User;
   }
   return user;
@@ -645,6 +645,8 @@ export function logManualTx(input: {
   licenseId: string;
   siteId?: string;
   categoryId?: string;
+  warehouseId?: string;
+  equipmentId?: string;
   note: string;
 }) {
   const user = currentUser();
@@ -656,6 +658,8 @@ export function logManualTx(input: {
     licenseId: input.licenseId,
     siteId: input.siteId,
     categoryId: input.categoryId,
+    warehouseId: input.warehouseId,
+    equipmentId: input.equipmentId,
     transactionDate: now,
     createdAt: now,
     note: input.note,
@@ -666,11 +670,11 @@ export function logManualTx(input: {
   set({ transactions: [tx, ...state.transactions] });
 }
 
-export function claimTask(taskId: string) {
+export function claimTask(taskId: string, notes?: string) {
   const user = currentUser();
   set({
     tasks: state.tasks.map((t) =>
-      t.id === taskId && t.status === "open" ? { ...t, status: "claimed", claimedBy: user.id } : t,
+      t.id === taskId && !t.isCompleted && !t.completionClaimBy ? { ...t, completionClaimBy: user.id, notes: notes || null } : t,
     ),
   });
 }
@@ -678,7 +682,7 @@ export function claimTask(taskId: string) {
 export function completeTask(taskId: string, reviewNotes: string) {
   set({
     tasks: state.tasks.map((t) =>
-      t.id === taskId && t.status === "claimed" ? { ...t, status: "completed", reviewNotes } : t,
+      t.id === taskId && !t.isCompleted && t.completionClaimBy ? { ...t, isCompleted: true, completedDate: new Date().toISOString(), reviewNotes } : t,
     ),
   });
 }
@@ -689,7 +693,10 @@ export function addTask(siteId: string, title: string, targetDate?: string) {
     siteId,
     title,
     targetDate,
-    status: "open",
+    isCompleted: false,
+    completionClaimBy: null,
+    notes: null,
+    completedDate: null,
     createdAt: new Date().toISOString(),
   };
   set({ tasks: [task, ...state.tasks] });

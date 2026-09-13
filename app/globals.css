@@ -210,6 +210,10 @@ textarea {
   white-space: nowrap;
 }
 
+button {
+  @apply cursor-pointer;
+}
+
 @media (max-width: 720px) {
   .data th,
   .data td {

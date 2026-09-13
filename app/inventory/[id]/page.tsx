@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { PageHead, TableWrap, Stamp, FormPanel } from "@/components/ui";
+import { PageHead, TableWrap, Stamp, FormPanel, ModalPanel } from "@/components/ui";
 import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
 import { useInventoryLocations, useInventoryLocationMaterials, useInventoryLocationEquipments } from "@/hooks/use-inventory";
 import { useMaterials } from "@/hooks/use-materials";
@@ -42,11 +42,11 @@ export default function InventoryLocationPage() {
     }
   }
 
-  const canMutate = manager && locationType === "warehouse" 
-    ? false 
+  const canMutate = manager && locationType === "warehouse"
+    ? false
     : manager && locationType === "site"
-    ? allowedSites.has(id)
-    : true; // Admin can mutate anything
+      ? allowedSites.has(id)
+      : true; // Admin can mutate anything
 
   const [moveMaterialId, setMoveMaterialId] = useState<string | null>(null);
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
@@ -69,7 +69,7 @@ export default function InventoryLocationPage() {
     return <p className="p-8 text-center text-sm text-black/50">Location not found or access restricted.</p>;
   }
 
-  const matActions = locationType === "warehouse" 
+  const matActions = locationType === "warehouse"
     ? (["transfer", "sold", "used_up", "missing"] as any)
     : (["transfer", "used_up", "missing"] as any);
 
@@ -172,27 +172,29 @@ export default function InventoryLocationPage() {
       </div>
 
       {moveMaterialId ? (
-        <FormPanel kicker={`${locationType} Inventory`} title="Move Material" onClose={() => setMoveMaterialId(null)}>
-          <MaterialMovementForm 
-            materialId={moveMaterialId} 
-            fixedSource={{ id, type: locationType as "site" | "warehouse", name: locationName }} 
+        <ModalPanel kicker={`${locationType} Inventory`} title="Move Material" onClose={() => setMoveMaterialId(null)}>
+          <MaterialMovementForm
+            materialId={moveMaterialId}
+            noBg
+            fixedSource={{ id, type: locationType as "site" | "warehouse", name: locationName }}
             allowedActions={matActions}
             onSuccess={() => setMoveMaterialId(null)}
             onCancel={() => setMoveMaterialId(null)}
           />
-        </FormPanel>
+        </ModalPanel>
       ) : null}
-      
+
       {moveEquipmentId ? (
-        <FormPanel kicker={`${locationType} Equipment`} title="Move Equipment" onClose={() => setMoveEquipmentId(null)}>
-          <EquipmentMovementForm 
-            equipmentId={moveEquipmentId} 
+        <ModalPanel kicker={`${locationType} Equipment`} title="Move Equipment" onClose={() => setMoveEquipmentId(null)}>
+          <EquipmentMovementForm
+            noBg
+            equipmentId={moveEquipmentId}
             fixedSource={{ id, type: locationType as "site" | "warehouse", name: locationName }}
             allowedActions={eqActions}
             onSuccess={() => setMoveEquipmentId(null)}
             onCancel={() => setMoveEquipmentId(null)}
           />
-        </FormPanel>
+        </ModalPanel>
       ) : null}
     </div>
   );

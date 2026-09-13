@@ -14,8 +14,10 @@ import {
   TableWrap,
   statusTone,
   type RecordMode,
+  FormActions,
+  Username,
 } from "@/components/ui";
-import { day, etb } from "@/lib/format";
+import { day, etb, stamp } from "@/lib/format";
 import {
   addTask,
   claimTask,
@@ -43,7 +45,14 @@ import { useTransactions } from "@/hooks/use-transactions";
 import { useLicenses } from "@/hooks/use-licenses";
 import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
-import type { Site, SiteTask, Equipment, InventoryBalance, MaterialCatalog, License } from "@/types/api";
+import { TransactionForm } from "@/components/forms/transaction";
+import type { Site, SiteTask, Equipment, InventoryBalance, MaterialCatalog, License, SiteLifecycleLog } from "@/types/api";
+
+const getTaskStatus = (task: SiteTask) => {
+  if (task.isCompleted) return "completed";
+  if (task.completionClaimBy) return "claimed";
+  return "open";
+};
 
 export default function SiteDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -63,7 +72,6 @@ export default function SiteDetailPage() {
   const site = siteData?.data ?? (store.sites.find((s) => s.id === id) as unknown as Site | undefined);
 
   const [title, setTitle] = useState("");
-  const [notes, setNotes] = useState("");
   const [mode, setMode] = useState<RecordMode<Site>>(closedMode);
   const [taskMode, setTaskMode] = useState<RecordMode<SiteTask>>(closedMode);
   const [lifecycleModalOpen, setLifecycleModalOpen] = useState(false);
@@ -71,6 +79,7 @@ export default function SiteDetailPage() {
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
   const [purchaseMaterialOpen, setPurchaseMaterialOpen] = useState(false);
   const [purchaseEquipmentOpen, setPurchaseEquipmentOpen] = useState(false);
+  const [addTxOpen, setAddTxOpen] = useState(false);
 
   const createSiteTaskMutation = useCreateSiteTask(id || "");
   const claimSiteTaskMutation = useClaimSiteTask(id || "");
@@ -121,41 +130,47 @@ export default function SiteDetailPage() {
   const materials: MaterialCatalog[] = materialsData?.data ?? (store.materials as unknown as MaterialCatalog[]);
   const licenses: License[] = licensesData?.data ?? (store.licenses as unknown as License[]);
 
-  const handleAddTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
+  const handleAddTask = async (data: { title: string; targetDate?: string }) => {
+    if (!data.title.trim()) return;
     try {
       if (tasksData) {
-        await createSiteTaskMutation.mutateAsync({ title: title.trim() });
+        await createSiteTaskMutation.mutateAsync({ title: data.title.trim(), targetDate: data.targetDate });
       } else {
-        addTask(site.id, title.trim());
+        addTask(site.id, data.title.trim(), data.targetDate);
       }
-      setTitle("");
+      setTaskMode(closedMode());
     } catch {
       // Ignore or show error
     }
   };
 
-  const handleClaimTask = async (taskId: string) => {
+  const handleEditTask = async (data: { title: string; targetDate?: string }) => {
+    // In a real app, this would mutate the task.
+    // We will just close the modal for now since there's no edit mutation yet.
+    setTaskMode(closedMode());
+  };
+
+  const handleClaimTask = async (taskId: string, claimNotes?: string) => {
     try {
       if (tasksData) {
-        await claimSiteTaskMutation.mutateAsync({ taskId });
+        await claimSiteTaskMutation.mutateAsync({ taskId, notes: claimNotes || undefined });
       } else {
-        claimTask(taskId);
+        claimTask(taskId, claimNotes || undefined);
       }
+      setTaskMode(closedMode());
     } catch {
       // Ignore
     }
   };
 
-  const handleCompleteTask = async (taskId: string) => {
+  const handleCompleteTask = async (taskId: string, reviewNotes?: string) => {
     try {
       if (tasksData) {
-        await completeSiteTaskMutation.mutateAsync({ taskId, review: notes || "Approved" });
+        await completeSiteTaskMutation.mutateAsync({ taskId, review: reviewNotes || "Approved" });
       } else {
-        completeTask(taskId, notes || "Approved");
+        completeTask(taskId, reviewNotes || "Approved");
       }
-      setNotes("");
+      setTaskMode(closedMode());
     } catch {
       // Ignore
     }
@@ -192,12 +207,20 @@ export default function SiteDetailPage() {
     <div>
       <PageHead
         kicker="Site"
-        title={site.name}
+        title={
+          <span className="flex items-baseline gap-4">
+            {site.name}
+            <button
+              type="button"
+              className="text-base! text-[#0072c3] underline bg-transparent hover:text-[#005a9c]"
+              onClick={() => setLifecycleModalOpen(true)}
+            >
+              See Lifecycle
+            </button>
+          </span>
+        }
         action={
           <span className="flex flex-wrap items-center gap-2">
-            <button type="button" className="btn" onClick={() => setLifecycleModalOpen(true)}>
-              Lifecycle
-            </button>
             <Stamp value={site.status} tone={statusTone(site.status)} />
             {canMutate ? (
               <RecordActions
@@ -221,50 +244,139 @@ export default function SiteDetailPage() {
         </FormPanel>
       ) : null}
 
+      <div className="mt-8 mb-4 flex items-center justify-between">
+        <p className="kicker">Financials</p>
+        {(!manager || user.siteIds.includes(site.id)) && !isClosed ? (
+          <button
+            className="btn"
+            onClick={() => setAddTxOpen(true)}
+          >
+            Add Transaction
+          </button>
+        ) : null}
+      </div>
+      {addTxOpen ? (
+        <FormPanel kicker="Money" title="Log Manual Transaction" onClose={() => setAddTxOpen(false)}>
+          <TransactionForm initialSiteId={site.id} onDone={() => setAddTxOpen(false)} />
+        </FormPanel>
+      ) : null}
+
       <div className="grid gap-px bg-black/10 sm:grid-cols-3">
         <div className="bg-white p-5">
-          <p className="kicker">Labor</p>
-          <p className="mt-2 break-words text-2xl tracking-tight">{etb(spend.labor)}</p>
-          <p className="text-sm text-black/45">Budget {etb(Number(site.laborBudget) || 0)}</p>
+          <p className="kicker">Labor Budget</p>
+          <p className="mt-2 break-words text-2xl tracking-tight">{etb(Number(site.laborBudget))}</p>
         </div>
         <div className="bg-white p-5">
-          <p className="kicker">Materials</p>
-          <p className="mt-2 break-words text-2xl tracking-tight">{etb(spend.material)}</p>
-          <p className="text-sm text-black/45">Budget {etb(Number(site.materialBudget) || 0)}</p>
+          <p className="kicker">Materials Budget</p>
+          <p className="mt-2 break-words text-2xl tracking-tight">{etb(Number(site.materialBudget))}</p>
         </div>
         <div className="bg-white p-5">
-          <p className="kicker">Posted out</p>
+          <p className="kicker">Approved Spend</p>
           <p className="mt-2 break-words text-2xl tracking-tight">{etb(spend.out)}</p>
-          <p className="text-sm text-black/45">In {etb(spend.inn)}</p>
+          <p className="text-sm text-black/45">Revenue {etb(spend.inn)}</p>
         </div>
       </div>
 
       <section className="mt-10">
-        <p className="kicker mb-3">Tasks</p>
-        {(!manager || user.siteIds.includes(site.id)) && !isClosed ? (
-          <form className="mb-4 flex flex-col gap-2 sm:flex-row" onSubmit={handleAddTask}>
-            <input
-              className="field w-full sm:max-w-sm"
-              placeholder="New task"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
+        <div className="mb-4 flex items-center justify-between">
+          <p className="kicker">Tasks</p>
+          {(!manager || user.siteIds.includes(site.id)) && !isClosed ? (
             <button
-              className="btn w-full sm:w-auto"
-              type="submit"
-              disabled={createSiteTaskMutation.isPending}
+              className="btn"
+              onClick={() => setTaskMode({ kind: "create" })}
             >
-              {createSiteTaskMutation.isPending ? "Adding..." : "Add"}
+              New Task
             </button>
-          </form>
-        ) : null}
-        {taskMode.kind === "edit" ? (
-          <FormPanel kicker="Task" title="Edit task" onClose={() => setTaskMode(closedMode())}>
+          ) : null}
+        </div>
+        {taskMode.kind === "create" || taskMode.kind === "edit" ? (
+          <FormPanel kicker="Task" title={taskMode.kind === "edit" ? "Edit task" : "New task"} onClose={() => setTaskMode(closedMode())}>
             <TaskForm
-              initial={taskMode.record}
+              initial={taskMode.kind === "edit" ? taskMode.record : undefined}
               onCancel={() => setTaskMode(closedMode())}
-              onDone={() => setTaskMode(closedMode())}
+              onSubmit={taskMode.kind === "create" ? handleAddTask : handleEditTask}
             />
+          </FormPanel>
+        ) : null}
+        {taskMode.kind === "view" && taskMode.record ? (
+          <FormPanel kicker="Task" title="Task Details" onClose={() => setTaskMode(closedMode())}>
+            <div className="flex flex-col gap-4">
+              <div>
+                <p className="text-sm font-semibold">Title</p>
+                <p>{taskMode.record.title}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Status</p>
+                <p className="capitalize">{getTaskStatus(taskMode.record)}</p>
+              </div>
+              {taskMode.record.completionClaimBy && (
+                <div>
+                  <p className="text-sm font-semibold">Claimed By</p>
+                  <p>
+                    <Username userId={taskMode.record.completionClaimBy} />
+                  </p>
+                </div>
+              )}
+              <div>
+                <p className="text-sm font-semibold">Target Date</p>
+                <p>{taskMode.record.targetDate ? day(taskMode.record.targetDate) : "—"}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold">Completed Date</p>
+                <p>{taskMode.record.completedDate ? stamp(taskMode.record.completedDate) : "—"}</p>
+              </div>
+              {taskMode.record.notes && (
+                <div>
+                  <p className="text-sm font-semibold">Claim Notes</p>
+                  <p>{taskMode.record.notes}</p>
+                </div>
+              )}
+              {taskMode.record.review && (
+                <div>
+                  <p className="text-sm font-semibold">Review Notes</p>
+                  <p>{taskMode.record.review}</p>
+                </div>
+              )}
+              <div className="pt-4">
+                <button className="btn" onClick={() => setTaskMode(closedMode())}>Close</button>
+              </div>
+            </div>
+          </FormPanel>
+        ) : null}
+        {taskMode.kind === "claim" && taskMode.record ? (
+          <FormPanel kicker="Task" title="Claim Completion" onClose={() => setTaskMode(closedMode())}>
+            <form
+              className="grid gap-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                handleClaimTask(taskMode.record!.id, fd.get("notes") as string);
+              }}
+            >
+              <label className="block text-sm">
+                Completion Notes
+                <textarea className="field mt-1 min-h-24" name="notes" placeholder="Describe the completion..." />
+              </label>
+              <FormActions saveLabel="Claim Completion" onCancel={() => setTaskMode(closedMode())} loading={claimSiteTaskMutation.isPending} />
+            </form>
+          </FormPanel>
+        ) : null}
+        {taskMode.kind === "complete" && taskMode.record ? (
+          <FormPanel kicker="Task" title="Approve Completion" onClose={() => setTaskMode(closedMode())}>
+            <form
+              className="grid gap-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fd = new FormData(e.currentTarget);
+                handleCompleteTask(taskMode.record!.id, fd.get("review") as string);
+              }}
+            >
+              <label className="block text-sm">
+                Review Notes
+                <textarea className="field mt-1 min-h-24" name="review" placeholder="Approve the completion..." />
+              </label>
+              <FormActions saveLabel="Approve Completion" onCancel={() => setTaskMode(closedMode())} loading={completeSiteTaskMutation.isPending} />
+            </form>
           </FormPanel>
         ) : null}
         <TableWrap>
@@ -286,41 +398,34 @@ export default function SiteDetailPage() {
                   </td>
                   <td className="hidden sm:table-cell">{task.targetDate ? day(task.targetDate) : "—"}</td>
                   <td>
-                    <Stamp value={task.status} tone={statusTone(task.status)} />
+                    <Stamp value={getTaskStatus(task)} tone={statusTone(getTaskStatus(task) as any)} />
                     {task.notes ? (
                       <span className="ml-2 text-sm text-black/50">{task.notes}</span>
                     ) : null}
                   </td>
                   <td className="text-right">
-                    <div className="flex flex-col items-stretch gap-2 sm:items-end">
-                      {(task.status === "open" || task.status === "pending") && !isClosed ? (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {(getTaskStatus(task) === "open") &&
+                        (user?.role === "site_manager" || user?.role === "admin" || user?.role === "superadmin") &&
+                        !isClosed ? (
+                        <button
+                          type="button"
+                          className="btn"
+                          onClick={() => setTaskMode({ kind: "claim", record: task })}
+                        >
+                          Claim Completion
+                        </button>
+                      ) : null}
+                      {getTaskStatus(task) === "claimed" && (user?.role === "admin" || user?.role === "superadmin") && !isClosed ? (
                         <button
                           type="button"
                           className="btn btn-ghost"
-                          disabled={claimSiteTaskMutation.isPending}
-                          onClick={() => handleClaimTask(task.id)}
+                          onClick={() => setTaskMode({ kind: "complete", record: task })}
                         >
-                          Claim
+                          Approve Complete
                         </button>
                       ) : null}
-                      {task.status === "claimed" && !isClosed ? (
-                        <span className="flex flex-col gap-2 sm:inline-flex sm:flex-row">
-                          <input
-                            className="field w-full sm:w-40"
-                            placeholder="Review notes"
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                          />
-                          <button
-                            type="button"
-                            className="btn"
-                            disabled={completeSiteTaskMutation.isPending}
-                            onClick={() => handleCompleteTask(task.id)}
-                          >
-                            Complete
-                          </button>
-                        </span>
-                      ) : null}
+                      <button type="button" className="btn btn-ghost" onClick={() => setTaskMode({ kind: "view", record: task })}>View</button>
                       <RecordActions
                         onEdit={() => setTaskMode({ kind: "edit", record: task })}
                         onDelete={() => setTaskMode({ kind: "delete", record: task, label: task.title })}
@@ -356,7 +461,8 @@ export default function SiteDetailPage() {
                   <thead>
                     <tr>
                       <th>SKU</th>
-                      <th className="text-right">Quantity</th>
+                      <th className="text-left">Quantity</th>
+                      <th className="text-left">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -368,11 +474,14 @@ export default function SiteDetailPage() {
                           <td>
                             <p className="font-medium">{mat?.name ?? materialId}</p>
                           </td>
-                          <td className="font-mono text-right min-w-[120px]">
+                          <td className="font-mono text-left">
                             {b.quantity} {mat?.unit ?? "pcs"}
+
+                          </td>
+                          <td className="text-left!">
                             {canMutate && !isClosed && (
-                              <span className="ml-3 inline-block">
-                                <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveMaterialId(materialId)}>Move</button>
+                              <span className="inline-block">
+                                <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId(materialId)}>Move</button>
                               </span>
                             )}
                           </td>
@@ -404,6 +513,7 @@ export default function SiteDetailPage() {
                       <th>Equipment</th>
                       <th>Status</th>
                       <th>Ownership</th>
+                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -421,10 +531,12 @@ export default function SiteDetailPage() {
                               tone={status === "working" || status === "available" ? "ok" : status === "repair" || status === "maintenance" ? "bad" : "ink"}
                             />
                           </td>
-                          <td className="text-sm capitalize flex items-center justify-between gap-3 min-w-[140px]">
+                          <td className="text-sm capitalize items-center gap-3 min-w-[140px] h-full!">
                             {e.ownershipStatus}
+                          </td>
+                          <td>
                             {canMutate && !isClosed && (
-                              <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveEquipmentId(e.id)}>Move</button>
+                              <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveEquipmentId(e.id)}>Move</button>
                             )}
                           </td>
                         </tr>
@@ -456,32 +568,35 @@ export default function SiteDetailPage() {
         onConfirm={handleDeleteTask}
       />
       {moveMaterialId ? (
-        <FormPanel kicker="Site Inventory" title="Move Material" onClose={() => setMoveMaterialId(null)}>
-          <MaterialMovementForm 
-            materialId={moveMaterialId} 
-            fixedSource={{ id: site.id, type: "site", name: site.name }} 
+        <ModalPanel kicker="Site Inventory" title="Move Material" onClose={() => setMoveMaterialId(null)}>
+          <MaterialMovementForm
+            noBg
+            materialId={moveMaterialId}
+            fixedSource={{ id: site.id, type: "site", name: site.name }}
             allowedActions={["transfer", "used_up", "missing"]}
             onSuccess={() => setMoveMaterialId(null)}
             onCancel={() => setMoveMaterialId(null)}
           />
-        </FormPanel>
+        </ModalPanel>
       ) : null}
-      
+
       {moveEquipmentId ? (
-        <FormPanel kicker="Site Equipment" title="Move Equipment" onClose={() => setMoveEquipmentId(null)}>
-          <EquipmentMovementForm 
-            equipmentId={moveEquipmentId} 
+        <ModalPanel kicker="Site Equipment" title="Move Equipment" onClose={() => setMoveEquipmentId(null)}>
+          <EquipmentMovementForm
+            noBg
+            equipmentId={moveEquipmentId}
             fixedSource={{ id: site.id, type: "site", name: site.name }}
             allowedActions={["transferred", "degraded", "appreciated", "maintenance_dispatch", "maintenance_return", "used_up", "missing"]}
             onSuccess={() => setMoveEquipmentId(null)}
             onCancel={() => setMoveEquipmentId(null)}
           />
-        </FormPanel>
+        </ModalPanel>
       ) : null}
 
       {purchaseMaterialOpen ? (
         <ModalPanel kicker="Site Inventory" title="Purchase Material" onClose={() => setPurchaseMaterialOpen(false)}>
-          <MaterialMovementForm 
+          <MaterialMovementForm
+            noBg
             fixedDestination={{ id: site.id, type: "site", name: site.name }}
             allowedActions={["purchase"]}
             onSuccess={() => setPurchaseMaterialOpen(false)}
@@ -492,7 +607,8 @@ export default function SiteDetailPage() {
 
       {purchaseEquipmentOpen ? (
         <ModalPanel kicker="Site Equipment" title="Purchase Equipment" onClose={() => setPurchaseEquipmentOpen(false)}>
-          <EquipmentMovementForm 
+          <EquipmentMovementForm
+            noBg
             fixedDestination={{ id: site.id, type: "site", name: site.name }}
             allowedActions={["purchased"]}
             onSuccess={() => setPurchaseEquipmentOpen(false)}
