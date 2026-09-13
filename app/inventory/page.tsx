@@ -2,14 +2,11 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { PageHead, TableWrap } from "@/components/ui";
+import { PageHead, TableWrap, Stamp } from "@/components/ui";
 import { qty } from "@/lib/format";
-import { isSiteManager, locationName, useStore, visibleSiteIds } from "@/lib/store";
-import { useInventoryBalances } from "@/hooks/use-inventory";
-import { useMaterials } from "@/hooks/use-materials";
-import { useSites } from "@/hooks/use-sites";
-import { useWarehouses } from "@/hooks/use-warehouses";
-import type { InventoryBalance, MaterialCatalog, Site, Warehouse } from "@/types/api";
+import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
+import { useInventoryLocations } from "@/hooks/use-inventory";
+import type { InventoryLocationSummary } from "@/types/api";
 
 export default function InventoryPage() {
   const store = useStore();
@@ -17,102 +14,101 @@ export default function InventoryPage() {
   const allowedSites = visibleSiteIds(store);
   const [q, setQ] = useState("");
 
-  const { data: balancesData, isLoading: isBalancesLoading } = useInventoryBalances();
-  const { data: materialsData } = useMaterials();
-  const { data: sitesData } = useSites();
-  const { data: warehousesData } = useWarehouses();
+  const { data: locationsData, isLoading } = useInventoryLocations();
 
-  const materials = materialsData?.data ?? (store.materials as unknown as MaterialCatalog[]);
-  const sitesList = sitesData?.data ?? (store.sites as unknown as Site[]);
-  const warehousesList = warehousesData?.data ?? (store.warehouses as unknown as Warehouse[]);
+  const locations = useMemo(() => {
+    // If backend returns data, use it
+    if (locationsData?.data) {
+      return locationsData.data;
+    }
 
-  const balances = balancesData?.data ?? (store.balances as unknown as InventoryBalance[]);
+    // Otherwise, compute fallback from store
+    const computed: InventoryLocationSummary[] = [];
+
+    // Group warehouses
+    for (const w of store.warehouses) {
+      if (manager) continue;
+      const wBals = store.balances.filter(b => b.locationKind === "warehouse" && b.locationId === w.id && b.quantity > 0);
+      const wEqs = store.equipment.filter(e => e.warehouseId === w.id);
+      computed.push({
+        id: w.id,
+        name: w.name,
+        type: "warehouse",
+        materialTypesCount: wBals.length,
+        materialQuantityTotal: wBals.reduce((sum, b) => sum + b.quantity, 0),
+        equipmentCount: wEqs.length
+      });
+    }
+
+    // Group sites
+    for (const s of store.sites) {
+      if (manager && !allowedSites.has(s.id)) continue;
+      const sBals = store.balances.filter(b => b.locationKind === "site" && b.locationId === s.id && b.quantity > 0);
+      const sEqs = store.equipment.filter(e => e.siteId === s.id);
+      computed.push({
+        id: s.id,
+        name: s.name,
+        type: "site",
+        materialTypesCount: sBals.length,
+        materialQuantityTotal: sBals.reduce((sum, b) => sum + b.quantity, 0),
+        equipmentCount: sEqs.length
+      });
+    }
+
+    return computed;
+  }, [locationsData, store.balances, store.equipment, store.sites, store.warehouses, manager, allowedSites]);
 
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
-    return balances
-      .filter((b) => b.quantity !== 0)
-      .map((b) => {
-        const materialId = (b as unknown as { catalogId?: string }).catalogId ?? b.materialId;
-        const locationKind =
-          (b as unknown as { locationKind?: "site" | "warehouse" }).locationKind ??
-          (b.siteId ? "site" : "warehouse");
-        const locationId = (b as unknown as { locationId?: string }).locationId ?? (b.siteId || b.warehouseId || "");
-        const mat = materials.find((m) => m.id === materialId);
-
-        let locName = locationName(locationKind, locationId, store);
-        if (locationKind === "site") {
-          const s = sitesList.find((site) => site.id === locationId);
-          if (s) locName = s.name;
-        } else if (locationKind === "warehouse") {
-          const w = warehousesList.find((wh) => wh.id === locationId);
-          if (w) locName = w.name;
-        }
-
-        return {
-          id: b.id ?? `${materialId}-${locationKind}-${locationId}`,
-          materialId,
-          locationKind,
-          locationId,
-          locationName: locName,
-          quantity: b.quantity,
-          name: mat?.name ?? materialId,
-          unit: mat?.unit ?? "pcs",
-        };
-      })
-      .filter((b) => {
-        if (!manager) return true;
-        if (b.locationKind === "warehouse") return false;
-        return allowedSites.has(b.locationId);
-      })
-      .filter((b) => (term ? b.name.toLowerCase().includes(term) : true));
-  }, [allowedSites, balances, manager, materials, q, sitesList, store, warehousesList]);
+    if (!term) return locations;
+    return locations.filter((l) => l.name.toLowerCase().includes(term));
+  }, [locations, q]);
 
   return (
     <div>
-      <PageHead kicker="Stock" title="Inventory balances" />
+      <PageHead kicker="Stock" title="Inventory Locations" />
       {manager ? (
         <p className="mb-4 text-sm text-black/60">Site desk shows only stock on your jobs — not central warehouses.</p>
       ) : null}
       <input
         className="field mb-5 w-full max-w-sm"
-        placeholder="Search"
+        placeholder="Search locations"
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
-      {isBalancesLoading && !balancesData ? (
-        <div className="p-8 text-center text-sm text-black/50">Loading inventory balances...</div>
+      {isLoading && !locationsData ? (
+        <div className="p-8 text-center text-sm text-black/50">Loading inventory locations...</div>
       ) : (
         <TableWrap>
-          <table className="data">
+          <table className="data w-full text-left">
             <thead>
               <tr>
-                <th>Material</th>
                 <th>Location</th>
-                <th>Qty</th>
+                <th>Material Types</th>
+                <th>Total Qty</th>
+                <th>Equipment</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((b) => (
-                <tr key={b.id}>
+              {rows.map((l) => (
+                <tr key={l.id}>
                   <td>
-                    <Link href={`/materials/${b.materialId}`} className="font-medium hover:text-yellow">
-                      {b.name}
+                    <Link href={`/inventory/${l.id}`} className="font-medium hover:text-yellow">
+                      {l.name}
                     </Link>
-                  </td>
-                  <td>
-                    {b.locationName}
-                    <span className="block font-mono text-[0.65rem] uppercase text-black/40">
-                      {b.locationKind}
+                    <span className="ml-3 font-mono text-[0.65rem] uppercase text-black/40">
+                      {l.type}
                     </span>
                   </td>
-                  <td className="font-mono">{qty(b.quantity, b.unit)}</td>
+                  <td className="font-mono">{l.materialTypesCount}</td>
+                  <td className="font-mono">{qty(l.materialQuantityTotal, "")}</td>
+                  <td className="font-mono">{l.equipmentCount}</td>
                 </tr>
               ))}
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="py-8 text-center text-sm text-black/45">
-                    No inventory balances found.
+                  <td colSpan={4} className="py-8 text-center text-sm text-black/45">
+                    No locations found.
                   </td>
                 </tr>
               ) : null}

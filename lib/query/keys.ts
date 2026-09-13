@@ -52,6 +52,9 @@ export const queryKeys = {
     // scoped: Site Managers get a restricted view — pass userId in params
     balances: (params?: unknown) => ["inventory", "balances", params] as const,
     trace: (catalogId: string) => ["inventory", "trace", catalogId] as const,
+    locations: () => ["inventory", "locations"] as const,
+    locationMaterials: (id: string, params?: unknown) => ["inventory", "location-materials", id, params] as const,
+    locationEquipments: (id: string, params?: unknown) => ["inventory", "location-equipments", id, params] as const,
   },
 
   rentals: {

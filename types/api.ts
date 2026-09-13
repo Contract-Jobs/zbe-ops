@@ -564,3 +564,11 @@ export interface InventoryAnalytics {
   byWarehouse: { warehouseId: string; warehouseName: string; materialCount: number; totalQuantity: number }[]
   movementVolume: { movementType: string; count: number; totalQuantity: number }[]
 }
+export interface InventoryLocationSummary {
+  id: string;
+  name: string;
+  type: "site" | "warehouse";
+  materialTypesCount: number;
+  materialQuantityTotal: number;
+  equipmentCount: number;
+}
