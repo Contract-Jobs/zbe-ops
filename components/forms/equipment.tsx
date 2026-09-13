@@ -90,7 +90,7 @@ export function EquipmentForm({
         </>
       ) : (
         <p className="text-sm text-black/55 sm:col-span-2">
-          Site, yard, value, and rent rate cannot be patched here — raise an event.
+          Site, warehouse, value, and rent rate cannot be patched here — raise an event.
         </p>
       )}
       <FormActions saveLabel={initial ? "Save equipment" : "Create equipment"} onCancel={onCancel} loading={isPending} />

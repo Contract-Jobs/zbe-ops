@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     default: "ZBE Ops",
     template: "%s | ZBE Ops",
   },
-  description: "Yard, site, and ledger for ZBE Power Engineering.",
+  description: "Warehouse, site, and ledger for ZBE Power Engineering.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

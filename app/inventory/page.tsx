@@ -72,7 +72,7 @@ export default function InventoryPage() {
     <div>
       <PageHead kicker="Stock" title="Inventory balances" />
       {manager ? (
-        <p className="mb-4 text-sm text-black/60">Site desk shows only stock on your jobs — not central yards.</p>
+        <p className="mb-4 text-sm text-black/60">Site desk shows only stock on your jobs — not central warehouses.</p>
       ) : null}
       <input
         className="field mb-5 w-full max-w-sm"

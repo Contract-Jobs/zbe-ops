@@ -32,31 +32,31 @@ export default function WarehousesPage() {
     <div>
       <PageHead
         kicker="Central"
-        title="Yards"
-        action={canMutate ? <RecordActions newLabel="New yard" onNew={() => setMode({ kind: "create" })} /> : undefined}
+        title="Warehouses"
+        action={canMutate ? <RecordActions newLabel="New warehouse" onNew={() => setMode({ kind: "create" })} /> : undefined}
       />
-      <p className="mb-6 max-w-xl text-black/65">
-        Warehouses are not scoped to a site manager. Sales can only leave a yard. Transfers onto a job still go through
+      <p className="mb-6 text-sm text-black/70">
+        Warehouses are not scoped to a site manager. Sales can only leave a warehouse. Transfers onto a job still go through
         Approvals.
       </p>
       {mode.kind === "create" ? (
-        <FormPanel kicker="Central" title="New yard" onClose={() => setMode(closedMode())}>
-          <WarehouseForm onCancel={() => setMode(closedMode())} onDone={() => setMode(closedMode())} />
+        <FormPanel kicker="Central" title="New warehouse" onClose={() => setMode(closedMode())}>
+          <WarehouseForm onDone={() => setMode(closedMode())} onCancel={() => setMode(closedMode())} />
         </FormPanel>
       ) : null}
       {mode.kind === "edit" ? (
-        <FormPanel kicker="Central" title="Edit yard" onClose={() => setMode(closedMode())}>
+        <FormPanel kicker="Central" title="Edit warehouse" onClose={() => setMode(closedMode())}>
           <WarehouseForm initial={mode.record} onCancel={() => setMode(closedMode())} onDone={() => setMode(closedMode())} />
         </FormPanel>
       ) : null}
-      {isLoading && !warehousesData ? (
-        <div className="p-8 text-center text-sm text-black/50">Loading yards...</div>
+      {isLoading ? (
+        <div className="p-8 text-center text-sm text-black/50">Loading warehouses...</div>
       ) : (
         <TableWrap>
-          <table className="data">
+          <table className="data w-full text-left">
             <thead>
               <tr>
-                <th>Yard</th>
+                <th>Warehouse</th>
                 <th>Location</th>
                 <th>SKUs on hand</th>
                 <th className="hidden sm:table-cell">Plant parked</th>

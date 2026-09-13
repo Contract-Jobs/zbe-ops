@@ -79,7 +79,7 @@ export default function BoardPage() {
 
   return (
     <div>
-      <PageHead kicker="Today" title="Yard and site board" />
+      <PageHead kicker="Today" title="Warehouse and site board" />
 
       <div className="grid gap-px bg-black/10 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Pending approvals" value={String(pending.length)} href="/approvals" />

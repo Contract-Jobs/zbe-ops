@@ -177,7 +177,7 @@ export function WarehouseForm({
       }
       onDone();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save yard");
+      setError(err instanceof Error ? err.message : "Failed to save warehouse");
     }
   }
 
@@ -192,7 +192,7 @@ export function WarehouseForm({
       <Field label="Location">
         <input className="field" name="location" defaultValue={initial?.location ?? ""} disabled={isPending} />
       </Field>
-      <FormActions saveLabel={initial ? "Save yard" : "Create yard"} onCancel={onCancel} loading={isPending} />
+      <FormActions saveLabel={initial ? "Save warehouse" : "Create warehouse"} onCancel={onCancel} loading={isPending} />
     </form>
   );
 }

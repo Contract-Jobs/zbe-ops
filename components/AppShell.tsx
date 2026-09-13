@@ -23,7 +23,7 @@ const nav = [
   { href: "/materials", label: "Materials" },
   { href: "/inventory", label: "Inventory" },
   { href: "/equipment", label: "Equipment" },
-  { href: "/warehouses", label: "Yards" },
+  { href: "/warehouses", label: "Warehouses" },
   { href: "/tenders", label: "Tenders" },
   { href: "/licenses", label: "Licenses" },
   { href: "/ledger", label: "Ledger" },
@@ -171,7 +171,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             Reset demo data
           </button>
           <p className="mt-2 font-mono text-[0.65rem] leading-relaxed text-white/40">
-            Yard movements wait in Approvals. Manual ledger entries post
+            Warehouse movements wait in Approvals. Manual ledger entries post
             immediately.
           </p>
         </div>
