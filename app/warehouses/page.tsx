@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { WarehouseForm } from "@/components/forms/master";
 import { closedMode, DeleteConfirm, FormPanel, PageHead, RecordActions, TableWrap, type RecordMode } from "@/components/ui";
@@ -71,7 +72,11 @@ export default function WarehousesPage() {
                 const plant = store.equipment.filter((e) => e.warehouseId === w.id && !e.deletedAt).length;
                 return (
                   <tr key={w.id}>
-                    <td className="font-medium">{w.name}</td>
+                    <td className="font-medium">
+                      <Link href={`/warehouses/${w.id}`} className="hover:underline">
+                        {w.name}
+                      </Link>
+                    </td>
                     <td>{w.location ?? "—"}</td>
                     <td className="font-mono">{skus}</td>
                     <td className="hidden font-mono sm:table-cell">{plant}</td>
