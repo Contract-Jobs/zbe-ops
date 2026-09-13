@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { MaterialForm } from "@/components/forms/material";
+import { MaterialMovementForm } from "@/components/forms/material-movement";
 import { closedMode, DeleteConfirm, FormPanel, PageHead, RecordActions, Stamp, TableWrap, type RecordMode } from "@/components/ui";
 import { qty } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
@@ -14,6 +15,7 @@ export default function MaterialsPage() {
   const canMutate = !isSiteManager(store);
   const [q, setQ] = useState("");
   const [mode, setMode] = useState<RecordMode<MaterialCatalog>>(closedMode);
+  const [purchaseNew, setPurchaseNew] = useState(false);
 
   const { data: materialsData, isLoading } = useMaterials();
   const deleteMutation = useDeleteMaterial();
@@ -48,11 +50,21 @@ export default function MaterialsPage() {
       <PageHead
         kicker="Catalog"
         title="Materials"
-        action={canMutate ? <RecordActions newLabel="New material" onNew={() => setMode({ kind: "create" })} /> : undefined}
+        action={canMutate ? (
+          <div className="flex gap-2">
+            <RecordActions newLabel="New material" onNew={() => setMode({ kind: "create" })} />
+            <button className="btn" onClick={() => setPurchaseNew(true)}>Purchase New</button>
+          </div>
+        ) : undefined}
       />
       {mode.kind === "create" ? (
         <FormPanel kicker="Catalog" title="New material" onClose={() => setMode(closedMode())}>
           <MaterialForm onCancel={() => setMode(closedMode())} onDone={() => setMode(closedMode())} />
+        </FormPanel>
+      ) : null}
+      {purchaseNew ? (
+        <FormPanel kicker="Catalog" title="Purchase new material" onClose={() => setPurchaseNew(false)}>
+          <MaterialMovementForm materialId="new" onCancel={() => setPurchaseNew(false)} onSuccess={() => setPurchaseNew(false)} />
         </FormPanel>
       ) : null}
       {mode.kind === "edit" ? (

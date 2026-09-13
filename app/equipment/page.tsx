@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { EquipmentForm } from "@/components/forms/equipment";
+import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
 import {
   closedMode,
   DeleteConfirm,
@@ -27,6 +28,7 @@ export default function EquipmentPage() {
   const sites = visibleSiteIds(store);
   const [q, setQ] = useState("");
   const [mode, setMode] = useState<RecordMode<Equipment>>(closedMode);
+  const [purchaseNew, setPurchaseNew] = useState(false);
 
   const { data: equipmentData, isLoading } = useEquipmentList();
   const { data: licensesData } = useLicenses();
@@ -62,11 +64,21 @@ export default function EquipmentPage() {
       <PageHead
         kicker="Plant"
         title="Equipment"
-        action={canMutate ? <RecordActions newLabel="New equipment" onNew={() => setMode({ kind: "create" })} /> : undefined}
+        action={canMutate ? (
+          <div className="flex gap-2">
+            <RecordActions newLabel="New equipment" onNew={() => setMode({ kind: "create" })} />
+            <button className="btn" onClick={() => setPurchaseNew(true)}>Purchase New</button>
+          </div>
+        ) : undefined}
       />
       {mode.kind === "create" ? (
         <FormPanel kicker="Plant" title="New equipment" onClose={() => setMode(closedMode())}>
           <EquipmentForm licenses={licensesList} onCancel={() => setMode(closedMode())} onDone={() => setMode(closedMode())} />
+        </FormPanel>
+      ) : null}
+      {purchaseNew ? (
+        <FormPanel kicker="Plant" title="Purchase new equipment" onClose={() => setPurchaseNew(false)}>
+          <EquipmentMovementForm equipmentId="new" onCancel={() => setPurchaseNew(false)} onSuccess={() => setPurchaseNew(false)} />
         </FormPanel>
       ) : null}
       {mode.kind === "edit" ? (

@@ -1,12 +1,16 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { PageHead, TableWrap, Stamp } from "@/components/ui";
+import { useState } from "react";
+import { PageHead, TableWrap, Stamp, FormPanel } from "@/components/ui";
 import { useStore } from "@/lib/store";
 import { useWarehouse } from "@/hooks/use-warehouses";
 import { useEquipmentList } from "@/hooks/use-equipment";
 import { useInventoryBalances } from "@/hooks/use-inventory";
 import { useMaterials } from "@/hooks/use-materials";
+import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
+import { MaterialMovementForm } from "@/components/forms/material-movement";
+import { isSiteManager } from "@/lib/store";
 import type { Warehouse, Equipment, InventoryBalance, MaterialCatalog } from "@/types/api";
 
 export default function WarehouseDetailPage() {
@@ -19,6 +23,11 @@ export default function WarehouseDetailPage() {
   const { data: materialsData } = useMaterials();
 
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
+
+  const [moveMaterialId, setMoveMaterialId] = useState<string | null>(null);
+  const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
+
+  const canMutate = !isSiteManager(store);
 
   if (isWarehouseLoading && !warehouse) {
     return <p className="p-8 text-center text-sm text-black/50">Loading warehouse...</p>;
@@ -52,7 +61,7 @@ export default function WarehouseDetailPage() {
               <thead>
                 <tr>
                   <th>SKU</th>
-                  <th>Quantity</th>
+                  <th className="text-right">Quantity</th>
                 </tr>
               </thead>
               <tbody>
@@ -65,8 +74,13 @@ export default function WarehouseDetailPage() {
                       <td>
                         <p className="font-medium">{m?.name ?? "Unknown material"}</p>
                       </td>
-                      <td className="font-mono">
+                      <td className="font-mono text-right min-w-[120px]">
                         {b.quantity} {m?.unit ?? ""}
+                        {canMutate && (
+                          <span className="ml-3 inline-block">
+                            <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveMaterialId(materialId)}>Move</button>
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -108,7 +122,12 @@ export default function WarehouseDetailPage() {
                           tone={status === "working" || status === "available" ? "ok" : status === "repair" || status === "maintenance" ? "bad" : "ink"}
                         />
                       </td>
-                      <td className="text-sm capitalize">{e.ownershipStatus}</td>
+                      <td className="text-sm capitalize flex items-center justify-between gap-3">
+                        {e.ownershipStatus}
+                        {canMutate && (
+                          <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveEquipmentId(e.id)}>Move</button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -121,6 +140,30 @@ export default function WarehouseDetailPage() {
           </div>
         )}
       </div>
+
+      {moveMaterialId ? (
+        <FormPanel kicker="Warehouse Inventory" title="Move Material" onClose={() => setMoveMaterialId(null)}>
+          <MaterialMovementForm 
+            materialId={moveMaterialId} 
+            fixedSource={{ id: warehouse.id, type: "warehouse", name: warehouse.name }} 
+            allowedActions={["transfer", "sold", "used_up", "missing"]}
+            onSuccess={() => setMoveMaterialId(null)}
+            onCancel={() => setMoveMaterialId(null)}
+          />
+        </FormPanel>
+      ) : null}
+      
+      {moveEquipmentId ? (
+        <FormPanel kicker="Warehouse Equipment" title="Move Equipment" onClose={() => setMoveEquipmentId(null)}>
+          <EquipmentMovementForm 
+            equipmentId={moveEquipmentId} 
+            fixedSource={{ id: warehouse.id, type: "warehouse", name: warehouse.name }}
+            allowedActions={["transferred", "sold", "degraded", "appreciated", "maintenance_dispatch", "maintenance_return", "used_up", "missing"]}
+            onSuccess={() => setMoveEquipmentId(null)}
+            onCancel={() => setMoveEquipmentId(null)}
+          />
+        </FormPanel>
+      ) : null}
     </div>
   );
 }

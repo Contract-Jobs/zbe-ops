@@ -36,21 +36,7 @@ import { useWarehouses } from "@/hooks/use-warehouses";
 import type { ApprovalType, LocationKind } from "@/lib/types";
 import type { Equipment, EquipmentLog, License } from "@/types/api";
 
-const actions: Array<{ type: ApprovalType; label: string }> = [
-  { type: "equipment_purchase", label: "Purchase" },
-  { type: "equipment_transfer", label: "Transfer" },
-  { type: "equipment_rent_in", label: "Rent in" },
-  { type: "equipment_return_in", label: "Return rented-in" },
-  { type: "equipment_rent_out", label: "Rent out" },
-  { type: "equipment_return_out", label: "Return rented-out" },
-  { type: "equipment_sale", label: "Sell" },
-  { type: "equipment_degrade", label: "Write down value" },
-  { type: "equipment_appreciate", label: "Write up value" },
-  { type: "equipment_maintenance_dispatch", label: "Send to shop" },
-  { type: "equipment_maintenance_return", label: "Return from shop" },
-  { type: "equipment_consume", label: "Dispose" },
-  { type: "equipment_missing", label: "Report missing" },
-];
+import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
 
 export default function EquipmentDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -64,26 +50,14 @@ export default function EquipmentDetailPage() {
   const { data: warehousesData } = useWarehouses();
 
   const deleteEquipmentMutation = useDeleteEquipment();
-  const transferMutation = useTransferEquipment();
-  const sellMutation = useSellEquipment();
-  const consumeMutation = useConsumeEquipment();
-  const reportMissingMutation = useReportMissingEquipment();
-  const maintenanceDispatchMutation = useMaintenanceDispatch();
-  const maintenanceReturnMutation = useMaintenanceReturn();
-  const degradeMutation = useDegradeEquipment();
-  const appreciateMutation = useAppreciateEquipment();
+
 
   const item = equipData?.data ?? (store.equipment.find((e) => e.id === id) as unknown as Equipment | undefined);
   const canMutate = !isSiteManager(store);
 
-  const [type, setType] = useState<ApprovalType>("equipment_transfer");
-  const [price, setPrice] = useState("");
-  const [buyerName, setBuyerName] = useState("");
-  const [vendorName, setVendorName] = useState("");
-  const [toKind, setToKind] = useState<LocationKind | "">("");
-  const [toId, setToId] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
+
   const [mode, setMode] = useState<RecordMode<Equipment>>(closedMode);
+  const [msg, setMsg] = useState<string | null>(null);
 
   if (isEquipLoading && !item) {
     return <p className="p-8 text-center text-sm text-black/50">Loading equipment...</p>;
@@ -107,98 +81,7 @@ export default function EquipmentDetailPage() {
   const rentRate = item.rentRate;
   const isOnLoan = (item as unknown as { isOnLoan?: boolean }).isOnLoan;
 
-  const isActionPending =
-    transferMutation.isPending ||
-    sellMutation.isPending ||
-    consumeMutation.isPending ||
-    reportMissingMutation.isPending ||
-    maintenanceDispatchMutation.isPending ||
-    maintenanceReturnMutation.isPending ||
-    degradeMutation.isPending ||
-    appreciateMutation.isPending;
 
-  const submit = async () => {
-    setMsg(null);
-    try {
-      if (isOnLoan && (type === "equipment_rent_in" || type === "equipment_rent_out")) {
-        throw new Error("Already on loan");
-      }
-
-      const source = item.siteId
-        ? { id: item.siteId, type: "site" as const }
-        : item.warehouseId
-          ? { id: item.warehouseId, type: "warehouse" as const }
-          : undefined;
-      const destination = toKind && toId ? { id: toId, type: toKind as "site" | "warehouse" } : undefined;
-
-      if (type === "equipment_transfer") {
-        await transferMutation.mutateAsync({
-          equipmentId: item.id,
-          source,
-          destination,
-          notes: `Transfer to ${destination?.type ?? ""} ${destination?.id ?? ""}`,
-        });
-      } else if (type === "equipment_sale") {
-        await sellMutation.mutateAsync({
-          equipmentId: item.id,
-          sellingPrice: price || "0",
-          source,
-          buyerName: buyerName || undefined,
-        });
-      } else if (type === "equipment_maintenance_dispatch") {
-        await maintenanceDispatchMutation.mutateAsync({
-          equipmentId: item.id,
-          source,
-          vendorName: vendorName || undefined,
-        });
-      } else if (type === "equipment_maintenance_return") {
-        await maintenanceReturnMutation.mutateAsync({
-          equipmentId: item.id,
-          destination,
-          repairCost: price || undefined,
-        });
-      } else if (type === "equipment_degrade") {
-        await degradeMutation.mutateAsync({
-          equipmentId: item.id,
-          valueAdjustment: price || undefined,
-        });
-      } else if (type === "equipment_appreciate") {
-        await appreciateMutation.mutateAsync({
-          equipmentId: item.id,
-          valueAdjustment: price || undefined,
-        });
-      } else if (type === "equipment_consume") {
-        await consumeMutation.mutateAsync({
-          equipmentId: item.id,
-          source,
-        });
-      } else if (type === "equipment_missing") {
-        await reportMissingMutation.mutateAsync({
-          equipmentId: item.id,
-          source,
-        });
-      } else {
-        submitApproval(
-          type,
-          {
-            equipmentId: item.id,
-            price: price ? Number(price) : undefined,
-            buyerName: buyerName || undefined,
-            vendorName: vendorName || undefined,
-            toKind: toKind || undefined,
-            toId: toId || undefined,
-            fromKind: item.siteId ? "site" : item.warehouseId ? "warehouse" : undefined,
-            fromId: item.siteId ?? item.warehouseId ?? undefined,
-          },
-          `${actions.find((a) => a.type === type)?.label} · ${item.name}`
-        );
-      }
-
-      setMsg("Queued for approval.");
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Failed");
-    }
-  };
 
   const handleDeleteEquipment = async () => {
     if (mode.kind === "delete" && mode.record) {
@@ -238,7 +121,7 @@ export default function EquipmentDetailPage() {
           />
         </FormPanel>
       ) : null}
-      <div className="flex flex-col-reverse gap-8 lg:grid lg:grid-cols-[1fr_20rem] lg:gap-10">
+      <div className="flex flex-col-reverse gap-8 lg:grid lg:grid-cols-[1fr_25rem] lg:gap-10">
         <div>
           <div className="mb-8 flex flex-wrap gap-2">
             <Stamp value={status} tone={statusTone(status)} />
@@ -294,39 +177,10 @@ export default function EquipmentDetailPage() {
             </table>
           </TableWrap>
         </div>
-        <aside className="border border-black/10 bg-paper/40 p-5">
-          <p className="kicker mb-3">Raise an event</p>
-          <select className="field mb-3" value={type} onChange={(e) => setType(e.target.value as ApprovalType)}>
-            {actions.map((a) => (
-              <option key={a.type} value={a.type}>
-                {a.label}
-              </option>
-            ))}
-          </select>
-          <label className="mb-3 block text-sm">
-            Price / rate / repair (ETB)
-            <input className="field mt-1" value={price} onChange={(e) => setPrice(e.target.value)} />
-          </label>
-          <label className="mb-3 block text-sm">
-            Buyer
-            <input className="field mt-1" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} />
-          </label>
-          <label className="mb-3 block text-sm">
-            Vendor
-            <input className="field mt-1" value={vendorName} onChange={(e) => setVendorName(e.target.value)} />
-          </label>
-          <p className="mb-1 text-sm">Destination</p>
-          <LocationSelect kind={toKind} id={toId} onKind={setToKind} onId={setToId} />
-          <button
-            type="button"
-            className="btn mt-4 w-full"
-            disabled={isActionPending}
-            onClick={submit}
-          >
-            {isActionPending ? "Queueing..." : "Queue for approval"}
-          </button>
-          {msg ? <p className="mt-3 text-sm">{msg}</p> : null}
-        </aside>
+        <EquipmentMovementForm 
+          equipmentId={item.id} 
+          fixedSource={item.siteId ? { id: item.siteId, type: "site", name: here } : item.warehouseId ? { id: item.warehouseId, type: "warehouse", name: here } : undefined}
+        />
       </div>
       <DeleteConfirm
         mode={mode}

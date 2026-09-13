@@ -75,11 +75,11 @@ Whenever an API route encounters a failure, it returns a standardized JSON struc
 
 When calling `POST /api/inventory/logs`, the payload must match one of the following based on the `action`:
 
-- **`purchase`**: `{ action: "purchase", materialId: string | "new", quantity: number, purchaseCost: string, destination?: { id: string, type: "site" | "warehouse" }, categoryId?: string, licenseId?: string, notes?: string, newMaterial?: object }`
-- **`transfer`**: `{ action: "transfer", materialId: string, quantity: number, source?: { id: string, type: "site" | "warehouse" }, destination?: { id: string, type: "site" | "warehouse" }, notes?: string }`
-- **`sold`**: `{ action: "sold", materialId: string, quantity: number, sellingPrice: string, source?: { id: string, type: "site" | "warehouse" }, categoryId?: string, licenseId?: string, buyerName?: string, notes?: string }`
-- **`used_up`**: `{ action: "used_up", materialId: string, quantity: number, source?: { id: string, type: "site" | "warehouse" }, notes?: string }`
-- **`missing`**: `{ action: "missing", materialId: string, quantity: number, source?: { id: string, type: "site" | "warehouse" }, notes?: string }`
+- **`purchase`**: `{ action: "purchase", materialId: string | "new", quantity: number, purchaseCost: string, destination: { id: string, type: "site" | "warehouse" }, categoryId?: string, licenseId?: string, notes?: string, newMaterial?: object }`
+- **`transfer`**: `{ action: "transfer", materialId: string, quantity: number, source: { id: string, type: "site" | "warehouse" }, destination: { id: string, type: "site" | "warehouse" }, notes?: string }`
+- **`sold`**: `{ action: "sold", materialId: string, quantity: number, sellingPrice: string, source: { id: string, type: "warehouse" }, categoryId?: string, licenseId?: string, buyerName?: string, notes?: string }`
+- **`used_up`**: `{ action: "used_up", materialId: string, quantity: number, source: { id: string, type: "site" | "warehouse" }, notes?: string }`
+- **`missing`**: `{ action: "missing", materialId: string, quantity: number, source: { id: string, type: "site" | "warehouse" }, notes?: string }`
 
 ## 2. Equipment Features
 
@@ -104,12 +104,12 @@ When calling `POST /api/inventory/logs`, the payload must match one of the follo
 When calling `POST /api/equipment/logs`, the payload must match one of the following based on the `action`:
 
 - **`purchased`**: `{ action: "purchased", equipmentId: string | "new", purchaseCost: string, destination?: { id: string, type: "site" | "warehouse" }, vendorName?: string, licenseId?: string, notes?: string, newEquipment?: object }`
-- **`transferred`**: `{ action: "transferred", equipmentId: string, source?: { id: string, type: "site" | "warehouse" }, destination?: { id: string, type: "site" | "warehouse" }, notes?: string }`
+- **`transferred`**: `{ action: "transferred", equipmentId: string, source?: { id: string, type: "site" | "warehouse" }, destination: { id: string, type: "site" | "warehouse" }, notes?: string }`
 - **`sold`**: `{ action: "sold", equipmentId: string, sellingPrice: string, source?: { id: string, type: "site" | "warehouse" }, buyerName?: string, licenseId?: string, notes?: string }`
-- **`used_up`**: `{ action: "used_up", equipmentId: string, source?: { id: string, type: "site" | "warehouse" }, notes?: string }`
+- **`used_up`**: `{ action: "used_up", equipmentId: string, source?: { id: string, type: "site" | "warehouse" }, price?: string, notes?: string }`
 - **`missing`**: `{ action: "missing", equipmentId: string, source?: { id: string, type: "site" | "warehouse" }, notes?: string }`
 - **`maintenance_dispatch`**: `{ action: "maintenance_dispatch", equipmentId: string, source?: { id: string, type: "site" | "warehouse" }, vendorName?: string, notes?: string }`
-- **`maintenance_return`**: `{ action: "maintenance_return", equipmentId: string, destination?: { id: string, type: "site" | "warehouse" }, repairCost?: string, notes?: string }`
+- **`maintenance_return`**: `{ action: "maintenance_return", equipmentId: string, destination: { id: string, type: "site" | "warehouse" }, repairCost?: string, notes?: string }`
 - **`degraded`**: `{ action: "degraded", equipmentId: string, valueAdjustment?: string, notes?: string }`
 - **`appreciated`**: `{ action: "appreciated", equipmentId: string, valueAdjustment?: string, notes?: string }`
 

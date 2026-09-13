@@ -388,6 +388,7 @@ export type EquipmentLogAction =
     action: "used_up";
     equipmentId: string;
     source?: LocationRef;
+    price?: string;
     notes?: string;
   }
   | {

@@ -40,6 +40,8 @@ import { useInventoryBalances } from "@/hooks/use-inventory";
 import { useMaterials } from "@/hooks/use-materials";
 import { useTransactions } from "@/hooks/use-transactions";
 import { useLicenses } from "@/hooks/use-licenses";
+import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
+import { MaterialMovementForm } from "@/components/forms/material-movement";
 import type { Site, SiteTask, Equipment, InventoryBalance, MaterialCatalog, License } from "@/types/api";
 
 export default function SiteDetailPage() {
@@ -64,6 +66,8 @@ export default function SiteDetailPage() {
   const [mode, setMode] = useState<RecordMode<Site>>(closedMode);
   const [taskMode, setTaskMode] = useState<RecordMode<SiteTask>>(closedMode);
   const [logOpen, setLogOpen] = useState(false);
+  const [moveMaterialId, setMoveMaterialId] = useState<string | null>(null);
+  const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
 
   const createSiteTaskMutation = useCreateSiteTask(id || "");
   const claimSiteTaskMutation = useClaimSiteTask(id || "");
@@ -332,33 +336,92 @@ export default function SiteDetailPage() {
 
       <div className="mt-10 grid gap-10 lg:grid-cols-2">
         <section>
-          <p className="kicker mb-3">On this site</p>
-          <ul className="text-sm">
-            {bals.map((b) => {
-              const materialId = (b as unknown as { catalogId?: string }).catalogId ?? b.materialId;
-              const mat = materials.find((m) => m.id === materialId);
-              return (
-                <li
-                  key={`${materialId}-${b.id ?? b.siteId}`}
-                  className="flex justify-between gap-3 border-b border-black/10 py-2"
-                >
-                  <span className="min-w-0 pr-2">{mat?.name ?? materialId}</span>
-                  <span className="font-mono">
-                    {b.quantity} {mat?.unit ?? "pcs"}
-                  </span>
-                </li>
-              );
-            })}
-            {eqs.map((e) => (
-              <li key={e.id} className="flex justify-between border-b border-black/10 py-2">
-                <span>{e.name}</span>
-                <Stamp value={e.currentStatus ?? (e as unknown as { status: string }).status} tone={statusTone(e.currentStatus ?? (e as unknown as { status: string }).status)} />
-              </li>
-            ))}
-            {bals.length === 0 && eqs.length === 0 ? (
-              <li className="py-4 text-center text-black/45">No materials or plant currently on site.</li>
-            ) : null}
-          </ul>
+          <div className="mb-8">
+            <p className="kicker mb-3">Inventory Balances</p>
+            {bals.length > 0 ? (
+              <TableWrap>
+                <table className="data w-full text-left">
+                  <thead>
+                    <tr>
+                      <th>SKU</th>
+                      <th className="text-right">Quantity</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bals.map((b) => {
+                      const materialId = (b as unknown as { catalogId?: string }).catalogId ?? b.materialId;
+                      const mat = materials.find((m) => m.id === materialId);
+                      return (
+                        <tr key={`${materialId}-${b.id ?? b.siteId}`}>
+                          <td>
+                            <p className="font-medium">{mat?.name ?? materialId}</p>
+                          </td>
+                          <td className="font-mono text-right min-w-[120px]">
+                            {b.quantity} {mat?.unit ?? "pcs"}
+                            {canMutate && (
+                              <span className="ml-3 inline-block">
+                                <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveMaterialId(materialId)}>Move</button>
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </TableWrap>
+            ) : (
+              <div className="border border-dashed border-black/20 p-8 text-center text-sm text-black/40">
+                No materials recorded at this site.
+              </div>
+            )}
+          </div>
+
+          <div>
+            <p className="kicker mb-3">Parked Equipment</p>
+            {eqs.length > 0 ? (
+              <TableWrap>
+                <table className="data w-full text-left">
+                  <thead>
+                    <tr>
+                      <th>Equipment</th>
+                      <th>Status</th>
+                      <th>Ownership</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {eqs.map((e) => {
+                      const status = (e as any).currentStatus ?? (e as any).status;
+                      return (
+                        <tr key={e.id}>
+                          <td>
+                            <p className="font-medium">{e.name}</p>
+                            <p className="font-mono text-[0.7rem] text-black/50">{e.serialNumber ?? "No S/N"}</p>
+                          </td>
+                          <td>
+                            <Stamp
+                              value={status}
+                              tone={status === "working" || status === "available" ? "ok" : status === "repair" || status === "maintenance" ? "bad" : "ink"}
+                            />
+                          </td>
+                          <td className="text-sm capitalize flex items-center justify-between gap-3 min-w-[140px]">
+                            {e.ownershipStatus}
+                            {canMutate && (
+                              <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveEquipmentId(e.id)}>Move</button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </TableWrap>
+            ) : (
+              <div className="border border-dashed border-black/20 p-8 text-center text-sm text-black/40">
+                No equipment parked at this site.
+              </div>
+            )}
+          </div>
         </section>
         <section>
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -404,6 +467,29 @@ export default function SiteDetailPage() {
         onClose={() => setTaskMode(closedMode())}
         onConfirm={handleDeleteTask}
       />
+      {moveMaterialId ? (
+        <FormPanel kicker="Site Inventory" title="Move Material" onClose={() => setMoveMaterialId(null)}>
+          <MaterialMovementForm 
+            materialId={moveMaterialId} 
+            fixedSource={{ id: site.id, type: "site", name: site.name }} 
+            allowedActions={["transfer", "used_up", "missing"]}
+            onSuccess={() => setMoveMaterialId(null)}
+            onCancel={() => setMoveMaterialId(null)}
+          />
+        </FormPanel>
+      ) : null}
+      
+      {moveEquipmentId ? (
+        <FormPanel kicker="Site Equipment" title="Move Equipment" onClose={() => setMoveEquipmentId(null)}>
+          <EquipmentMovementForm 
+            equipmentId={moveEquipmentId} 
+            fixedSource={{ id: site.id, type: "site", name: site.name }}
+            allowedActions={["transferred", "degraded", "appreciated", "maintenance_dispatch", "maintenance_return", "used_up", "missing"]}
+            onSuccess={() => setMoveEquipmentId(null)}
+            onCancel={() => setMoveEquipmentId(null)}
+          />
+        </FormPanel>
+      ) : null}
     </div>
   );
 }
