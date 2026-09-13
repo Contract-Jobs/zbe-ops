@@ -144,6 +144,34 @@ export function switchUser(userId: string) {
   set({ session: { ...state.session, userId } });
 }
 
+export function updateUserRole(userId: string, role: string) {
+  set((prev) => ({
+    ...prev,
+    users: prev.users.map((u) => (u.id === userId ? { ...u, role: role as any } : u)),
+  }));
+}
+
+export function updateUserBan(userId: string, banned: boolean) {
+  set((prev) => ({
+    ...prev,
+    users: prev.users.map((u) => (u.id === userId ? { ...u, banned } : u)),
+  }));
+}
+
+export function createUser(user: any) {
+  set((prev) => ({
+    ...prev,
+    users: [...prev.users, user],
+  }));
+}
+
+export function updateUser(userId: string, data: { name?: string; email?: string }) {
+  set((prev) => ({
+    ...prev,
+    users: prev.users.map((u) => (u.id === userId ? { ...u, ...data } : u)),
+  }));
+}
+
 export function switchLicense(licenseId: string | "all") {
   set({ session: { ...state.session, licenseId } });
 }
@@ -171,12 +199,10 @@ function bumpBalance(
   catalogId: string,
   kind: LocationKind,
   locationId: string,
-  delta: number
+  delta: number,
 ): InventoryBalance[] {
   const next = balances.map((b) => ({ ...b }));
-  const hit = next.find(
-    (b) => b.catalogId === catalogId && b.locationKind === kind && b.locationId === locationId
-  );
+  const hit = next.find((b) => b.catalogId === catalogId && b.locationKind === kind && b.locationId === locationId);
   if (hit) {
     hit.quantity += delta;
     return next;
@@ -185,10 +211,14 @@ function bumpBalance(
   return next;
 }
 
-function requireQty(balances: InventoryBalance[], catalogId: string, kind: LocationKind, locationId: string, qty: number) {
-  const hit = balances.find(
-    (b) => b.catalogId === catalogId && b.locationKind === kind && b.locationId === locationId
-  );
+function requireQty(
+  balances: InventoryBalance[],
+  catalogId: string,
+  kind: LocationKind,
+  locationId: string,
+  qty: number,
+) {
+  const hit = balances.find((b) => b.catalogId === catalogId && b.locationKind === kind && b.locationId === locationId);
   if (!hit || hit.quantity < qty) {
     throw new Error("Insufficient quantity at source");
   }
@@ -218,7 +248,7 @@ export function rejectApproval(id: string) {
     approvals: state.approvals.map((a) =>
       a.id === id && a.status === "pending"
         ? { ...a, status: "rejected", decidedAt: new Date().toISOString(), decidedBy: user.id }
-        : a
+        : a,
     ),
   });
 }
@@ -232,9 +262,7 @@ export function approveApproval(id: string) {
   set((prev) => ({
     ...prev,
     approvals: prev.approvals.map((a) =>
-      a.id === id
-        ? { ...a, status: "approved", decidedAt: new Date().toISOString(), decidedBy: user.id }
-        : a
+      a.id === id ? { ...a, status: "approved", decidedAt: new Date().toISOString(), decidedBy: user.id } : a,
     ),
   }));
 }
@@ -260,7 +288,9 @@ function applyMaterial(type: ApprovalType, p: ApprovalPayload, now: string, acto
   const txs = [...state.transactions];
   const material = state.materials.find((m) => m.id === materialId);
 
-  const log = (partial: Omit<MaterialLog, "id" | "createdAt" | "loggedBy" | "isReversal" | "materialId">): MaterialLog => ({
+  const log = (
+    partial: Omit<MaterialLog, "id" | "createdAt" | "loggedBy" | "isReversal" | "materialId">,
+  ): MaterialLog => ({
     id: nid("ml"),
     materialId,
     createdAt: now,
@@ -297,13 +327,29 @@ function applyMaterial(type: ApprovalType, p: ApprovalPayload, now: string, acto
     requireQty(balances, materialId, p.fromKind, p.fromId, qty);
     balances = bumpBalance(balances, materialId, p.fromKind, p.fromId, -qty);
     balances = bumpBalance(balances, materialId, p.toKind, p.toId, qty);
-    logs.unshift(log({ logType: "transfer", quantity: qty, fromKind: p.fromKind, fromId: p.fromId, toKind: p.toKind, toId: p.toId }));
+    logs.unshift(
+      log({
+        logType: "transfer",
+        quantity: qty,
+        fromKind: p.fromKind,
+        fromId: p.fromId,
+        toKind: p.toKind,
+        toId: p.toId,
+      }),
+    );
   } else if (type === "material_sale") {
     if (!p.fromKind || !p.fromId) throw new Error("Warehouse source required");
     if (p.fromKind !== "warehouse") throw new Error("Only central warehouses can sell");
     requireQty(balances, materialId, p.fromKind, p.fromId, qty);
     balances = bumpBalance(balances, materialId, p.fromKind, p.fromId, -qty);
-    const ml = log({ logType: "sale", quantity: qty, unitPrice: p.unitPrice, fromKind: p.fromKind, fromId: p.fromId, buyerName: p.buyerName });
+    const ml = log({
+      logType: "sale",
+      quantity: qty,
+      unitPrice: p.unitPrice,
+      fromKind: p.fromKind,
+      fromId: p.fromId,
+      buyerName: p.buyerName,
+    });
     logs.unshift(ml);
     const amount = qty * (p.unitPrice ?? 0);
     if (amount > 0) {
@@ -326,12 +372,14 @@ function applyMaterial(type: ApprovalType, p: ApprovalPayload, now: string, acto
     if (!p.fromKind || !p.fromId) throw new Error("Source required");
     requireQty(balances, materialId, p.fromKind, p.fromId, qty);
     balances = bumpBalance(balances, materialId, p.fromKind, p.fromId, -qty);
-    logs.unshift(log({
-      logType: type === "material_consume" ? "consume" : "missing",
-      quantity: qty,
-      fromKind: p.fromKind,
-      fromId: p.fromId,
-    }));
+    logs.unshift(
+      log({
+        logType: type === "material_consume" ? "consume" : "missing",
+        quantity: qty,
+        fromKind: p.fromKind,
+        fromId: p.fromId,
+      }),
+    );
   }
 
   set({ balances, materialLogs: logs, transactions: txs });
@@ -582,7 +630,7 @@ export function claimTask(taskId: string) {
   const user = currentUser();
   set({
     tasks: state.tasks.map((t) =>
-      t.id === taskId && t.status === "open" ? { ...t, status: "claimed", claimedBy: user.id } : t
+      t.id === taskId && t.status === "open" ? { ...t, status: "claimed", claimedBy: user.id } : t,
     ),
   });
 }
@@ -590,9 +638,7 @@ export function claimTask(taskId: string) {
 export function completeTask(taskId: string, reviewNotes: string) {
   set({
     tasks: state.tasks.map((t) =>
-      t.id === taskId && t.status === "claimed"
-        ? { ...t, status: "completed", reviewNotes }
-        : t
+      t.id === taskId && t.status === "claimed" ? { ...t, status: "completed", reviewNotes } : t,
     ),
   });
 }
@@ -613,8 +659,12 @@ export function siteSpend(siteId: string, store: Store = state) {
   const txs = store.transactions.filter((t) => t.siteId === siteId && !t.isReversal);
   const out = txs.filter((t) => t.type === "money_out").reduce((s, t) => s + t.amount, 0);
   const inn = txs.filter((t) => t.type === "money_in").reduce((s, t) => s + t.amount, 0);
-  const labor = txs.filter((t) => t.type === "money_out" && t.categoryId === "cat_labor").reduce((s, t) => s + t.amount, 0);
-  const material = txs.filter((t) => t.type === "money_out" && t.categoryId === "cat_mat").reduce((s, t) => s + t.amount, 0);
+  const labor = txs
+    .filter((t) => t.type === "money_out" && t.categoryId === "cat_labor")
+    .reduce((s, t) => s + t.amount, 0);
+  const material = txs
+    .filter((t) => t.type === "money_out" && t.categoryId === "cat_mat")
+    .reduce((s, t) => s + t.amount, 0);
   return { out, inn, labor, material };
 }
 

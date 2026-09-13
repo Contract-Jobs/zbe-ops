@@ -75,27 +75,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     hydrateStore();
   }, []);
 
-  // Auto-authenticate as seeded superadmin in development if not logged in
-  useEffect(() => {
-    let active = true;
-    if (!sessionLoading && !sessionData?.user) {
-      signIn
-        .email({
-          email: "haileabt@gmail.com",
-          password: "Haile@zbe",
-        })
-        .then(() => {
-          if (active) {
-            queryClient.invalidateQueries();
-          }
-        })
-        .catch(() => {});
-    }
-    return () => {
-      active = false;
-    };
-  }, [sessionLoading, sessionData?.user, queryClient]);
-
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
@@ -106,6 +85,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       document.body.style.overflow = "";
     };
   }, [menuOpen]);
+
+  if (pathname === "/login") {
+    return <main className="min-h-screen bg-white">{children}</main>;
+  }
 
   return (
     // <QueryClientProvider client={queryClient}>
@@ -167,6 +150,17 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
+          {!manager ? (
+            <Link
+              href="/users"
+              className={`mb-0.5 flex items-center justify-between px-3 py-2.5 text-[0.95rem] ${pathname.startsWith("/users")
+                ? "bg-yellow text-white"
+                : "text-white/80 hover:bg-raised hover:text-white"
+                }`}
+            >
+              <span>Team</span>
+            </Link>
+          ) : null}
         </nav>
         <div className="px-5 py-4">
           <button
@@ -254,7 +248,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               ) : null}
             </div>
           </div>
-          <div className="flex gap-2 overflow-x-auto px-4 pb-3 sm:px-6 lg:flex-wrap">
+          <div className="hidden gap-2 overflow-x-auto px-4 pb-3 sm:px-6 lg:flex-wrap">
             <select
               className="field min-w-[9.5rem] flex-1 bg-white sm:flex-none sm:min-w-[10rem]"
               value={store.session.licenseId}

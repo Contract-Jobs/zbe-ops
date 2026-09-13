@@ -80,6 +80,7 @@ export const queryKeys = {
   licenses: simpleCrudKeys("licenses"),
   warehouses: simpleCrudKeys("warehouses"),
   categories: simpleCrudKeys("categories"),
+  users: simpleCrudKeys("users"),
 
   transactions: {
     // scoped: "All roles (restricted view)" — pass userId in params

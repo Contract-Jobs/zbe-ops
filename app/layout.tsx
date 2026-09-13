@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
+import { AuthProvider } from "@/components/auth-provider";
 import { Providers } from "@/components/providers";
 import "./globals.css";
 
@@ -29,7 +30,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${instrument.variable} ${ibm.variable} h-full antialiased`}>
       <body className="min-h-full bg-white font-sans text-black">
         <Providers>
-          <AppShell>{children}</AppShell>
+          <AuthProvider>
+            <AppShell>{children}</AppShell>
+          </AuthProvider>
         </Providers>
       </body>
     </html>
