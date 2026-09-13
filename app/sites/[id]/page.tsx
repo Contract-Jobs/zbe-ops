@@ -379,7 +379,7 @@ export default function SiteDetailPage() {
               <li key={l.id} className="border-l-2 border-yellow pl-3 text-sm">
                 <p>{(l as unknown as { note?: string }).note ?? (l as unknown as { description?: string }).description ?? "Change logged"}</p>
                 <p className="mt-1 font-mono text-[0.65rem] text-black/45">
-                  {day((l as unknown as { createdAt?: string }).createdAt ?? new Date().toISOString())} ·{" "}
+                  {day(l.timestamp ?? (l as unknown as { createdAt?: string }).createdAt)} ·{" "}
                   {userName((l as unknown as { loggedBy?: string }).loggedBy ?? "", store)}
                 </p>
               </li>

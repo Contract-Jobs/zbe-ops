@@ -35,6 +35,7 @@ export type SiteLifecycleLog = {
   siteId: string;
   note: string;
   createdAt: string;
+  timestamp?: string;
   loggedBy: string;
 };
 
@@ -100,6 +101,7 @@ export type MaterialLog = {
   toId?: string;
   buyerName?: string;
   createdAt: string;
+  timestamp?: string;
   loggedBy: string;
   isReversal: boolean;
   reversesId?: string;
@@ -162,6 +164,7 @@ export type EquipmentLog = {
   rentStartDate?: string;
   rentReturnDate?: string;
   createdAt: string;
+  timestamp?: string;
   loggedBy: string;
   isReversal: boolean;
 };

@@ -23,10 +23,11 @@ export interface MaterialSubitem {
 
 export interface MaterialLog {
   id: string
-  catalogId: string
+  catalogId?: string
+  materialId?: string
   logType: string
   quantity: number
-  unitPrice: string
+  unitPrice: string | number
   fromSiteId: string | null
   fromWarehouseId: string | null
   toSiteId: string | null
@@ -39,7 +40,10 @@ export interface MaterialLog {
   isReversal: boolean
   reversalOfId: string | null
   approvalStatus: ApprovalStatus
-  createdAt: string
+  isApproved?: boolean
+  loggedBy?: string
+  createdAt?: string
+  timestamp?: string
 }
 
 export interface InventoryBalance {
@@ -85,8 +89,11 @@ export interface EquipmentLog {
   isReversal: boolean;
   reversalOfId: string | null;
   approvalStatus: ApprovalStatus;
-  affectedFields: Record<string, unknown>;
-  createdAt: string;
+  isApproved?: boolean;
+  loggedBy?: string;
+  affectedFields?: Record<string, unknown>;
+  createdAt?: string;
+  timestamp?: string;
 }
 
 export interface RentalAgreement {

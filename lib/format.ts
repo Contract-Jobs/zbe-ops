@@ -1,23 +1,31 @@
-export function etb(amount: number): string {
+export function etb(amount: number | string | null | undefined): string {
+  const numeric = typeof amount === "number" ? amount : Number(amount);
   return new Intl.NumberFormat("en-ET", {
     style: "currency",
     currency: "ETB",
     maximumFractionDigits: 0,
-  }).format(amount);
+  }).format(Number.isFinite(numeric) ? numeric : 0);
 }
 
-export function qty(n: number, unit = "pcs"): string {
-  return `${new Intl.NumberFormat("en-ET", { maximumFractionDigits: 1 }).format(n)} ${unit}`;
+export function qty(n: number | string | null | undefined, unit = "pcs"): string {
+  const numeric = typeof n === "number" ? n : Number(n);
+  const safe = Number.isFinite(numeric) ? numeric : 0;
+  return `${new Intl.NumberFormat("en-ET", { maximumFractionDigits: 1 }).format(safe)} ${unit}`;
 }
 
-export function day(iso: string): string {
+export function day(iso?: string | null | Date | number): string {
+  if (!iso) return "—";
+  const d = iso instanceof Date ? iso : new Date(iso);
+  if (isNaN(d.getTime())) return "—";
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
-  }).format(new Date(iso));
+  }).format(d);
 }
 
-export function stamp(value: string): string {
-  return value.replaceAll("_", " ");
+export function stamp(value?: string | null): string {
+  if (!value) return "—";
+  return String(value).replaceAll("_", " ");
 }
+

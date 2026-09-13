@@ -323,7 +323,7 @@ export default function MaterialDetailPage() {
 
                   return (
                     <tr key={l.id}>
-                      <td>{day(l.createdAt)}</td>
+                      <td>{day(l.timestamp ?? l.createdAt)}</td>
                       <td>
                         <Stamp value={l.logType} />
                       </td>
