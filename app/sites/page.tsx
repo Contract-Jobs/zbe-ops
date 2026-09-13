@@ -24,6 +24,7 @@ export default function SitesPage() {
   const store = useStore();
   const canMutate = !isSiteManager(store);
   const [mode, setMode] = useState<RecordMode<Site>>(closedMode);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const { data: sitesData, isLoading } = useSites();
   const { data: licensesData } = useLicenses();
@@ -34,7 +35,9 @@ export default function SitesPage() {
 
   // Site manager scoping: filter client-side against visible sites from the store
   const visibleIds = useMemo(() => visibleSites(store).map((s) => s.id), [store]);
-  const rows = isSiteManager(store) ? sites.filter((s) => visibleIds.includes(s.id)) : sites;
+  const rows = (isSiteManager(store) ? sites.filter((s) => visibleIds.includes(s.id)) : sites).filter(
+    (s) => showDeleted || !s.deletedAt
+  );
 
   async function handleDelete() {
     if (mode.kind === "delete" && mode.record) {
@@ -52,7 +55,19 @@ export default function SitesPage() {
       <PageHead
         kicker="Jobs"
         title="Sites"
-        action={canMutate ? <RecordActions newLabel="New site" onNew={() => setMode({ kind: "create" })} /> : undefined}
+        action={
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-black/70">
+              <input
+                type="checkbox"
+                checked={showDeleted}
+                onChange={(e) => setShowDeleted(e.target.checked)}
+              />
+              Show deleted
+            </label>
+            {canMutate ? <RecordActions newLabel="New site" onNew={() => setMode({ kind: "create" })} /> : undefined}
+          </div>
+        }
       />
       {mode.kind === "create" ? (
         <FormPanel kicker="Jobs" title="New site" onClose={() => setMode(closedMode())}>
@@ -119,7 +134,7 @@ export default function SitesPage() {
                       <td>
                         <RecordActions
                           onEdit={() => setMode({ kind: "edit", record: site })}
-                          onDelete={() => setMode({ kind: "delete", record: site, label: site.name })}
+                          onDelete={!site.deletedAt ? () => setMode({ kind: "delete", record: site, label: site.name }) : undefined}
                         />
                       </td>
                     ) : null}

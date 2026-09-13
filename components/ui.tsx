@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { stamp } from "@/lib/format";
 
@@ -115,6 +115,53 @@ export function FormPanel({
         </button>
       </div>
       {children}
+    </div>
+  );
+}
+
+export function ModalPanel({
+  kicker,
+  title,
+  onClose,
+  children,
+}: {
+  kicker: string;
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50">
+      <button type="button" className="absolute inset-0" aria-label="Dismiss" onClick={onClose} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="relative w-full max-w-lg max-h-full overflow-y-auto border border-black bg-white p-6 shadow-xl"
+      >
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="kicker">{kicker}</p>
+            <p className="mt-1 text-xl font-medium tracking-tight">{title}</p>
+          </div>
+          <button type="button" className="btn btn-ghost shrink-0" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
@@ -264,5 +311,109 @@ export function DeleteConfirm<T>({
       onCancel={onClose}
       onConfirm={onConfirm ?? onClose}
     />
+  );
+}
+
+export function SearchableSelect({
+  value,
+  onChange,
+  options,
+  placeholder = "Select...",
+  onCreateNew,
+  createNewLabel = "+ Create New",
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: { id: string; label: string; subLabel?: string }[];
+  placeholder?: string;
+  onCreateNew?: () => void;
+  createNewLabel?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  const filtered = options.filter(o => 
+    o.label.toLowerCase().includes(query.toLowerCase()) || 
+    (o.subLabel && o.subLabel.toLowerCase().includes(query.toLowerCase()))
+  );
+
+  const selectedOption = options.find(o => o.id === value);
+  const isNew = value === "new";
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <button
+        type="button"
+        className="field w-full text-left flex justify-between items-center bg-white"
+        onClick={() => setOpen(!open)}
+      >
+        <span className={selectedOption || isNew ? "" : "text-black/50"}>
+          {isNew ? createNewLabel : (selectedOption ? selectedOption.label : placeholder)}
+        </span>
+        <span className="text-black/40 text-[0.6rem]">▼</span>
+      </button>
+
+      {open && (
+        <div className="absolute z-10 w-full mt-1 border border-black bg-white shadow-xl max-h-[300px] flex flex-col">
+          <div className="p-2 border-b border-black/10 shrink-0">
+            <input
+              type="text"
+              className="field w-full text-sm py-1.5"
+              placeholder="Search..."
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          
+          <div className="overflow-y-auto flex-1">
+            {onCreateNew && (
+              <button
+                type="button"
+                className="w-full text-left px-3 py-2.5 text-sm font-medium border-b border-black/5 transition-colors hover:bg-black/5"
+                onClick={() => {
+                  onCreateNew();
+                  setOpen(false);
+                  setQuery("");
+                }}
+              >
+                {createNewLabel}
+              </button>
+            )}
+
+            {filtered.length === 0 ? (
+              <div className="p-4 text-sm text-black/50 text-center">No matches found.</div>
+            ) : (
+              filtered.map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-black/5 ${value === opt.id ? 'bg-black/5 font-medium' : ''}`}
+                  onClick={() => {
+                    onChange(opt.id);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                >
+                  <div className="truncate">{opt.label}</div>
+                  {opt.subLabel && <div className="text-[0.65rem] text-black/50 truncate mt-0.5">{opt.subLabel}</div>}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

@@ -23,8 +23,24 @@ export function getInventoryBalances(params: InventoryBalanceParams = {}) {
     return apiClient.get<InventoryBalance[]>("/api/inventory/balances", buildListParams(params))
 }
 
+export interface TraceMaterialHistoryResponse {
+    materialId: string;
+    assetName: string;
+    currentBalances: {
+        location: string;
+        locationId: string;
+        quantity: number;
+        avgUnitPrice: number | null;
+    }[];
+    history: {
+        log: MaterialLog;
+        fromLabel: string | null;
+        toLabel: string | null;
+    }[];
+}
+
 export function traceMaterialHistory(catalogId: string) {
-    return apiClient.get<{ balances: InventoryBalance[]; history: MaterialLog[] }>(
+    return apiClient.get<TraceMaterialHistoryResponse>(
         `/api/inventory/trace/${catalogId}`
     )
 }

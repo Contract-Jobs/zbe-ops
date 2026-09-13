@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { PageHead, TableWrap, Stamp, FormPanel } from "@/components/ui";
+import { PageHead, TableWrap, Stamp, FormPanel, ModalPanel } from "@/components/ui";
 import { useStore } from "@/lib/store";
 import { useWarehouse } from "@/hooks/use-warehouses";
 import { useEquipmentList } from "@/hooks/use-equipment";
@@ -26,6 +26,8 @@ export default function WarehouseDetailPage() {
 
   const [moveMaterialId, setMoveMaterialId] = useState<string | null>(null);
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
+  const [purchaseMaterialOpen, setPurchaseMaterialOpen] = useState(false);
+  const [purchaseEquipmentOpen, setPurchaseEquipmentOpen] = useState(false);
 
   const canMutate = !isSiteManager(store);
 
@@ -54,7 +56,10 @@ export default function WarehouseDetailPage() {
       </div>
 
       <div className="mb-8">
-        <h2 className="mb-4 font-mono text-[0.8rem] uppercase tracking-wider text-black/50">Inventory Balances</h2>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="font-mono text-[0.8rem] uppercase tracking-wider text-black/50">Inventory Balances</h2>
+          <button className="btn btn-ghost" onClick={() => setPurchaseMaterialOpen(true)}>Purchase material</button>
+        </div>
         {balances.length > 0 ? (
           <TableWrap>
             <table className="data w-full text-left">
@@ -96,7 +101,10 @@ export default function WarehouseDetailPage() {
       </div>
 
       <div className="mb-8">
-        <h2 className="mb-4 font-mono text-[0.8rem] uppercase tracking-wider text-black/50">Parked Equipment</h2>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="font-mono text-[0.8rem] uppercase tracking-wider text-black/50">Parked Equipment</h2>
+          <button className="btn btn-ghost" onClick={() => setPurchaseEquipmentOpen(true)}>Purchase equipment</button>
+        </div>
         {equipment.length > 0 ? (
           <TableWrap>
             <table className="data w-full text-left">
@@ -163,6 +171,28 @@ export default function WarehouseDetailPage() {
             onCancel={() => setMoveEquipmentId(null)}
           />
         </FormPanel>
+      ) : null}
+
+      {purchaseMaterialOpen ? (
+        <ModalPanel kicker="Warehouse Inventory" title="Purchase Material" onClose={() => setPurchaseMaterialOpen(false)}>
+          <MaterialMovementForm 
+            fixedDestination={{ id: warehouse.id, type: "warehouse", name: warehouse.name }}
+            allowedActions={["purchase"]}
+            onSuccess={() => setPurchaseMaterialOpen(false)}
+            onCancel={() => setPurchaseMaterialOpen(false)}
+          />
+        </ModalPanel>
+      ) : null}
+
+      {purchaseEquipmentOpen ? (
+        <ModalPanel kicker="Warehouse Equipment" title="Purchase Equipment" onClose={() => setPurchaseEquipmentOpen(false)}>
+          <EquipmentMovementForm 
+            fixedDestination={{ id: warehouse.id, type: "warehouse", name: warehouse.name }}
+            allowedActions={["purchased"]}
+            onSuccess={() => setPurchaseEquipmentOpen(false)}
+            onCancel={() => setPurchaseEquipmentOpen(false)}
+          />
+        </ModalPanel>
       ) : null}
     </div>
   );

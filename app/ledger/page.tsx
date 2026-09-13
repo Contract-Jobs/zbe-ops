@@ -25,8 +25,10 @@ export default function LedgerPage() {
   const createTxMutation = useCreateTransaction();
   const deleteCategoryMutation = useDeleteCategory();
 
+  const [showDeletedCats, setShowDeletedCats] = useState(false);
+
   const categories = (categoriesData?.data ?? (store.categories as unknown as TransactionCategory[])).filter(
-    (c) => !c.deletedAt
+    (c) => showDeletedCats || !c.deletedAt
   );
   const licenses = (licensesData?.data ?? (store.licenses as unknown as License[])).filter(
     (l) => !l.deletedAt
@@ -119,9 +121,19 @@ export default function LedgerPage() {
         kicker="Money"
         title="Ledger"
         action={canMutate ? (
-          <button type="button" className="btn" onClick={() => setCatOpen(true)}>
-            New category
-          </button>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-black/70">
+              <input
+                type="checkbox"
+                checked={showDeletedCats}
+                onChange={(e) => setShowDeletedCats(e.target.checked)}
+              />
+              Show deleted categories
+            </label>
+            <button type="button" className="btn" onClick={() => setCatOpen(true)}>
+              New category
+            </button>
+          </div>
         ) : undefined}
       />
       <p className="mb-6 max-w-xl text-black/65">
@@ -138,7 +150,7 @@ export default function LedgerPage() {
           <div key={c.id} className="bg-white p-4">
             <div className="flex items-start justify-between gap-2">
               <p className="kicker">{c.name}</p>
-              {canMutate ? (
+              {canMutate && !c.deletedAt ? (
                 <button
                   type="button"
                   className="btn btn-ghost-bad px-2 py-0.5 text-sm"

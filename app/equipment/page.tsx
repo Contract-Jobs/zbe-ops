@@ -8,6 +8,7 @@ import {
   closedMode,
   DeleteConfirm,
   FormPanel,
+  ModalPanel,
   PageHead,
   RecordActions,
   Stamp,
@@ -29,6 +30,7 @@ export default function EquipmentPage() {
   const [q, setQ] = useState("");
   const [mode, setMode] = useState<RecordMode<Equipment>>(closedMode);
   const [purchaseNew, setPurchaseNew] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const { data: equipmentData, isLoading } = useEquipmentList();
   const { data: licensesData } = useLicenses();
@@ -40,13 +42,13 @@ export default function EquipmentPage() {
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
     return equipmentList
-      .filter((e) => !e.deletedAt)
+      .filter((e) => showDeleted || !e.deletedAt)
       .filter((e) => {
         if (!manager) return true;
         return e.siteId ? sites.has(e.siteId) : false;
       })
       .filter((e) => (term ? e.name.toLowerCase().includes(term) || (e.serialNumber ?? "").toLowerCase().includes(term) : true));
-  }, [manager, q, sites, equipmentList]);
+  }, [manager, q, sites, equipmentList, showDeleted]);
 
   async function handleDelete() {
     if (mode.kind === "delete" && mode.record) {
@@ -65,9 +67,19 @@ export default function EquipmentPage() {
         kicker="Plant"
         title="Equipment"
         action={canMutate ? (
-          <div className="flex gap-2">
-            <RecordActions newLabel="New equipment" onNew={() => setMode({ kind: "create" })} />
-            <button className="btn" onClick={() => setPurchaseNew(true)}>Purchase New</button>
+          <div className="flex gap-4 items-center">
+            <label className="flex items-center gap-2 text-sm text-black/70">
+              <input
+                type="checkbox"
+                checked={showDeleted}
+                onChange={(e) => setShowDeleted(e.target.checked)}
+              />
+              Show deleted
+            </label>
+            <div className="flex gap-2">
+              <RecordActions newLabel="New equipment" onNew={() => setMode({ kind: "create" })} />
+              <button className="btn" onClick={() => setPurchaseNew(true)}>Purchase New</button>
+            </div>
           </div>
         ) : undefined}
       />
@@ -77,9 +89,9 @@ export default function EquipmentPage() {
         </FormPanel>
       ) : null}
       {purchaseNew ? (
-        <FormPanel kicker="Plant" title="Purchase new equipment" onClose={() => setPurchaseNew(false)}>
-          <EquipmentMovementForm equipmentId="new" onCancel={() => setPurchaseNew(false)} onSuccess={() => setPurchaseNew(false)} />
-        </FormPanel>
+        <ModalPanel kicker="Plant" title="Purchase equipment" onClose={() => setPurchaseNew(false)}>
+          <EquipmentMovementForm onCancel={() => setPurchaseNew(false)} onSuccess={() => setPurchaseNew(false)} />
+        </ModalPanel>
       ) : null}
       {mode.kind === "edit" ? (
         <FormPanel kicker="Plant" title="Edit equipment" onClose={() => setMode(closedMode())}>
@@ -139,7 +151,7 @@ export default function EquipmentPage() {
                     <td>
                       <RecordActions
                         onEdit={() => setMode({ kind: "edit", record: e })}
-                        onDelete={() => setMode({ kind: "delete", record: e, label: e.name })}
+                        onDelete={!e.deletedAt ? () => setMode({ kind: "delete", record: e, label: e.name }) : undefined}
                       />
                     </td>
                   ) : null}

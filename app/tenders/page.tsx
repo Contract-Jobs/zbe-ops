@@ -23,6 +23,7 @@ export default function TendersPage() {
   const store = useStore();
   const canMutate = !isSiteManager(store);
   const [mode, setMode] = useState<RecordMode<Tender>>(closedMode);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const { data: tendersData, isLoading } = useTenders();
   const { data: licensesData } = useLicenses();
@@ -30,10 +31,11 @@ export default function TendersPage() {
 
   const licensesList = licensesData ? licensesData.data : store.licenses;
   const allTenders = tendersData ? tendersData.data : (store.tenders as unknown as Tender[]);
-  const rows =
+  const rows = (
     store.session.licenseId === "all"
       ? allTenders
-      : allTenders.filter((t) => t.licenseId === store.session.licenseId);
+      : allTenders.filter((t) => t.licenseId === store.session.licenseId)
+  ).filter((t) => showDeleted || !t.deletedAt);
 
   async function handleDelete() {
     if (mode.kind === "delete" && mode.record) {
@@ -51,7 +53,19 @@ export default function TendersPage() {
       <PageHead
         kicker="Pipeline"
         title="Tenders"
-        action={canMutate ? <RecordActions newLabel="New tender" onNew={() => setMode({ kind: "create" })} /> : undefined}
+        action={
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-black/70">
+              <input
+                type="checkbox"
+                checked={showDeleted}
+                onChange={(e) => setShowDeleted(e.target.checked)}
+              />
+              Show deleted
+            </label>
+            {canMutate ? <RecordActions newLabel="New tender" onNew={() => setMode({ kind: "create" })} /> : undefined}
+          </div>
+        }
       />
       {mode.kind === "create" ? (
         <FormPanel kicker="Pipeline" title="New tender" onClose={() => setMode(closedMode())}>
@@ -104,7 +118,7 @@ export default function TendersPage() {
                       <td>
                         <RecordActions
                           onEdit={() => setMode({ kind: "edit", record: t })}
-                          onDelete={() => setMode({ kind: "delete", record: t, label: t.name })}
+                          onDelete={!t.deletedAt ? () => setMode({ kind: "delete", record: t, label: t.name }) : undefined}
                         />
                       </td>
                     ) : null}

@@ -3,6 +3,7 @@ import { IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
 import { AuthProvider } from "@/components/auth-provider";
 import { Providers } from "@/components/providers";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const instrument = Instrument_Sans({
@@ -34,6 +35,22 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <AppShell>{children}</AppShell>
           </AuthProvider>
         </Providers>
+        <Toaster 
+          position="bottom-right" 
+          toastOptions={{
+            unstyled: true,
+            classNames: {
+              toast: "w-[356px] border border-black bg-white p-4 font-sans text-black rounded-none shadow-none flex items-start gap-3 text-[0.95rem]",
+              title: "font-medium",
+              description: "text-sm mt-1 opacity-90",
+              icon: "mt-[2px]",
+              error: "!bg-[var(--bad)] !text-white !border-[var(--bad)]",
+              success: "!bg-[var(--ok)] !text-white !border-[var(--ok)]",
+              warning: "!bg-[var(--warn)] !text-white !border-[var(--warn)]",
+              info: "!bg-[var(--yellow)] !text-white !border-[var(--yellow)]",
+            }
+          }}
+        />
       </body>
     </html>
   );

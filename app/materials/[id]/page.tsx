@@ -14,7 +14,7 @@ import {
   TableWrap,
   type RecordMode,
 } from "@/components/ui";
-import { day, qty } from "@/lib/format";
+import { day, qty, etb } from "@/lib/format";
 import { isSiteManager, locationName, useStore } from "@/lib/store";
 import {
   useMaterial,
@@ -28,7 +28,7 @@ import {
   useConsumeMaterial,
   useReportMissingMaterial,
 } from "@/hooks/use-materials";
-import { useInventoryBalances } from "@/hooks/use-inventory";
+import { useInventoryBalances, useMaterialTrace } from "@/hooks/use-inventory";
 import { useSites } from "@/hooks/use-sites";
 import { useWarehouses } from "@/hooks/use-warehouses";
 import type { LocationKind } from "@/lib/types";
@@ -43,6 +43,7 @@ export default function MaterialDetailPage() {
 
   const { data: materialData, isLoading: isMaterialLoading } = useMaterial(id);
   const { data: subItemsData } = useSubItems(id);
+  const { data: traceData, isLoading: isTraceLoading } = useMaterialTrace(id);
   const { data: balancesData } = useInventoryBalances({ materialId: id ? [id] : undefined });
   const { data: logsData } = useMaterialLogs({ materialId: id });
   const { data: sitesData } = useSites();
@@ -67,6 +68,9 @@ export default function MaterialDetailPage() {
   }
 
   if (!item) return <p>Material not found.</p>;
+
+  const traceBalances = traceData?.data?.currentBalances;
+  const traceHistory = traceData?.data?.history;
 
   const bals: InventoryBalance[] = balancesData?.data ??
     (store.balances.filter((b) => b.catalogId === item.id && b.quantity !== 0) as unknown as InventoryBalance[]);
@@ -189,72 +193,103 @@ export default function MaterialDetailPage() {
               <p className="text-sm text-black/45">{item.type === "set" ? "No parts listed." : "Not a set."}</p>
             )}
           </div>
-          <p className="kicker mb-2">Balances</p>
+          <p className="kicker mb-2">Global Distribution</p>
           <TableWrap>
-            <table className="data mb-10">
+            <table className="data w-full text-left mb-10">
               <thead>
                 <tr>
                   <th>Location</th>
                   <th>Qty</th>
+                  <th>Avg Cost</th>
                 </tr>
               </thead>
               <tbody>
-                {bals.map((b) => {
-                  const locationKind = (b as unknown as { locationKind?: LocationKind }).locationKind ??
-                    (b.siteId ? "site" : "warehouse");
-                  const locationId = (b as unknown as { locationId?: string }).locationId ?? (b.siteId || b.warehouseId);
-                  return (
-                    <tr key={`${b.id ?? locationId}`}>
-                      <td>{getLocationName(locationKind, locationId)}</td>
+                {traceBalances ? (
+                  traceBalances.map((b, i) => (
+                    <tr key={i}>
+                      <td>{b.location}</td>
                       <td className="font-mono">{qty(b.quantity, item.unit)}</td>
+                      <td className="font-mono">{b.avgUnitPrice ? etb(b.avgUnitPrice) : "—"}</td>
                     </tr>
-                  );
-                })}
-                {bals.length === 0 ? (
+                  ))
+                ) : (
+                  bals.map((b) => {
+                    const locationKind = (b as unknown as { locationKind?: LocationKind }).locationKind ??
+                      (b.siteId ? "site" : "warehouse");
+                    const locationId = (b as unknown as { locationId?: string }).locationId ?? (b.siteId || b.warehouseId);
+                    return (
+                      <tr key={`${b.id ?? locationId}`}>
+                        <td>{getLocationName(locationKind, locationId)}</td>
+                        <td className="font-mono">{qty(b.quantity, item.unit)}</td>
+                        <td className="font-mono">—</td>
+                      </tr>
+                    );
+                  })
+                )}
+                {(traceBalances ? traceBalances.length === 0 : bals.length === 0) ? (
                   <tr>
-                    <td colSpan={2} className="py-4 text-center text-sm text-black/45">
-                      No inventory balances found for this material.
+                    <td colSpan={3} className="py-4 text-center text-sm text-black/45">
+                      No stock currently distributed.
                     </td>
                   </tr>
                 ) : null}
               </tbody>
             </table>
           </TableWrap>
-          <p className="kicker mb-2">Movement log</p>
+          
+          <p className="kicker mb-2">Activity Ledger</p>
           <TableWrap>
-            <table className="data">
+            <table className="data w-full text-left">
               <thead>
                 <tr>
-                  <th>When</th>
+                  <th>Date</th>
                   <th>Type</th>
                   <th>Qty</th>
-                  <th className="hidden sm:table-cell">From / to</th>
+                  <th className="hidden sm:table-cell">From / To</th>
+                  <th>Cost</th>
                 </tr>
               </thead>
               <tbody>
-                {logs.map((l) => {
-                  const fromId = l.fromSiteId ?? l.fromWarehouseId ?? (l as unknown as { fromId?: string }).fromId;
-                  const fromKind = l.fromSiteId ? "site" : l.fromWarehouseId ? "warehouse" : (l as unknown as { fromKind?: LocationKind }).fromKind;
-                  const toId = l.toSiteId ?? l.toWarehouseId ?? (l as unknown as { toId?: string }).toId;
-                  const toKind = l.toSiteId ? "site" : l.toWarehouseId ? "warehouse" : (l as unknown as { toKind?: LocationKind }).toKind;
-
-                  return (
-                    <tr key={l.id}>
-                      <td>{day(l.timestamp ?? l.createdAt)}</td>
+                {traceHistory ? (
+                  traceHistory.map((h, i) => (
+                    <tr key={i}>
+                      <td>{day(h.log.createdAt)}</td>
                       <td>
-                        <Stamp value={l.logType} />
+                        <Stamp value={h.log.logType} />
                       </td>
-                      <td className="font-mono">{l.quantity}</td>
+                      <td className="font-mono">{h.log.quantity}</td>
                       <td className="hidden text-sm sm:table-cell">
-                        {getLocationName(fromKind, fromId)} → {getLocationName(toKind, toId)}
+                        {h.fromLabel || "—"} → {h.toLabel || "—"}
                       </td>
+                      <td className="font-mono">{(h.log as any).purchaseCost ? etb((h.log as any).purchaseCost) : "—"}</td>
                     </tr>
-                  );
-                })}
-                {logs.length === 0 ? (
+                  ))
+                ) : (
+                  logs.map((l) => {
+                    const fromId = l.fromSiteId ?? l.fromWarehouseId ?? (l as unknown as { fromId?: string }).fromId;
+                    const fromKind = l.fromSiteId ? "site" : l.fromWarehouseId ? "warehouse" : (l as unknown as { fromKind?: LocationKind }).fromKind;
+                    const toId = l.toSiteId ?? l.toWarehouseId ?? (l as unknown as { toId?: string }).toId;
+                    const toKind = l.toSiteId ? "site" : l.toWarehouseId ? "warehouse" : (l as unknown as { toKind?: LocationKind }).toKind;
+  
+                    return (
+                      <tr key={l.id}>
+                        <td>{day(l.timestamp ?? l.createdAt)}</td>
+                        <td>
+                          <Stamp value={l.logType} />
+                        </td>
+                        <td className="font-mono">{l.quantity}</td>
+                        <td className="hidden text-sm sm:table-cell">
+                          {getLocationName(fromKind, fromId)} → {getLocationName(toKind, toId)}
+                        </td>
+                        <td className="font-mono">{(l as any).purchaseCost ? etb((l as any).purchaseCost) : "—"}</td>
+                      </tr>
+                    );
+                  })
+                )}
+                {(traceHistory ? traceHistory.length === 0 : logs.length === 0) ? (
                   <tr>
-                    <td colSpan={4} className="py-4 text-center text-sm text-black/45">
-                      No movements recorded yet.
+                    <td colSpan={5} className="py-4 text-center text-sm text-black/45">
+                      No activity recorded yet.
                     </td>
                   </tr>
                 ) : null}

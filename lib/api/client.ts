@@ -1,4 +1,5 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3333";
+import { toast } from "sonner";
 
 export type ApiErrorCode =
   | "UNAUTHORIZED"
@@ -79,6 +80,11 @@ async function request<T>(
 ): Promise<{ data: T; pagination?: Pagination }> {
   const { method = "GET", body, searchParams, signal } = options;
 
+  if (process.env.NEXT_PUBLIC_USE_DEMO === "true" && method !== "GET") {
+    const { demoHandler } = await import("./demo-handler");
+    return demoHandler(method, path, body);
+  }
+
   const url = new URL(path, API_BASE_URL);
   if (searchParams) {
     const params =
@@ -104,9 +110,13 @@ async function request<T>(
     });
   } catch (err) {
     // Network failure — no response at all (offline, CORS block, DNS, etc.)
+    const msg = err instanceof Error ? err.message : "Network request failed";
+    if (typeof window !== "undefined" && method !== "GET") {
+      toast.error(msg.charAt(0).toUpperCase() + msg.slice(1));
+    }
     throw new ApiError(0, {
       code: "INTERNAL_ERROR",
-      message: err instanceof Error ? err.message : "Network request failed",
+      message: msg,
     });
   }
 
@@ -118,6 +128,10 @@ async function request<T>(
     const errorPayload: ApiErrorPayload = json?.error ?? {
       code: "INTERNAL_ERROR",
       message: response.statusText || "Unknown error",
+    }
+    if (typeof window !== "undefined" && method !== "GET") {
+      const displayMsg = errorPayload.message;
+      toast.error(displayMsg.charAt(0).toUpperCase() + displayMsg.slice(1));
     }
     throw new ApiError(response.status, errorPayload)
   }

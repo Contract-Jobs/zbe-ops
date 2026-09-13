@@ -10,9 +10,11 @@ import {
   useConsumeMaterial,
   useReportMissingMaterial,
 } from "@/hooks/use-materials";
+import { useMaterials } from "@/hooks/use-materials";
 import { useLicenses } from "@/hooks/use-licenses";
 import { useCategories } from "@/hooks/use-categories";
 import type { LocationKind } from "@/lib/types";
+import { SearchableSelect } from "@/components/ui";
 import type { MaterialLogAction } from "@/types/api";
 
 type ActionType = MaterialLogAction["action"];
@@ -22,6 +24,7 @@ export interface MaterialMovementFormProps {
   defaultSource?: { id: string; type: LocationKind };
   defaultDestination?: { id: string; type: LocationKind };
   fixedSource?: { id: string; type: LocationKind; name: string };
+  fixedDestination?: { id: string; type: LocationKind; name: string };
   allowedActions?: ActionType[];
   title?: string;
   onSuccess?: () => void;
@@ -33,6 +36,7 @@ export function MaterialMovementForm({
   defaultSource,
   defaultDestination,
   fixedSource,
+  fixedDestination,
   allowedActions,
   title,
   onSuccess,
@@ -45,6 +49,8 @@ export function MaterialMovementForm({
   const licenses = licensesData?.data ?? store.licenses;
   const { data: categoriesData } = useCategories();
   const categories = categoriesData?.data ?? store.categories;
+  const { data: materialsData } = useMaterials();
+  const materials = materialsData?.data ?? store.materials;
 
   const allActions: Array<{ type: ActionType; label: string; disabled?: boolean }> = [
     { type: "purchase", label: "Purchase" },
@@ -55,7 +61,11 @@ export function MaterialMovementForm({
   ];
   const actions = allActions.filter(a => !allowedActions || allowedActions.includes(a.type));
 
-  const [type, setType] = useState<ActionType>(materialId === "new" ? "purchase" : (allowedActions?.[0] ?? "transfer"));
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string>(materialId ?? "");
+  const mId = materialId || selectedMaterialId;
+  const isCreating = mId === "new";
+
+  const [type, setType] = useState<ActionType>(isCreating ? "purchase" : (allowedActions?.[0] ?? "transfer"));
   
   // New Material fields
   const [matName, setMatName] = useState("");
@@ -98,9 +108,9 @@ export function MaterialMovementForm({
       if (!qn || qn <= 0) throw new Error("Quantity required");
 
       const source = fixedSource ? { id: fixedSource.id, type: fixedSource.type as "site" | "warehouse" } : (fromKind && fromId ? { id: fromId, type: fromKind as "site" | "warehouse" } : undefined);
-      const destination = toKind && toId ? { id: toId, type: toKind as "site" | "warehouse" } : undefined;
+      const destination = fixedDestination ? { id: fixedDestination.id, type: fixedDestination.type as "site" | "warehouse" } : (toKind && toId ? { id: toId, type: toKind as "site" | "warehouse" } : undefined);
       
-      const mId = materialId || "new";
+      if (!mId) throw new Error("Please select a material");
 
       if (type === "purchase") {
         if (!unitPrice) throw new Error("Unit Price is required");
@@ -164,12 +174,32 @@ export function MaterialMovementForm({
     }
   };
 
-  const isCreating = materialId === "new";
-
   return (
     <div className={isCreating ? "" : "border border-black/10 bg-paper/40 p-5"}>
       {!isCreating && <p className="kicker mb-3">{title || "Raise a movement"}</p>}
       
+      {!materialId && (
+        <label className="mb-3 block z-10 relative text-sm">
+          Material
+          <div className="mt-1">
+            <SearchableSelect
+              value={selectedMaterialId}
+              onChange={(val) => {
+                setSelectedMaterialId(val);
+                if (val === "new") setType("purchase");
+              }}
+              options={materials.map(m => ({ id: m.id, label: m.name }))}
+              placeholder="Search material..."
+              onCreateNew={() => {
+                setSelectedMaterialId("new");
+                setType("purchase");
+              }}
+              createNewLabel="+ Create new material"
+            />
+          </div>
+        </label>
+      )}
+
       {!isCreating && actions.length > 1 && (
         <label className="mb-3 block text-sm">
           Action
@@ -273,7 +303,13 @@ export function MaterialMovementForm({
       {["purchase", "transfer"].includes(type) && (
         <div className="mb-3">
           <p className="mb-1 text-sm">Destination</p>
-          <LocationSelect kind={toKind} id={toId} onKind={setToKind} onId={setToId} />
+          {fixedDestination ? (
+            <div className="field mt-1 cursor-not-allowed bg-black/5 text-black/50">
+              {fixedDestination.name}
+            </div>
+          ) : (
+            <LocationSelect kind={toKind} id={toId} onKind={setToKind} onId={setToId} />
+          )}
         </div>
       )}
 

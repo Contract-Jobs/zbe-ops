@@ -2,11 +2,12 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { LifecycleForm, SiteForm, TaskForm } from "@/components/forms/site";
+import { SiteForm, TaskForm } from "@/components/forms/site";
 import {
   closedMode,
   DeleteConfirm,
   FormPanel,
+  ModalPanel,
   PageHead,
   RecordActions,
   Stamp,
@@ -65,9 +66,11 @@ export default function SiteDetailPage() {
   const [notes, setNotes] = useState("");
   const [mode, setMode] = useState<RecordMode<Site>>(closedMode);
   const [taskMode, setTaskMode] = useState<RecordMode<SiteTask>>(closedMode);
-  const [logOpen, setLogOpen] = useState(false);
+  const [lifecycleModalOpen, setLifecycleModalOpen] = useState(false);
   const [moveMaterialId, setMoveMaterialId] = useState<string | null>(null);
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
+  const [purchaseMaterialOpen, setPurchaseMaterialOpen] = useState(false);
+  const [purchaseEquipmentOpen, setPurchaseEquipmentOpen] = useState(false);
 
   const createSiteTaskMutation = useCreateSiteTask(id || "");
   const claimSiteTaskMutation = useClaimSiteTask(id || "");
@@ -78,6 +81,7 @@ export default function SiteDetailPage() {
   const manager = isSiteManager(store);
   const canMutate = !manager;
   const user = currentUser(store);
+  const isClosed = site?.status === "closed";
 
   const transactions = useMemo(() => {
     return txData?.data ?? store.transactions.filter((t) => t.siteId === id && !t.isReversal);
@@ -191,6 +195,9 @@ export default function SiteDetailPage() {
         title={site.name}
         action={
           <span className="flex flex-wrap items-center gap-2">
+            <button type="button" className="btn" onClick={() => setLifecycleModalOpen(true)}>
+              Lifecycle
+            </button>
             <Stamp value={site.status} tone={statusTone(site.status)} />
             {canMutate ? (
               <RecordActions
@@ -234,7 +241,7 @@ export default function SiteDetailPage() {
 
       <section className="mt-10">
         <p className="kicker mb-3">Tasks</p>
-        {!manager || user.siteIds.includes(site.id) ? (
+        {(!manager || user.siteIds.includes(site.id)) && !isClosed ? (
           <form className="mb-4 flex flex-col gap-2 sm:flex-row" onSubmit={handleAddTask}>
             <input
               className="field w-full sm:max-w-sm"
@@ -286,7 +293,7 @@ export default function SiteDetailPage() {
                   </td>
                   <td className="text-right">
                     <div className="flex flex-col items-stretch gap-2 sm:items-end">
-                      {task.status === "open" || task.status === "pending" ? (
+                      {(task.status === "open" || task.status === "pending") && !isClosed ? (
                         <button
                           type="button"
                           className="btn btn-ghost"
@@ -296,7 +303,7 @@ export default function SiteDetailPage() {
                           Claim
                         </button>
                       ) : null}
-                      {task.status === "claimed" ? (
+                      {task.status === "claimed" && !isClosed ? (
                         <span className="flex flex-col gap-2 sm:inline-flex sm:flex-row">
                           <input
                             className="field w-full sm:w-40"
@@ -334,10 +341,15 @@ export default function SiteDetailPage() {
         </TableWrap>
       </section>
 
-      <div className="mt-10 grid gap-10 lg:grid-cols-2">
+      <div className="mt-10 space-y-10">
         <section>
           <div className="mb-8">
-            <p className="kicker mb-3">Inventory Balances</p>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="kicker">Inventory Balances</p>
+              {!isClosed && (
+                <button className="btn btn-ghost" onClick={() => setPurchaseMaterialOpen(true)}>Purchase material</button>
+              )}
+            </div>
             {bals.length > 0 ? (
               <TableWrap>
                 <table className="data w-full text-left">
@@ -358,7 +370,7 @@ export default function SiteDetailPage() {
                           </td>
                           <td className="font-mono text-right min-w-[120px]">
                             {b.quantity} {mat?.unit ?? "pcs"}
-                            {canMutate && (
+                            {canMutate && !isClosed && (
                               <span className="ml-3 inline-block">
                                 <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveMaterialId(materialId)}>Move</button>
                               </span>
@@ -378,7 +390,12 @@ export default function SiteDetailPage() {
           </div>
 
           <div>
-            <p className="kicker mb-3">Parked Equipment</p>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <p className="kicker">Parked Equipment</p>
+              {!isClosed && (
+                <button className="btn btn-ghost" onClick={() => setPurchaseEquipmentOpen(true)}>Purchase equipment</button>
+              )}
+            </div>
             {eqs.length > 0 ? (
               <TableWrap>
                 <table className="data w-full text-left">
@@ -406,7 +423,7 @@ export default function SiteDetailPage() {
                           </td>
                           <td className="text-sm capitalize flex items-center justify-between gap-3 min-w-[140px]">
                             {e.ownershipStatus}
-                            {canMutate && (
+                            {canMutate && !isClosed && (
                               <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveEquipmentId(e.id)}>Move</button>
                             )}
                           </td>
@@ -422,35 +439,6 @@ export default function SiteDetailPage() {
               </div>
             )}
           </div>
-        </section>
-        <section>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <p className="kicker">Lifecycle</p>
-            {canMutate ? (
-              <button type="button" className="btn btn-ghost" onClick={() => setLogOpen(true)}>
-                Log note
-              </button>
-            ) : null}
-          </div>
-          {logOpen ? (
-            <FormPanel kicker="Lifecycle" title="Log a change" onClose={() => setLogOpen(false)}>
-              <LifecycleForm onCancel={() => setLogOpen(false)} onDone={() => setLogOpen(false)} />
-            </FormPanel>
-          ) : null}
-          <ol className="space-y-3">
-            {logs.map((l) => (
-              <li key={l.id} className="border-l-2 border-yellow pl-3 text-sm">
-                <p>{(l as unknown as { note?: string }).note ?? (l as unknown as { description?: string }).description ?? "Change logged"}</p>
-                <p className="mt-1 font-mono text-[0.65rem] text-black/45">
-                  {day(l.timestamp ?? (l as unknown as { createdAt?: string }).createdAt)} ·{" "}
-                  {userName((l as unknown as { loggedBy?: string }).loggedBy ?? "", store)}
-                </p>
-              </li>
-            ))}
-            {logs.length === 0 ? (
-              <li className="py-4 text-center text-black/45">No lifecycle entries.</li>
-            ) : null}
-          </ol>
         </section>
       </div>
       <DeleteConfirm
@@ -489,6 +477,49 @@ export default function SiteDetailPage() {
             onCancel={() => setMoveEquipmentId(null)}
           />
         </FormPanel>
+      ) : null}
+
+      {purchaseMaterialOpen ? (
+        <ModalPanel kicker="Site Inventory" title="Purchase Material" onClose={() => setPurchaseMaterialOpen(false)}>
+          <MaterialMovementForm 
+            fixedDestination={{ id: site.id, type: "site", name: site.name }}
+            allowedActions={["purchase"]}
+            onSuccess={() => setPurchaseMaterialOpen(false)}
+            onCancel={() => setPurchaseMaterialOpen(false)}
+          />
+        </ModalPanel>
+      ) : null}
+
+      {purchaseEquipmentOpen ? (
+        <ModalPanel kicker="Site Equipment" title="Purchase Equipment" onClose={() => setPurchaseEquipmentOpen(false)}>
+          <EquipmentMovementForm 
+            fixedDestination={{ id: site.id, type: "site", name: site.name }}
+            allowedActions={["purchased"]}
+            onSuccess={() => setPurchaseEquipmentOpen(false)}
+            onCancel={() => setPurchaseEquipmentOpen(false)}
+          />
+        </ModalPanel>
+      ) : null}
+
+      {lifecycleModalOpen ? (
+        <ModalPanel kicker="Site" title="Lifecycle Logs" onClose={() => setLifecycleModalOpen(false)}>
+          <div className="max-h-96 overflow-y-auto pr-2">
+            <ol className="space-y-3">
+              {logs.map((l) => (
+                <li key={l.id} className="border-l-2 border-yellow pl-3 text-sm">
+                  <p>{(l as unknown as { note?: string }).note ?? (l as unknown as { description?: string }).description ?? "Change logged"}</p>
+                  <p className="mt-1 font-mono text-[0.65rem] text-black/45">
+                    {day(l.timestamp ?? (l as unknown as { createdAt?: string }).createdAt)} ·{" "}
+                    {userName((l as unknown as { loggedBy?: string }).loggedBy ?? "", store)}
+                  </p>
+                </li>
+              ))}
+              {logs.length === 0 ? (
+                <li className="py-4 text-center text-black/45">No lifecycle entries.</li>
+              ) : null}
+            </ol>
+          </div>
+        </ModalPanel>
       ) : null}
     </div>
   );

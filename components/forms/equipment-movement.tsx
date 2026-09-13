@@ -13,9 +13,11 @@ import {
   useMaintenanceReturn,
   useDegradeEquipment,
   useAppreciateEquipment,
+  useEquipmentList,
 } from "@/hooks/use-equipment";
 import { useLicenses } from "@/hooks/use-licenses";
 import type { LocationKind } from "@/lib/types";
+import { SearchableSelect } from "@/components/ui";
 import type { EquipmentLogAction } from "@/types/api";
 
 type ActionType = EquipmentLogAction["action"];
@@ -37,6 +39,7 @@ export interface EquipmentMovementFormProps {
   defaultSource?: { id: string; type: LocationKind };
   defaultDestination?: { id: string; type: LocationKind };
   fixedSource?: { id: string; type: LocationKind; name: string };
+  fixedDestination?: { id: string; type: LocationKind; name: string };
   allowedActions?: ActionType[];
   title?: string;
   onSuccess?: () => void;
@@ -48,6 +51,7 @@ export function EquipmentMovementForm({
   defaultSource,
   defaultDestination,
   fixedSource,
+  fixedDestination,
   allowedActions,
   title,
   onSuccess,
@@ -56,9 +60,16 @@ export function EquipmentMovementForm({
   const store = useStore();
   const { data: licensesData } = useLicenses();
   const licenses = licensesData?.data ?? store.licenses;
+  const { data: eqData } = useEquipmentList({});
+  const equipment = eqData?.data ?? store.equipment;
 
   const availableActions = actions.filter(a => !allowedActions || allowedActions.includes(a.type));
-  const [type, setType] = useState<ActionType>(equipmentId === "new" ? "purchased" : (allowedActions?.[0] ?? "transferred"));
+  
+  const [selectedEqId, setSelectedEqId] = useState<string>(equipmentId ?? "new");
+  const eId = equipmentId || selectedEqId;
+  const isCreating = eId === "new";
+
+  const [type, setType] = useState<ActionType>(isCreating ? "purchased" : (allowedActions?.[0] ?? "transferred"));
   
   // Equipment details (for new creation)
   const [eqName, setEqName] = useState("");
@@ -104,9 +115,9 @@ export function EquipmentMovementForm({
     setMsg(null);
     try {
       const source = fixedSource ? { id: fixedSource.id, type: fixedSource.type as "site" | "warehouse" } : (fromKind && fromId ? { id: fromId, type: fromKind as "site" | "warehouse" } : undefined);
-      const destination = toKind && toId ? { id: toId, type: toKind as "site" | "warehouse" } : undefined;
+      const destination = fixedDestination ? { id: fixedDestination.id, type: fixedDestination.type as "site" | "warehouse" } : (toKind && toId ? { id: toId, type: toKind as "site" | "warehouse" } : undefined);
       
-      const eId = equipmentId || "new"; // fallback if not provided
+      if (!eId) throw new Error("Please select an equipment");
 
       if (type === "purchased") {
         if (!cost) throw new Error("Cost is required");
@@ -186,12 +197,32 @@ export function EquipmentMovementForm({
     }
   };
 
-  const isCreating = equipmentId === "new";
-
   return (
     <div className={isCreating ? "" : "border border-black/10 bg-paper/40 p-5"}>
       {!isCreating && <p className="kicker mb-3">{title || "Raise a movement"}</p>}
       
+      {!equipmentId && (
+        <label className="mb-3 block z-10 relative text-sm">
+          Equipment
+          <div className="mt-1">
+            <SearchableSelect
+              value={selectedEqId}
+              onChange={(val) => {
+                setSelectedEqId(val);
+                if (val === "new") setType("purchased");
+              }}
+              options={equipment.map(e => ({ id: e.id, label: e.name, subLabel: e.serialNumber || "No S/N" }))}
+              placeholder="Search equipment..."
+              onCreateNew={() => {
+                setSelectedEqId("new");
+                setType("purchased");
+              }}
+              createNewLabel="+ Create new equipment"
+            />
+          </div>
+        </label>
+      )}
+
       {!isCreating && availableActions.length > 1 && (
         <label className="mb-3 block text-sm">
           Action
@@ -297,7 +328,13 @@ export function EquipmentMovementForm({
       {["purchased", "transferred", "maintenance_return"].includes(type) && (
         <div className="mb-3">
           <p className="mb-1 text-sm">Destination</p>
-          <LocationSelect kind={toKind} id={toId} onKind={setToKind} onId={setToId} />
+          {fixedDestination ? (
+            <div className="field mt-1 cursor-not-allowed bg-black/5 text-black/50">
+              {fixedDestination.name}
+            </div>
+          ) : (
+            <LocationSelect kind={toKind} id={toId} onKind={setToKind} onId={setToId} />
+          )}
         </div>
       )}
 

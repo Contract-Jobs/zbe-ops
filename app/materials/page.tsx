@@ -16,6 +16,7 @@ export default function MaterialsPage() {
   const [q, setQ] = useState("");
   const [mode, setMode] = useState<RecordMode<MaterialCatalog>>(closedMode);
   const [purchaseNew, setPurchaseNew] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const { data: materialsData, isLoading } = useMaterials();
   const deleteMutation = useDeleteMaterial();
@@ -25,14 +26,14 @@ export default function MaterialsPage() {
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
     return materialsList
-      .filter((m) => !m.deletedAt)
+      .filter((m) => showDeleted || !m.deletedAt)
       .filter((m) => (term ? m.name.toLowerCase().includes(term) : true))
       .map((m) => ({
         ...m,
         // Quantity from store balances until inventory is wired on this page
         total: store.balances.filter((b) => b.catalogId === m.id).reduce((s, b) => s + b.quantity, 0),
       }));
-  }, [q, store.balances, materialsList]);
+  }, [q, store.balances, materialsList, showDeleted]);
 
   async function handleDelete() {
     if (mode.kind === "delete" && mode.record) {
@@ -51,9 +52,19 @@ export default function MaterialsPage() {
         kicker="Catalog"
         title="Materials"
         action={canMutate ? (
-          <div className="flex gap-2">
-            <RecordActions newLabel="New material" onNew={() => setMode({ kind: "create" })} />
-            <button className="btn" onClick={() => setPurchaseNew(true)}>Purchase New</button>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-black/70">
+              <input
+                type="checkbox"
+                checked={showDeleted}
+                onChange={(e) => setShowDeleted(e.target.checked)}
+              />
+              Show deleted
+            </label>
+            <div className="flex gap-2">
+              <RecordActions newLabel="New material" onNew={() => setMode({ kind: "create" })} />
+              <button className="btn" onClick={() => setPurchaseNew(true)}>Purchase New</button>
+            </div>
           </div>
         ) : undefined}
       />
@@ -109,7 +120,7 @@ export default function MaterialsPage() {
                     <td>
                       <RecordActions
                         onEdit={() => setMode({ kind: "edit", record: m })}
-                        onDelete={() => setMode({ kind: "delete", record: m, label: m.name })}
+                        onDelete={!m.deletedAt ? () => setMode({ kind: "delete", record: m, label: m.name }) : undefined}
                       />
                     </td>
                   ) : null}

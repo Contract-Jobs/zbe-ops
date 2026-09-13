@@ -12,11 +12,14 @@ export default function WarehousesPage() {
   const store = useStore();
   const canMutate = !isSiteManager(store);
   const [mode, setMode] = useState<RecordMode<Warehouse>>(closedMode);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const { data: warehousesData, isLoading } = useWarehouses();
   const deleteMutation = useDeleteWarehouse();
 
-  const warehouses = warehousesData ? warehousesData.data : (store.warehouses as unknown as Warehouse[]);
+  const warehouses = (warehousesData ? warehousesData.data : (store.warehouses as unknown as Warehouse[])).filter(
+    (w) => showDeleted || !w.deletedAt
+  );
 
   async function handleDelete() {
     if (mode.kind === "delete" && mode.record) {
@@ -34,7 +37,19 @@ export default function WarehousesPage() {
       <PageHead
         kicker="Central"
         title="Warehouses"
-        action={canMutate ? <RecordActions newLabel="New warehouse" onNew={() => setMode({ kind: "create" })} /> : undefined}
+        action={
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-black/70">
+              <input
+                type="checkbox"
+                checked={showDeleted}
+                onChange={(e) => setShowDeleted(e.target.checked)}
+              />
+              Show deleted
+            </label>
+            {canMutate ? <RecordActions newLabel="New warehouse" onNew={() => setMode({ kind: "create" })} /> : undefined}
+          </div>
+        }
       />
       <p className="mb-6 text-sm text-black/70">
         Warehouses are not scoped to a site manager. Sales can only leave a warehouse. Transfers onto a job still go through
@@ -84,7 +99,7 @@ export default function WarehousesPage() {
                       <td>
                         <RecordActions
                           onEdit={() => setMode({ kind: "edit", record: w })}
-                          onDelete={() => setMode({ kind: "delete", record: w, label: w.name })}
+                          onDelete={!w.deletedAt ? () => setMode({ kind: "delete", record: w, label: w.name }) : undefined}
                         />
                       </td>
                     ) : null}

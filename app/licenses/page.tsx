@@ -12,11 +12,14 @@ export default function LicensesPage() {
   const store = useStore();
   const canMutate = !isSiteManager(store);
   const [mode, setMode] = useState<RecordMode<License>>(closedMode);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const { data: licensesData, isLoading } = useLicenses();
   const deleteMutation = useDeleteLicense();
 
-  const licenses = licensesData ? licensesData.data : (store.licenses as unknown as License[]);
+  const licenses = (licensesData ? licensesData.data : (store.licenses as unknown as License[])).filter(
+    (l) => showDeleted || !l.deletedAt
+  );
 
   async function handleDelete() {
     if (mode.kind === "delete" && mode.record) {
@@ -34,7 +37,19 @@ export default function LicensesPage() {
       <PageHead
         kicker="Entities"
         title="Licenses"
-        action={canMutate ? <RecordActions newLabel="New license" onNew={() => setMode({ kind: "create" })} /> : undefined}
+        action={
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-black/70">
+              <input
+                type="checkbox"
+                checked={showDeleted}
+                onChange={(e) => setShowDeleted(e.target.checked)}
+              />
+              Show deleted
+            </label>
+            {canMutate ? <RecordActions newLabel="New license" onNew={() => setMode({ kind: "create" })} /> : undefined}
+          </div>
+        }
       />
       <p className="mb-6 max-w-xl text-black/65">
         Licenses are the top of the money tree. Sites, plant, and ledger lines hang off one of these.
@@ -71,7 +86,7 @@ export default function LicensesPage() {
                   {canMutate ? (
                     <RecordActions
                       onEdit={() => setMode({ kind: "edit", record: l })}
-                      onDelete={() => setMode({ kind: "delete", record: l, label: l.name })}
+                      onDelete={!l.deletedAt ? () => setMode({ kind: "delete", record: l, label: l.name }) : undefined}
                     />
                   ) : null}
                 </div>
