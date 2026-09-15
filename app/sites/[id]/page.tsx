@@ -127,7 +127,7 @@ export default function SiteDetailPage() {
     (store.equipment.filter((e) => e.siteId === site.id) as unknown as Equipment[]);
   const bals: InventoryBalance[] = balancesData?.data ??
     (store.balances.filter((b) => b.locationKind === "site" && b.locationId === site.id) as unknown as InventoryBalance[]);
-  const materials: MaterialCatalog[] = materialsData?.data ?? (store.materials as unknown as MaterialCatalog[]);
+  const materials: MaterialCatalog[] = balancesData?.data.map(d => (d as any).material as unknown as MaterialCatalog) || [];
   const licenses: License[] = licensesData?.data ?? (store.licenses as unknown as License[]);
 
   const handleAddTask = async (data: { title: string; targetDate?: string }) => {
@@ -460,28 +460,34 @@ export default function SiteDetailPage() {
                 <table className="data w-full text-left">
                   <thead>
                     <tr>
-                      <th>SKU</th>
+                      <th>Name</th>
                       <th className="text-left">Quantity</th>
-                      <th className="text-left">Action</th>
+                      <th className="text-left">Average Unit Price</th>
+                      {canMutate && <th className="text-left">Action</th>}
                     </tr>
                   </thead>
                   <tbody>
                     {bals.map((b) => {
-                      const materialId = (b as unknown as { catalogId?: string }).catalogId ?? b.materialId;
-                      const mat = materials.find((m) => m.id === materialId);
+                      const m = materials?.find((mat) => mat.id === (b as any).materialId);
+                      const key = m?.id;
+                      if (!m || !key) return null
                       return (
-                        <tr key={`${materialId}-${b.id ?? b.siteId}`}>
+                        <tr key={key}>
                           <td>
-                            <p className="font-medium">{mat?.name ?? materialId}</p>
+                            <p className="font-medium">{m?.name ?? "Unknown material"}</p>
                           </td>
-                          <td className="font-mono text-left">
-                            {b.quantity} {mat?.unit ?? "pcs"}
+                          <td className="font-mono text-left min-w-[120px]">
+                            {b.quantity} {m?.unit ?? ""}
+                          </td>
 
+                          <td className="font-mono text-left min-w-[120px]">
+                            {etb((b as any).avgUnitPrice) ?? ""}
                           </td>
-                          <td className="text-left!">
-                            {canMutate && !isClosed && (
-                              <span className="inline-block">
-                                <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId(materialId)}>Move</button>
+
+                          <td>
+                            {canMutate && (
+                              <span className="inline-block text-left">
+                                <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId(m?.id)}>Move</button>
                               </span>
                             )}
                           </td>
@@ -493,7 +499,7 @@ export default function SiteDetailPage() {
               </TableWrap>
             ) : (
               <div className="border border-dashed border-black/20 p-8 text-center text-sm text-black/40">
-                No materials recorded at this site.
+                No stock recorded at this warehouse.
               </div>
             )}
           </div>

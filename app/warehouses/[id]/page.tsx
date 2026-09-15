@@ -12,6 +12,8 @@ import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
 import { isSiteManager } from "@/lib/store";
 import type { Warehouse, Equipment, InventoryBalance, MaterialCatalog } from "@/types/api";
+import { useInventoryAnalytics } from "@/hooks/use-analytics";
+import { etb } from "@/lib/format";
 
 export default function WarehouseDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +21,7 @@ export default function WarehouseDetailPage() {
 
   const { data: warehouseData, isLoading: isWarehouseLoading } = useWarehouse(id);
   const { data: equipData } = useEquipmentList({ warehouseId: id ? [id] : undefined, limit: 300 });
+  const { data: inventoryAnalytics } = useInventoryAnalytics({ warehouseId: id });
   const { data: balancesData } = useInventoryBalances({ warehouseId: id ? [id] : undefined, limit: 300 });
   // const { data: materialsData } = useMaterials({ limit: 300 });
 
@@ -55,6 +58,20 @@ export default function WarehouseDetailPage() {
         <p className="text-black/70">Location: {warehouse.location ?? "—"}</p>
       </div>
 
+      {inventoryAnalytics?.data && <div className="grid gap-px bg-black/10 sm:grid-cols-3">
+        <div className="bg-white p-5">
+          <p className="kicker">Total Materials</p>
+          <p className="mt-2 break-words text-2xl tracking-tight">{inventoryAnalytics.data.totalMaterials}</p>
+        </div>
+        <div className="bg-white p-5">
+          <p className="kicker">Total Equipment</p>
+          <p className="mt-2 break-words text-2xl tracking-tight">{inventoryAnalytics.data.totalEquipment}</p>
+        </div>
+        <div className="bg-white p-5">
+          <p className="kicker">Total Material Value</p>
+          <p className="mt-2 break-words text-2xl tracking-tight">{etb(inventoryAnalytics.data.totalMaterialValue)}</p>
+        </div>
+      </div>}
       <div className="mb-8">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="font-mono text-[0.8rem] uppercase tracking-wider text-black/50">Inventory Balances</h2>
@@ -86,7 +103,7 @@ export default function WarehouseDetailPage() {
                       </td>
 
                       <td className="font-mono text-left min-w-[120px]">
-                        {(b as any).avgUnitPrice ?? ""} Birr
+                        {etb((b as any).avgUnitPrice) ?? ""}
                       </td>
 
                       <td>
