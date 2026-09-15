@@ -77,7 +77,7 @@ export function Empty({ children }: { children: ReactNode }) {
 }
 
 export function TableWrap({ children }: { children: ReactNode }) {
-  return <div className="table-wrap">{children}</div>;
+  return <div className="table-wrap max-h-[50vh] overflow-y-auto">{children}</div>;
 }
 
 export function Username({ userId, fallback }: { userId?: string | null; fallback?: ReactNode }) {

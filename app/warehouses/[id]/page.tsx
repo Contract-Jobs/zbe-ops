@@ -18,9 +18,9 @@ export default function WarehouseDetailPage() {
   const store = useStore();
 
   const { data: warehouseData, isLoading: isWarehouseLoading } = useWarehouse(id);
-  const { data: equipData } = useEquipmentList({ warehouseId: id ? [id] : undefined });
-  const { data: balancesData } = useInventoryBalances({ warehouseId: id ? [id] : undefined });
-  const { data: materialsData } = useMaterials();
+  const { data: equipData } = useEquipmentList({ warehouseId: id ? [id] : undefined, limit: 300 });
+  const { data: balancesData } = useInventoryBalances({ warehouseId: id ? [id] : undefined, limit: 300 });
+  // const { data: materialsData } = useMaterials({ limit: 300 });
 
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
 
@@ -43,7 +43,7 @@ export default function WarehouseDetailPage() {
   const balances = balancesData?.data ?? store.balances.filter(
     (b) => b.locationKind === "warehouse" && b.locationId === id && b.quantity > 0
   );
-  const materials = materialsData?.data ?? (store.materials as unknown as MaterialCatalog[]);
+  const materials = balancesData?.data.map(d => (d as any).material as unknown as MaterialCatalog)
 
   return (
     <div>
@@ -66,24 +66,33 @@ export default function WarehouseDetailPage() {
               <thead>
                 <tr>
                   <th>SKU</th>
-                  <th className="text-right">Quantity</th>
+                  <th className="text-left">Quantity</th>
+                  <th className="text-left">Average Unit Price</th>
+                  {canMutate && <th className="text-left">Action</th>}
                 </tr>
               </thead>
               <tbody>
                 {balances.map((b) => {
-                  const materialId = (b as unknown as { catalogId?: string }).catalogId ?? (b as any).materialId;
-                  const m = materials.find((mat) => mat.id === materialId);
-                  const key = (b as any).id ?? materialId;
+                  const m = materials?.find((mat) => mat.id === (b as any).materialId);
+                  const key = (b as any).id ?? m?.id;
+                  if (!m || !key) return null
                   return (
                     <tr key={key}>
                       <td>
                         <p className="font-medium">{m?.name ?? "Unknown material"}</p>
                       </td>
-                      <td className="font-mono text-right min-w-[120px]">
+                      <td className="font-mono text-left min-w-[120px]">
                         {b.quantity} {m?.unit ?? ""}
+                      </td>
+
+                      <td className="font-mono text-left min-w-[120px]">
+                        {(b as any).avgUnitPrice ?? ""} Birr
+                      </td>
+
+                      <td>
                         {canMutate && (
-                          <span className="ml-3 inline-block">
-                            <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveMaterialId(materialId)}>Move</button>
+                          <span className="inline-block text-left">
+                            <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId(m?.id)}>Move</button>
                           </span>
                         )}
                       </td>
