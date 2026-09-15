@@ -14,7 +14,9 @@ export default function WarehousesPage() {
   const [mode, setMode] = useState<RecordMode<Warehouse>>(closedMode);
   const [showDeleted, setShowDeleted] = useState(false);
 
-  const { data: warehousesData, isLoading } = useWarehouses();
+  const [page, setPage] = useState(1);
+
+  const { data: warehousesData, isLoading } = useWarehouses({ page, limit: 10 });
   const deleteMutation = useDeleteWarehouse();
 
   const warehouses = (warehousesData ? warehousesData.data : (store.warehouses as unknown as Warehouse[])).filter(
@@ -68,20 +70,20 @@ export default function WarehousesPage() {
       {isLoading ? (
         <div className="p-8 text-center text-sm text-black/50">Loading warehouses...</div>
       ) : (
-        <TableWrap>
+        <TableWrap pagination={warehousesData?.pagination} onPageChange={setPage}>
           <table className="data w-full text-left">
             <thead>
               <tr>
                 <th>Warehouse</th>
                 <th>Location</th>
-                <th>SKUs on hand</th>
-                <th className="hidden sm:table-cell">Plant parked</th>
+                {/* <th>Materials on hand</th>
+                <th className="hidden sm:table-cell">Plant parked</th> */}
                 {canMutate ? <th></th> : null}
               </tr>
             </thead>
             <tbody>
               {warehouses.map((w) => {
-                const skus = store.balances.filter(
+                const Materials = store.balances.filter(
                   (b) => b.locationKind === "warehouse" && b.locationId === w.id && b.quantity > 0
                 ).length;
                 const plant = store.equipment.filter((e) => e.warehouseId === w.id && !e.deletedAt).length;
@@ -93,8 +95,8 @@ export default function WarehousesPage() {
                       </Link>
                     </td>
                     <td>{w.location ?? "—"}</td>
-                    <td className="font-mono">{skus}</td>
-                    <td className="hidden font-mono sm:table-cell">{plant}</td>
+                    {/* <td className="font-mono">{Materials}</td>
+                    <td className="hidden font-mono sm:table-cell">{plant}</td> */}
                     {canMutate ? (
                       <td>
                         <RecordActions

@@ -17,8 +17,10 @@ export default function InventoryLocationPage() {
   const allowedSites = visibleSiteIds(store);
 
   const { data: locationsData, isLoading: isLocLoading } = useInventoryLocations();
-  const { data: materialsData, isLoading: isMatLoading } = useInventoryLocationMaterials(id);
-  const { data: equipmentsData, isLoading: isEqLoading } = useInventoryLocationEquipments(id);
+  const [matPage, setMatPage] = useState(1);
+  const { data: materialsData, isLoading: isMatLoading } = useInventoryLocationMaterials(id, { page: matPage, limit: 10 });
+  const [eqPage, setEqPage] = useState(1);
+  const { data: equipmentsData, isLoading: isEqLoading } = useInventoryLocationEquipments(id, { page: eqPage, limit: 10 });
   const { data: catalogData } = useMaterials();
 
   const materials = catalogData?.data ?? (store.materials as unknown as MaterialCatalog[]);
@@ -87,11 +89,11 @@ export default function InventoryLocationPage() {
       <div className="mb-8">
         <p className="kicker mb-3">Inventory Balances</p>
         {bals.length > 0 ? (
-          <TableWrap>
+          <TableWrap pagination={materialsData?.pagination} onPageChange={setMatPage}>
             <table className="data w-full text-left">
               <thead>
                 <tr>
-                  <th>SKU</th>
+                  <th>Material</th>
                   <th className="text-right">Quantity</th>
                 </tr>
               </thead>
@@ -128,7 +130,7 @@ export default function InventoryLocationPage() {
       <div>
         <p className="kicker mb-3">Parked Equipment</p>
         {eqs.length > 0 ? (
-          <TableWrap>
+          <TableWrap pagination={equipmentsData?.pagination} onPageChange={setEqPage}>
             <table className="data w-full text-left">
               <thead>
                 <tr>

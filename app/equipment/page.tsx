@@ -35,8 +35,9 @@ export default function EquipmentPage() {
   const [mode, setMode] = useState<RecordMode<Equipment>>(closedMode);
   const [purchaseNew, setPurchaseNew] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [page, setPage] = useState(1);
 
-  const { data: equipmentData, isLoading } = useEquipmentList();
+  const { data: equipmentData, isLoading } = useEquipmentList({ page, limit: 10, search: q || undefined });
   const { data: licensesData } = useLicenses();
   const deleteMutation = useDeleteEquipment();
 
@@ -51,8 +52,8 @@ export default function EquipmentPage() {
         if (!manager) return true;
         return e.siteId ? sites.has(e.siteId) : false;
       })
-      .filter((e) => (term ? e.name.toLowerCase().includes(term) || (e.serialNumber ?? "").toLowerCase().includes(term) : true));
-  }, [manager, q, sites, equipmentList, showDeleted]);
+      .filter((e) => (equipmentData ? true : (term ? e.name.toLowerCase().includes(term) || (e.serialNumber ?? "").toLowerCase().includes(term) : true)));
+  }, [manager, q, sites, equipmentList, showDeleted, equipmentData]);
 
   async function handleDelete() {
     if (mode.kind === "delete" && mode.record) {
@@ -116,7 +117,7 @@ export default function EquipmentPage() {
       {isLoading && !equipmentData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading equipment...</div>
       ) : (
-        <TableWrap>
+        <TableWrap pagination={equipmentData?.pagination} onPageChange={setPage}>
           <table className="data">
             <thead>
               <tr>

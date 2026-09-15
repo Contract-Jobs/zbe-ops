@@ -61,9 +61,12 @@ export default function SiteDetailPage() {
   const allowed = visibleSiteIds(store);
 
   const { data: siteData, isLoading: isSiteLoading } = useSite(id);
-  const { data: tasksData } = useSiteTasks(id);
-  const { data: equipData } = useEquipmentList({ siteId: id ? [id] : undefined });
-  const { data: balancesData } = useInventoryBalances({ siteId: id ? [id] : undefined });
+  const [taskPage, setTaskPage] = useState(1);
+  const { data: tasksData } = useSiteTasks(id, { page: taskPage, limit: 10 });
+  const [equipPage, setEquipPage] = useState(1);
+  const { data: equipData } = useEquipmentList({ siteId: id ? [id] : undefined, page: equipPage, limit: 10 });
+  const [balPage, setBalPage] = useState(1);
+  const { data: balancesData } = useInventoryBalances({ siteId: id ? [id] : undefined, page: balPage, limit: 10 });
   const { data: materialsData } = useMaterials();
   const { data: lifecycleData } = useSiteLifecycle(id);
   const { data: txData } = useTransactions({ siteId: id ? [id] : undefined });
@@ -379,7 +382,7 @@ export default function SiteDetailPage() {
             </form>
           </FormPanel>
         ) : null}
-        <TableWrap>
+        <TableWrap pagination={tasksData?.pagination} onPageChange={setTaskPage}>
           <table className="data">
             <thead>
               <tr>
@@ -456,7 +459,7 @@ export default function SiteDetailPage() {
               )}
             </div>
             {bals.length > 0 ? (
-              <TableWrap>
+              <TableWrap pagination={balancesData?.pagination} onPageChange={setBalPage}>
                 <table className="data w-full text-left">
                   <thead>
                     <tr>
@@ -512,7 +515,7 @@ export default function SiteDetailPage() {
               )}
             </div>
             {eqs.length > 0 ? (
-              <TableWrap>
+              <TableWrap pagination={equipData?.pagination} onPageChange={setEquipPage}>
                 <table className="data w-full text-left">
                   <thead>
                     <tr>

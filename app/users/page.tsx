@@ -104,74 +104,85 @@ export default function UsersPage() {
       {isLoading && !usersData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading users...</div>
       ) : (
-        <TableWrap>
-          <table className="data">
-            <thead>
-              <tr>
-                <th>User</th>
-                <th className="hidden sm:table-cell">Email</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => {
-                // Determine if current user can edit this row
-                let canEdit = false;
-                if (currentUserRole === "superadmin" || canSetAdmin) {
-                  canEdit = true;
-                } else if (currentUserRole === "admin" && (u.role === "site_manager" || u.id === currentUserId)) {
-                  canEdit = true;
-                }
+        <TableWrap
+          data={users}
+          sortOptions={[
+            { label: "Name (A-Z)", value: "name_asc", sortFn: (a, b) => a.name.localeCompare(b.name) },
+            { label: "Name (Z-A)", value: "name_desc", sortFn: (a, b) => b.name.localeCompare(a.name) },
+            { label: "Role", value: "role", sortFn: (a, b) => a.role.localeCompare(b.role) },
+            { label: "Status", value: "status", sortFn: (a, b) => Number(a.banned) - Number(b.banned) }
+          ]}
+          itemsPerPage={10}
+        >
+          {(paginatedUsers) => (
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th className="hidden sm:table-cell">Email</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedUsers.map((u) => {
+                  // Determine if current user can edit this row
+                  let canEdit = false;
+                  if (currentUserRole === "superadmin" || canSetAdmin) {
+                    canEdit = true;
+                  } else if (currentUserRole === "admin" && (u.role === "site_manager" || u.id === currentUserId)) {
+                    canEdit = true;
+                  }
 
-                return (
-                  <tr key={u.id}>
-                    <td>
-                      <p className="font-medium">{u.name}</p>
-                      <p className="mt-1 text-[0.8rem] text-black/50 sm:hidden">{u.email}</p>
-                    </td>
-                    <td className="hidden text-[0.95rem] sm:table-cell">{u.email}</td>
-                    <td>
-                      <Stamp value={u.role.replace("_", " ")} tone={roleTone(u.role)} />
-                    </td>
-                    <td>
-                      <Stamp value={u.banned ? "banned" : "active"} tone={u.banned ? "bad" : "ok"} />
-                    </td>
-                    <td>
-                      {canEdit ? (
-                        <div className="flex flex-wrap gap-2">
-                          <RecordActions
-                            onEdit={() => setMode({ kind: "edit", record: u })}
-                            onDelete={canSetAdmin ? () => setMode({ kind: "delete", record: u, label: u.name }) : undefined}
-                          />
-                          {u.role === "site_manager" && (
-                            <button
-                              type="button"
-                              className="btn btn-ghost"
-                              onClick={() => setMode({ kind: "assign", record: u } as any)}
-                            >
-                              Assign sites
-                            </button>
-                          )}
-                          {canSetAdmin && (
-                            <>
-                              {u.banned ? (
-                                <button type="button" className="btn btn-ghost" onClick={() => setMode({ kind: "unban", record: u } as any)}>Unban</button>
-                              ) : (
-                                <button type="button" className="btn btn-ghost-bad" onClick={() => setMode({ kind: "ban", record: u } as any)}>Ban</button>
-                              )}
-                              <button type="button" className="btn btn-ghost" onClick={() => setMode({ kind: "password", record: u } as any)}>Set password</button>
-                            </>
-                          )}
-                        </div>
-                      ) : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  return (
+                    <tr key={u.id}>
+                      <td>
+                        <p className="font-medium">{u.name}</p>
+                        <p className="mt-1 text-[0.8rem] text-black/50 sm:hidden">{u.email}</p>
+                      </td>
+                      <td className="hidden text-[0.95rem] sm:table-cell">{u.email}</td>
+                      <td>
+                        <Stamp value={u.role.replace("_", " ")} tone={roleTone(u.role)} />
+                      </td>
+                      <td>
+                        <Stamp value={u.banned ? "banned" : "active"} tone={u.banned ? "bad" : "ok"} />
+                      </td>
+                      <td>
+                        {canEdit ? (
+                          <div className="flex flex-wrap gap-2">
+                            <RecordActions
+                              onEdit={() => setMode({ kind: "edit", record: u })}
+                              onDelete={canSetAdmin ? () => setMode({ kind: "delete", record: u, label: u.name }) : undefined}
+                            />
+                            {u.role === "site_manager" && (
+                              <button
+                                type="button"
+                                className="btn btn-ghost"
+                                onClick={() => setMode({ kind: "assign", record: u } as any)}
+                              >
+                                Assign sites
+                              </button>
+                            )}
+                            {canSetAdmin && (
+                              <>
+                                {u.banned ? (
+                                  <button type="button" className="btn btn-ghost" onClick={() => setMode({ kind: "unban", record: u } as any)}>Unban</button>
+                                ) : (
+                                  <button type="button" className="btn btn-ghost-bad" onClick={() => setMode({ kind: "ban", record: u } as any)}>Ban</button>
+                                )}
+                                <button type="button" className="btn btn-ghost" onClick={() => setMode({ kind: "password", record: u } as any)}>Set password</button>
+                              </>
+                            )}
+                          </div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </TableWrap>
       )}
 

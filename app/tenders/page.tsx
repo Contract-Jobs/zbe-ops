@@ -25,7 +25,9 @@ export default function TendersPage() {
   const [mode, setMode] = useState<RecordMode<Tender>>(closedMode);
   const [showDeleted, setShowDeleted] = useState(false);
 
-  const { data: tendersData, isLoading } = useTenders();
+  const [page, setPage] = useState(1);
+
+  const { data: tendersData, isLoading } = useTenders({ page, limit: 10 });
   const { data: licensesData } = useLicenses();
   const deleteMutation = useDeleteTender();
 
@@ -85,7 +87,7 @@ export default function TendersPage() {
       {isLoading && !tendersData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading tenders...</div>
       ) : (
-        <TableWrap>
+        <TableWrap pagination={tendersData?.pagination} onPageChange={setPage}>
           <table className="data">
             <thead>
               <tr>

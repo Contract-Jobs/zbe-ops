@@ -44,7 +44,8 @@ export default function EquipmentDetailPage() {
   const store = useStore();
 
   const { data: equipData, isLoading: isEquipLoading } = useEquipment(id);
-  const { data: logsData } = useEquipmentLogs({ equipmentId: id });
+  const [page, setPage] = useState(1);
+  const { data: logsData } = useEquipmentLogs({ equipmentId: id, page, limit: 10 });
   const { data: licensesData } = useLicenses();
   const { data: sitesData } = useSites();
   const { data: warehousesData } = useWarehouses();
@@ -147,7 +148,7 @@ export default function EquipmentDetailPage() {
             </div>
           </dl>
           <p className="kicker mb-2">Event log</p>
-          <TableWrap>
+          <TableWrap pagination={logsData?.pagination} onPageChange={setPage}>
             <table className="data">
               <thead>
                 <tr>
@@ -177,8 +178,8 @@ export default function EquipmentDetailPage() {
             </table>
           </TableWrap>
         </div>
-        <EquipmentMovementForm 
-          equipmentId={item.id} 
+        <EquipmentMovementForm
+          equipmentId={item.id}
           fixedSource={item.siteId ? { id: item.siteId, type: "site", name: here } : item.warehouseId ? { id: item.warehouseId, type: "warehouse", name: here } : undefined}
         />
       </div>

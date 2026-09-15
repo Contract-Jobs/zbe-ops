@@ -1,11 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import Link from "next/link";
 import { stamp } from "@/lib/format";
 import { useUser } from "@/hooks/use-user";
 import { useSession } from "@/lib/auth/client";
+import type { Pagination } from "@/lib/api/client";
 
 export type RecordMode<T> =
   | { kind: "closed" }
@@ -76,8 +77,139 @@ export function Empty({ children }: { children: ReactNode }) {
   return <p className="border border-dashed border-black/20 px-4 py-10 text-center text-black/50">{children}</p>;
 }
 
-export function TableWrap({ children }: { children: ReactNode }) {
-  return <div className="table-wrap max-h-[50vh] overflow-y-auto">{children}</div>;
+export function TableWrap<T>({
+  children,
+  data,
+  pagination,
+  onPageChange,
+  onSortChange,
+  sortOptions = [],
+  itemsPerPage = 10,
+  showPagination = true,
+  showSort = true,
+}: {
+  children: ReactNode | ((paginatedData: T[]) => ReactNode);
+  data?: T[];
+  pagination?: Pagination;
+  onPageChange?: (page: number) => void;
+  onSortChange?: (sort: string) => void;
+  sortOptions?: { label: string; value: string; sortFn?: (a: T, b: T) => number }[];
+  itemsPerPage?: number;
+  showPagination?: boolean;
+  showSort?: boolean;
+}) {
+  // Client-side fallback state
+  const [clientPage, setClientPage] = useState(1);
+  const [clientSort, setClientSort] = useState(sortOptions[0]?.value || "default");
+
+  const processedData = useMemo(() => {
+    if (!data || pagination) return data || [];
+    const result = [...data];
+    const activeSort = sortOptions.find(o => o.value === clientSort);
+    if (activeSort?.sortFn) {
+      result.sort(activeSort.sortFn);
+    }
+    return result;
+  }, [data, pagination, sortOptions, clientSort]);
+
+  const totalPages = pagination ? pagination.totalPages : Math.max(1, Math.ceil(processedData.length / itemsPerPage));
+  const currentPage = pagination ? pagination.page : Math.min(clientPage, totalPages);
+  const totalItems = pagination ? pagination.total : processedData.length;
+
+  const paginatedData = useMemo(() => {
+    if (!data) return [];
+    if (!showPagination || pagination) return processedData;
+    const start = (currentPage - 1) * itemsPerPage;
+    return processedData.slice(start, start + itemsPerPage);
+  }, [processedData, showPagination, currentPage, itemsPerPage, data, pagination]);
+
+  const handleNext = () => {
+    const next = Math.min(totalPages, currentPage + 1);
+    if (onPageChange) onPageChange(next);
+    else setClientPage(next);
+  };
+
+  const handlePrev = () => {
+    const prev = Math.max(1, currentPage - 1);
+    if (onPageChange) onPageChange(prev);
+    else setClientPage(prev);
+  };
+
+  const handleSortChange = (val: string) => {
+    if (onSortChange) onSortChange(val);
+    else {
+      setClientSort(val);
+      setClientPage(1);
+    }
+  };
+
+  // Determine if we should show the empty placeholder or actual pagination stats
+  const isFallbackEmpty = !data && !pagination;
+
+  return (
+    <div className="flex flex-col border border-black/10 bg-white mb-6">
+      {showSort && (sortOptions.length > 0 || isFallbackEmpty) && (
+        <div className="flex items-center justify-end gap-2 border-b border-black/10 bg-black/1 p-2 px-3 text-sm">
+          <span className="text-black/50">Sort by:</span>
+          <select
+            className="bg-transparent font-medium outline-none"
+            value={onSortChange ? "default" : clientSort}
+            onChange={e => handleSortChange(e.target.value)}
+            disabled={isFallbackEmpty && sortOptions.length === 0}
+          >
+            {sortOptions.length > 0 ? (
+              sortOptions.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))
+            ) : (
+              <>
+                <option value="default">Default</option>
+                <option value="az">Name (A-Z)</option>
+                <option value="za">Name (Z-A)</option>
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+              </>
+            )}
+          </select>
+        </div>
+      )}
+
+      <div className="table-wrap max-h-[50vh] overflow-y-auto">
+        {typeof children === "function" ? children(!isFallbackEmpty ? paginatedData : ([] as unknown as T[])) : children}
+      </div>
+
+      {showPagination && (
+        <div className="flex items-center justify-between border-t border-black/10 bg-black/1 p-2 px-3 text-sm">
+          {!isFallbackEmpty ? (
+            <span className="text-black/50">
+              Showing {totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}-
+              {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems}
+            </span>
+          ) : (
+            <span className="text-black/50">Showing 1-10 of 100</span>
+          )}
+          <div className="flex gap-1">
+            <button
+              type="button"
+              className="btn btn-ghost px-2 py-1 text-xs"
+              onClick={handlePrev}
+              disabled={isFallbackEmpty || currentPage <= 1}
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost px-2 py-1 text-xs"
+              onClick={handleNext}
+              disabled={isFallbackEmpty || currentPage >= totalPages}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function Username({ userId, fallback }: { userId?: string | null; fallback?: ReactNode }) {

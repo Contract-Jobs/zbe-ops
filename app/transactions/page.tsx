@@ -15,8 +15,9 @@ export default function TransactionsPage() {
   const store = useStore();
   const manager = isSiteManager(store);
   const sites = visibleSiteIds(store);
+  const [page, setPage] = useState(1);
 
-  const { data: transactionsData, isLoading: isTxLoading } = useTransactions();
+  const { data: transactionsData, isLoading: isTxLoading } = useTransactions({ page, limit: 10, sortBy: 'createdAt', sortOrder: 'desc' });
   const { data: categoriesData } = useCategories();
   const { data: sitesData } = useSites();
 
@@ -31,7 +32,7 @@ export default function TransactionsPage() {
   const categories = (categoriesData?.data ?? (store.categories as unknown as TransactionCategory[])).filter(
     (c) => showDeletedCats || !c.deletedAt
   );
-  
+
   const allSites = sitesData?.data ?? (store.sites as unknown as Site[]);
 
   const transactions = transactionsData?.data ?? (store.transactions as unknown as Transaction[]);
@@ -119,7 +120,7 @@ export default function TransactionsPage() {
       {isTxLoading && !transactionsData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading transactions...</div>
       ) : (
-        <TableWrap>
+        <TableWrap pagination={transactionsData?.pagination} onPageChange={setPage}>
           <table className="data">
             <thead>
               <tr>

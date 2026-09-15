@@ -3,7 +3,7 @@ export function etb(amount: number | string | null | undefined): string {
   return new Intl.NumberFormat("en-ET", {
     style: "currency",
     currency: "ETB",
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(Number.isFinite(numeric) ? numeric : 0);
 }
 
@@ -28,4 +28,3 @@ export function stamp(value?: string | null): string {
   if (!value) return "—";
   return String(value).replaceAll("_", " ");
 }
-

@@ -17,8 +17,9 @@ export default function MaterialsPage() {
   const [mode, setMode] = useState<RecordMode<MaterialCatalog>>(closedMode);
   const [purchaseNew, setPurchaseNew] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [page, setPage] = useState(1);
 
-  const { data: materialsData, isLoading } = useMaterials();
+  const { data: materialsData, isLoading } = useMaterials({ page, limit: 10, search: q || undefined });
   const deleteMutation = useDeleteMaterial();
 
   const materialsList = materialsData ? materialsData.data : (store.materials as unknown as MaterialCatalog[]);
@@ -92,14 +93,13 @@ export default function MaterialsPage() {
       {isLoading && !materialsData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading materials...</div>
       ) : (
-        <TableWrap>
+        <TableWrap pagination={materialsData?.pagination} onPageChange={setPage}>
           <table className="data">
             <thead>
               <tr>
                 <th>Name</th>
                 <th>Unit</th>
                 <th className="hidden sm:table-cell">Type</th>
-                <th>On hand</th>
                 {canMutate ? <th></th> : null}
               </tr>
             </thead>
@@ -115,7 +115,6 @@ export default function MaterialsPage() {
                   <td className="hidden sm:table-cell">
                     <Stamp value={m.type} />
                   </td>
-                  <td className="font-mono">{qty(m.total, m.unit)}</td>
                   {canMutate ? (
                     <td>
                       <RecordActions

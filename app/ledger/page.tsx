@@ -17,8 +17,11 @@ export default function LedgerPage() {
   const [siteId, setSiteId] = useState<string>("");
   const [licenseId, setLicenseId] = useState<string>("");
   const [sourceRefType, setSourceRefType] = useState<string>("");
+  const [page, setPage] = useState(1);
 
   const { data: ledgersData, isLoading: isLedgerLoading } = useLedgers({
+    page,
+    limit: 10,
     siteId: siteId ? [siteId] : undefined,
     licenseId: licenseId ? [licenseId] : undefined,
     sourceRefType: sourceRefType ? [sourceRefType] : undefined,
@@ -45,7 +48,7 @@ export default function LedgerPage() {
         kicker="System"
         title="Project Ledger"
       />
-      
+
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <select className="field w-48" value={licenseId} onChange={(e) => setLicenseId(e.target.value)}>
           <option value="">All licenses</option>
@@ -79,7 +82,7 @@ export default function LedgerPage() {
       {isLedgerLoading && !ledgersData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading ledger entries...</div>
       ) : (
-        <TableWrap>
+        <TableWrap pagination={ledgersData?.pagination} onPageChange={setPage}>
           <table className="data">
             <thead>
               <tr>

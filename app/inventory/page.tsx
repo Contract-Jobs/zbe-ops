@@ -79,7 +79,8 @@ export default function InventoryPage() {
       {isLoading && !locationsData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading inventory locations...</div>
       ) : (
-        <TableWrap>
+        <TableWrap data={rows} showSort={false}>
+          {(paginatedRows) => (
           <table className="data w-full text-left">
             <thead>
               <tr>
@@ -90,7 +91,7 @@ export default function InventoryPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((l) => (
+              {paginatedRows.map((l) => (
                 <tr key={l.id}>
                   <td>
                     <Link href={`/inventory/${l.id}`} className="font-medium hover:text-yellow">
@@ -114,6 +115,7 @@ export default function InventoryPage() {
               ) : null}
             </tbody>
           </table>
+          )}
         </TableWrap>
       )}
     </div>

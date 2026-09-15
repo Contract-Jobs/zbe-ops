@@ -20,9 +20,11 @@ export default function WarehouseDetailPage() {
   const store = useStore();
 
   const { data: warehouseData, isLoading: isWarehouseLoading } = useWarehouse(id);
-  const { data: equipData } = useEquipmentList({ warehouseId: id ? [id] : undefined, limit: 300 });
+  const [equipPage, setEquipPage] = useState(1);
+  const { data: equipData } = useEquipmentList({ warehouseId: id ? [id] : undefined, page: equipPage, limit: 10 });
   const { data: inventoryAnalytics } = useInventoryAnalytics({ warehouseId: id });
-  const { data: balancesData } = useInventoryBalances({ warehouseId: id ? [id] : undefined, limit: 300 });
+  const [balPage, setBalPage] = useState(1);
+  const { data: balancesData } = useInventoryBalances({ warehouseId: id ? [id] : undefined, page: balPage, limit: 10 });
   // const { data: materialsData } = useMaterials({ limit: 300 });
 
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
@@ -78,11 +80,11 @@ export default function WarehouseDetailPage() {
           <button className="btn btn-ghost" onClick={() => setPurchaseMaterialOpen(true)}>Purchase material</button>
         </div>
         {balances.length > 0 ? (
-          <TableWrap>
+          <TableWrap pagination={balancesData?.pagination} onPageChange={setBalPage}>
             <table className="data w-full text-left">
               <thead>
                 <tr>
-                  <th>SKU</th>
+                  <th>Material</th>
                   <th className="text-left">Quantity</th>
                   <th className="text-left">Average Unit Price</th>
                   {canMutate && <th className="text-left">Action</th>}
@@ -132,7 +134,7 @@ export default function WarehouseDetailPage() {
           <button className="btn btn-ghost" onClick={() => setPurchaseEquipmentOpen(true)}>Purchase equipment</button>
         </div>
         {equipment.length > 0 ? (
-          <TableWrap>
+          <TableWrap pagination={equipData?.pagination} onPageChange={setEquipPage}>
             <table className="data w-full text-left">
               <thead>
                 <tr>

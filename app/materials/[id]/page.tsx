@@ -44,11 +44,17 @@ export default function MaterialDetailPage() {
   const { data: materialData, isLoading: isMaterialLoading } = useMaterial(id);
   const { data: subItemsData } = useSubItems(id);
   const { data: traceData, isLoading: isTraceLoading } = useMaterialTrace(id);
-  const { data: balancesData } = useInventoryBalances({ materialId: id ? [id] : undefined });
-  const { data: logsData } = useMaterialLogs({ materialId: id });
+  const [balPage, setBalPage] = useState(1);
+  const { data: balancesData } = useInventoryBalances({ materialId: id ? [id] : undefined, page: balPage, limit: 10 });
+  const [logPage, setLogPage] = useState(1);
+  const { data: logsData } = useMaterialLogs({ materialId: id, page: logPage, limit: 10 });
   const { data: sitesData } = useSites();
   const { data: warehousesData } = useWarehouses();
+  const { data: matTrace } = useMaterialTrace(id)
+  const totalCount = matTrace?.data ? matTrace.data.currentBalances.map(cb => cb.quantity).reduce((prev, curr) => curr + prev, 0) : 0;
+  const averagePrice = matTrace?.data ? (matTrace.data.currentBalances.map(cb => cb.avgUnitPrice).reduce((prev, curr) => (curr || 0) + (prev || 0), 0) || 0) / (matTrace.data.currentBalances?.length || 1) : 0
 
+  console.log(totalCount, averagePrice, matTrace?.data.currentBalances.map(cb => cb.avgUnitPrice).reduce((prev, curr) => (curr || 0) + (prev || 0), 0))
   const deleteMaterialMutation = useDeleteMaterial();
   const removeSubItemMutation = useRemoveSubItem(id || "");
 
@@ -192,9 +198,22 @@ export default function MaterialDetailPage() {
             ) : (
               <p className="text-sm text-black/45">{item.type === "set" ? "No parts listed." : "Not a set."}</p>
             )}
+
+            {matTrace?.data && <div className="grid gap-px bg-black/10 sm:grid-cols-3">
+              <div className="bg-white p-5">
+                <p className="kicker">Total</p>
+                <p className="mt-2 break-words text-2xl tracking-tight">{qty(totalCount, materialData?.data.unit)}</p>
+              </div>
+
+              <div className="bg-white p-5">
+                <p className="kicker">Total Value</p>
+                <p className="mt-2 break-words text-2xl tracking-tight">{etb(averagePrice * totalCount)}</p>
+              </div>
+            </div>
+            }
           </div>
           <p className="kicker mb-2">Global Distribution</p>
-          <TableWrap>
+          <TableWrap pagination={balancesData?.pagination} onPageChange={setBalPage}>
             <table className="data w-full text-left mb-10">
               <thead>
                 <tr>
@@ -238,7 +257,7 @@ export default function MaterialDetailPage() {
           </TableWrap>
 
           <p className="kicker mb-2">Activity Ledger</p>
-          <TableWrap>
+          <TableWrap pagination={logsData?.pagination} onPageChange={setLogPage}>
             <table className="data w-full text-left">
               <thead>
                 <tr>

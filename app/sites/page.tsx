@@ -26,7 +26,9 @@ export default function SitesPage() {
   const [mode, setMode] = useState<RecordMode<Site>>(closedMode);
   const [showDeleted, setShowDeleted] = useState(false);
 
-  const { data: sitesData, isLoading } = useSites();
+  const [page, setPage] = useState(1);
+
+  const { data: sitesData, isLoading } = useSites({ page, limit: 10 });
   const { data: licensesData } = useLicenses();
   const deleteMutation = useDeleteSite();
 
@@ -93,7 +95,7 @@ export default function SitesPage() {
       {isLoading && !sitesData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading sites...</div>
       ) : (
-        <TableWrap>
+        <TableWrap pagination={sitesData?.pagination} onPageChange={setPage}>
           <table className="data">
             <thead>
               <tr>

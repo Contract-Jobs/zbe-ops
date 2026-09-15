@@ -11,9 +11,12 @@ import type { Approval } from "@/types/api";
 export default function ApprovalsPage() {
   const store = useStore();
   const [status, setStatus] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const [page, setPage] = useState(1);
 
   const { data: approvalsData, isLoading } = useApprovals({
     status: status === "all" ? undefined : [status],
+    page,
+    limit: 10,
   });
 
   const apiApprovals = approvalsData?.data;
@@ -32,7 +35,10 @@ export default function ApprovalsPage() {
             key={s}
             type="button"
             className={`btn ${status === s ? "" : "btn-ghost"}`}
-            onClick={() => setStatus(s)}
+            onClick={() => {
+              setStatus(s);
+              setPage(1);
+            }}
           >
             {s}
           </button>
@@ -41,7 +47,7 @@ export default function ApprovalsPage() {
       {isLoading && !approvalsData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading approvals...</div>
       ) : (
-        <TableWrap>
+        <TableWrap pagination={approvalsData?.pagination} onPageChange={setPage}>
           <table className="data">
             <thead>
               <tr>

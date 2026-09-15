@@ -18,7 +18,8 @@ export default function BoardPage() {
 
   const { data: approvalsData } = useApprovals({ status: ["pending"] });
   const { data: equipmentData } = useEquipmentList();
-  const { data: sitesData } = useSites();
+  const [sitePage, setSitePage] = useState(1);
+  const { data: sitesData } = useSites({ page: sitePage, limit: 10 });
   const { data: spendData } = useSpendAnalytics();
   const { data: budgetHealthData } = useBudgetHealth();
 
@@ -80,7 +81,7 @@ export default function BoardPage() {
       <div className="mt-10 grid gap-10 lg:grid-cols-[1.15fr_0.85fr]">
         <section>
           <p className="kicker mb-3">Budget health</p>
-          <TableWrap>
+          <TableWrap pagination={sitesData?.pagination} onPageChange={setSitePage}>
             <table className="data">
               <thead>
                 <tr>
