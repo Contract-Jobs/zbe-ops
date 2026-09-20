@@ -329,7 +329,7 @@ export default function SiteDetailPage() {
         <div className="mb-4 flex items-center justify-between">
           <div className="w-1/2 flex flex-col gap-2">
             <p className="kicker">Tasks</p>
-            <p>{(taskCompletion * 100).toFixed(0)}% complete</p>
+            <p>{((taskCompletion || 0) * 100).toFixed(0)}% complete</p>
             <div className="w-full bg-black/5 h-1.5 overflow-hidden">
               <div className="bg-yellow h-full" style={{ width: `${(taskCompletion * 100).toFixed(2)}%` }} />
             </div>

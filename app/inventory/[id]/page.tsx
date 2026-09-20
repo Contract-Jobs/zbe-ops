@@ -150,6 +150,7 @@ export default function InventoryLocationPage() {
                   <th>Equipment</th>
                   <th>Status</th>
                   <th>Ownership</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -167,8 +168,10 @@ export default function InventoryLocationPage() {
                           tone={status === "working" || status === "available" ? "ok" : status === "repair" || status === "maintenance" ? "bad" : "ink"}
                         />
                       </td>
-                      <td className="text-sm capitalize flex items-center justify-between gap-3 min-w-[140px]">
+                      <td className="text-sm capitalize items-center min-w-[140px]">
                         {e.ownershipStatus}
+                      </td>
+                      <td>
                         {canMutate && (
                           <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveEquipmentId(e.id)}>Move</button>
                         )}
