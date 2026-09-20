@@ -5,8 +5,8 @@ import { CategoryForm } from "@/components/forms/master";
 import { TransactionForm } from "@/components/forms/transaction";
 import { ConfirmDialog, FormPanel, PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
 import { day, etb } from "@/lib/format";
-import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
-import { useTransactions } from "@/hooks/use-transactions";
+import { currentUser, isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
+import { useTransactions, useReverseTransaction } from "@/hooks/use-transactions";
 import { useCategories, useDeleteCategory } from "@/hooks/use-categories";
 import { useSites } from "@/hooks/use-sites";
 import type { Transaction, TransactionCategory, Site } from "@/types/api";
@@ -14,6 +14,8 @@ import type { Transaction, TransactionCategory, Site } from "@/types/api";
 export default function TransactionsPage() {
   const store = useStore();
   const manager = isSiteManager(store);
+  const user = currentUser(store);
+  const canMutate = !manager;
   const sites = visibleSiteIds(store);
   const [page, setPage] = useState(1);
 
@@ -22,12 +24,14 @@ export default function TransactionsPage() {
   const { data: sitesData } = useSites();
 
   const deleteCategoryMutation = useDeleteCategory();
+  const reverseTransactionMutation = useReverseTransaction();
 
   const [showDeletedCats, setShowDeletedCats] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
+  const [addTxOpen, setAddTxOpen] = useState(false);
   const [dropCat, setDropCat] = useState<TransactionCategory | null>(null);
-
-  const canMutate = !manager;
+  const [reverseTarget, setReverseTarget] = useState<Transaction | null>(null);
+  const [reverseError, setReverseError] = useState<string | null>(null);
 
   const categories = (categoriesData?.data ?? (store.categories as unknown as TransactionCategory[])).filter(
     (c) => showDeletedCats || !c.deletedAt
@@ -62,6 +66,17 @@ export default function TransactionsPage() {
     }
   };
 
+  const handleReverse = async () => {
+    if (!reverseTarget) return;
+    setReverseError(null);
+    try {
+      await reverseTransactionMutation.mutateAsync(reverseTarget.id);
+      setReverseTarget(null);
+    } catch (e) {
+      setReverseError(e instanceof Error ? e.message : "Reversal failed — the API rejected this request.");
+    }
+  };
+
   return (
     <div>
       <PageHead
@@ -77,8 +92,11 @@ export default function TransactionsPage() {
               />
               Show deleted categories
             </label>
-            <button type="button" className="btn" onClick={() => setCatOpen(true)}>
+            <button type="button" className="btn btn-ghost" onClick={() => setCatOpen(true)}>
               New category
+            </button>
+            <button type="button" className="btn" onClick={() => setAddTxOpen(true)}>
+              Log transaction
             </button>
           </div>
         ) : undefined}
@@ -113,9 +131,11 @@ export default function TransactionsPage() {
         ))}
       </div>
 
-      <div className="mb-8 border border-black/10 bg-paper/30 p-5">
-        <TransactionForm />
-      </div>
+      {addTxOpen ? (
+        <FormPanel kicker="Money" title="Log Manual Transaction" onClose={() => setAddTxOpen(false)}>
+          <TransactionForm onDone={() => setAddTxOpen(false)} />
+        </FormPanel>
+      ) : null}
 
       {isTxLoading && !transactionsData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading transactions...</div>
@@ -129,12 +149,23 @@ export default function TransactionsPage() {
                 <th className="hidden md:table-cell">Category</th>
                 <th className="hidden sm:table-cell">Type</th>
                 <th>Amount</th>
+                {canMutate && <th></th>}
               </tr>
             </thead>
             <tbody>
               {rows.map((t) => {
                 const desc = t.description ?? "Manual entry";
                 const siteName = allSites.find(s => s.id === t.siteId)?.name ?? "HQ";
+                const canReverse =
+                  !t.isReversal &&
+                  (
+                    // Admins can reverse any transaction
+                    // Site managers can reverse manual transactions on sites they manage;
+                    // equipmentId !== null means auto-linked to an equipment log — excluded.
+                    // Material-log-linked transactions have no client field, so the API
+                    // will 403 and the error is surfaced in the confirm dialog.
+                    ((manager || (user?.role === "admin" || user?.role === "superadmin")) && !!t.siteId && sites.has(t.siteId) && t.equipmentId === null && t.materialId === null)
+                  );
 
                 return (
                   <tr key={t.id}>
@@ -154,12 +185,25 @@ export default function TransactionsPage() {
                       <Stamp value={t.type} tone={statusTone(t.type)} />
                     </td>
                     <td className="whitespace-nowrap font-mono text-sm">{etb(Number(t.amount) || 0)}</td>
+                    {canMutate && (
+                      <td className="text-right">
+                        {canReverse ? (
+                          <button
+                            type="button"
+                            className="btn btn-ghost-bad px-2 py-0.5 text-xs"
+                            onClick={() => setReverseTarget(t)}
+                          >
+                            Reverse
+                          </button>
+                        ) : null}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-sm text-black/45">
+                  <td colSpan={canMutate ? 6 : 5} className="py-12 text-center text-sm text-black/45">
                     No transactions found.
                   </td>
                 </tr>
@@ -177,6 +221,18 @@ export default function TransactionsPage() {
         onCancel={() => setDropCat(null)}
         onConfirm={handleDropCategory}
       />
+
+      <ConfirmDialog
+        open={reverseTarget !== null}
+        title="Reverse this transaction?"
+        body={`This will create an inverse ${reverseTarget?.type === "money_out" ? "money-in" : "money-out"} entry for ${etb(Number(reverseTarget?.amount) || 0)}. This cannot be undone.`}
+        confirmLabel="Reverse transaction"
+        danger
+        loading={reverseTransactionMutation.isPending}
+        onCancel={() => setReverseTarget(null)}
+        onConfirm={handleReverse}
+      />
     </div>
   );
 }
+

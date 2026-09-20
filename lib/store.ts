@@ -236,29 +236,29 @@ export function userName(id: string, store: Store = state): string {
 
 function bumpBalance(
   balances: InventoryBalance[],
-  catalogId: string,
+  materialId: string,
   kind: LocationKind,
   locationId: string,
   delta: number,
 ): InventoryBalance[] {
   const next = balances.map((b) => ({ ...b }));
-  const hit = next.find((b) => b.catalogId === catalogId && b.locationKind === kind && b.locationId === locationId);
+  const hit = next.find((b) => b.materialId === materialId && b.locationKind === kind && b.locationId === locationId);
   if (hit) {
     hit.quantity += delta;
     return next;
   }
-  next.push({ catalogId, locationKind: kind, locationId, quantity: delta });
+  next.push({ materialId, locationKind: kind, locationId, quantity: delta });
   return next;
 }
 
 function requireQty(
   balances: InventoryBalance[],
-  catalogId: string,
+  materialId: string,
   kind: LocationKind,
   locationId: string,
   qty: number,
 ) {
-  const hit = balances.find((b) => b.catalogId === catalogId && b.locationKind === kind && b.locationId === locationId);
+  const hit = balances.find((b) => b.materialId === materialId && b.locationKind === kind && b.locationId === locationId);
   if (!hit || hit.quantity < qty) {
     throw new Error("Insufficient quantity at source");
   }
@@ -648,6 +648,7 @@ export function logManualTx(input: {
   warehouseId?: string;
   equipmentId?: string;
   note: string;
+  transactionDate?: string;
 }) {
   const user = currentUser();
   const now = new Date().toISOString();
@@ -660,7 +661,7 @@ export function logManualTx(input: {
     categoryId: input.categoryId,
     warehouseId: input.warehouseId,
     equipmentId: input.equipmentId,
-    transactionDate: now,
+    transactionDate: input.transactionDate || now,
     createdAt: now,
     note: input.note,
     sourceRefType: "manual",

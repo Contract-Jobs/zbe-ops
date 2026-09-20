@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { logManualTx, useStore } from "@/lib/store";
+import { logManualTx, useStore, currentUser } from "@/lib/store";
 import { useCreateTransaction } from "@/hooks/use-transactions";
 import { useCategories } from "@/hooks/use-categories";
 import { useLicenses } from "@/hooks/use-licenses";
@@ -19,6 +19,8 @@ export function TransactionForm({
   onDone?: () => void;
 }) {
   const store = useStore();
+  const user = currentUser(store);
+  const requiresApproval = user.role !== "admin" && user.role !== "superadmin";
 
   const { data: categoriesData } = useCategories();
   const { data: licensesData } = useLicenses();
@@ -47,6 +49,7 @@ export function TransactionForm({
   const [locId, setLocId] = useState<string>(initialSiteId);
   const [categoryId, setCategoryId] = useState(activeCategoryId);
   const [licenseId, setLicenseId] = useState(activeLicenseId);
+  const [transactionDate, setTransactionDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [msg, setMsg] = useState<string | null>(null);
 
   const handlePost = async (e: React.FormEvent) => {
@@ -69,6 +72,7 @@ export function TransactionForm({
         warehouseId,
         categoryId: finalCategoryId || undefined,
         description: note || "Manual entry",
+        transactionDate,
       };
 
       if (createTxMutation) {
@@ -82,12 +86,13 @@ export function TransactionForm({
           warehouseId,
           categoryId: finalCategoryId,
           note: note || "Manual entry",
+          transactionDate,
         });
       }
 
       setAmount("");
       setNote("");
-      setMsg("Approved.");
+      setMsg(requiresApproval ? "Transaction submitted for approval." : "Approved.");
       if (onDone) onDone();
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "Failed");
@@ -108,6 +113,15 @@ export function TransactionForm({
         </div>
       </Field>
 
+      <Field label="Date">
+        <input
+          className="field flex-1 min-w-0"
+          type="date"
+          required
+          value={transactionDate}
+          onChange={(e) => setTransactionDate(e.target.value)}
+        />
+      </Field>
 
       <Field label="Amount">
         <input

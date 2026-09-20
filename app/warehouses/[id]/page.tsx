@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
 import { PageHead, TableWrap, Stamp, FormPanel, ModalPanel } from "@/components/ui";
 import { useStore } from "@/lib/store";
@@ -10,6 +11,7 @@ import { useInventoryBalances } from "@/hooks/use-inventory";
 import { useMaterials } from "@/hooks/use-materials";
 import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
+import { InventoryAdjustForm } from "@/components/forms/inventory-adjust";
 import { isSiteManager } from "@/lib/store";
 import type { Warehouse, Equipment, InventoryBalance, MaterialCatalog } from "@/types/api";
 import { useInventoryAnalytics } from "@/hooks/use-analytics";
@@ -30,6 +32,7 @@ export default function WarehouseDetailPage() {
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
 
   const [moveMaterialId, setMoveMaterialId] = useState<string | null>(null);
+  const [adjustBalance, setAdjustBalance] = useState<{ id: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
   const [purchaseMaterialOpen, setPurchaseMaterialOpen] = useState(false);
   const [purchaseEquipmentOpen, setPurchaseEquipmentOpen] = useState(false);
@@ -54,7 +57,17 @@ export default function WarehouseDetailPage() {
     <div>
       <PageHead
         kicker="Central"
-        title={warehouse.name}
+        title={
+          <span className="flex items-baseline gap-4">
+            {warehouse.name}
+            <Link
+              href={`/warehouses/${id}/sold-items`}
+              className="text-base! text-[#0072c3]! underline! bg-transparent hover:text-[#005a9c]!"
+            >
+              See Sold Items
+            </Link>
+          </span>
+        }
       />
       <div className="mb-8">
         <p className="text-black/70">Location: {warehouse.location ?? "—"}</p>
@@ -112,6 +125,17 @@ export default function WarehouseDetailPage() {
                         {canMutate && (
                           <span className="inline-block text-left">
                             <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId(m?.id)}>Move</button>
+                            <button
+                              className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
+                              onClick={() => setAdjustBalance({
+                                id: (b as any).id ?? "",
+                                materialName: m.name,
+                                unit: m.unit,
+                                currentQuantity: b.quantity
+                              })}
+                            >
+                              Adjust
+                            </button>
                           </span>
                         )}
                       </td>
@@ -223,6 +247,20 @@ export default function WarehouseDetailPage() {
             allowedActions={["purchased"]}
             onSuccess={() => setPurchaseEquipmentOpen(false)}
             onCancel={() => setPurchaseEquipmentOpen(false)}
+          />
+        </ModalPanel>
+      ) : null}
+
+      {adjustBalance ? (
+        <ModalPanel kicker="Warehouse Inventory" title="Adjust Balance" onClose={() => setAdjustBalance(null)}>
+          <InventoryAdjustForm
+            noBg
+            balanceId={adjustBalance.id}
+            materialName={adjustBalance.materialName}
+            unit={adjustBalance.unit}
+            currentQuantity={adjustBalance.currentQuantity}
+            onSuccess={() => setAdjustBalance(null)}
+            onCancel={() => setAdjustBalance(null)}
           />
         </ModalPanel>
       ) : null}

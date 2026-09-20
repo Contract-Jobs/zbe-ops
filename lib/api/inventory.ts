@@ -1,7 +1,7 @@
 import { apiClient } from "./client"
 import { buildListParams } from "./list-params"
 import type { ListParams } from "./list-params"
-import type { InventoryBalance, MaterialLog, InventoryLocationSummary, Equipment } from "@/types/api"
+import type { InventoryBalance, MaterialLog, InventoryLocationSummary, Equipment, InventoryBalanceAdjustPayload } from "@/types/api"
 
 // export type InventoryBalanceParams = ListParams<{
 //     siteId?: string
@@ -55,4 +55,8 @@ export function getInventoryLocationMaterials(id: string, params: ListParams = {
 
 export function getInventoryLocationEquipments(id: string, params: ListParams = {}) {
     return apiClient.get<Equipment[]>(`/api/inventory/${id}/equipments`, buildListParams(params))
+}
+
+export function adjustInventoryBalance(id: string, payload: InventoryBalanceAdjustPayload) {
+    return apiClient.post<MaterialLog>(`/api/inventory/balances/${id}/adjust`, payload)
 }

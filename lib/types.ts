@@ -77,7 +77,7 @@ export type Material = {
 export type LocationKind = "site" | "warehouse";
 
 export type InventoryBalance = {
-  catalogId: string;
+  materialId: string;
   locationKind: LocationKind;
   locationId: string;
   quantity: number;

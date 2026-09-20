@@ -32,7 +32,7 @@ export default function MaterialsPage() {
       .map((m) => ({
         ...m,
         // Quantity from store balances until inventory is wired on this page
-        total: store.balances.filter((b) => b.catalogId === m.id).reduce((s, b) => s + b.quantity, 0),
+        total: store.balances.filter((b) => b.materialId === m.id).reduce((s, b) => s + b.quantity, 0),
       }));
   }, [q, store.balances, materialsList, showDeleted]);
 

@@ -59,18 +59,18 @@ export async function demoHandler(method: string, path: string, body?: any): Pro
             if (body.fromSiteId || body.fromWarehouseId) {
                 const kind = body.fromSiteId ? "site" : "warehouse";
                 const id = body.fromSiteId || body.fromWarehouseId;
-                const hit = balances.find(b => b.catalogId === (body.catalogId || body.materialId) && b.locationKind === kind && b.locationId === id);
+                const hit = balances.find(b => b.materialId === body.materialId && b.locationKind === kind && b.locationId === id);
                 if (hit) hit.quantity -= qty;
             }
             if (body.toSiteId || body.toWarehouseId) {
                 const kind = body.toSiteId ? "site" : "warehouse";
                 const id = body.toSiteId || body.toWarehouseId;
-                const hit = balances.find(b => b.catalogId === (body.catalogId || body.materialId) && b.locationKind === kind && b.locationId === id);
+                const hit = balances.find(b => b.materialId === body.materialId && b.locationKind === kind && b.locationId === id);
                 if (hit) {
                     hit.quantity += qty;
                 } else {
                     balances.push({
-                        catalogId: body.catalogId || body.materialId,
+                        materialId: body.materialId,
                         locationKind: kind,
                         locationId: id,
                         quantity: qty

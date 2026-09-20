@@ -171,17 +171,17 @@ export const subitems: MaterialSubitem[] = [
 ];
 
 export const balances: InventoryBalance[] = [
-  { catalogId: "mat_nyy", locationKind: "warehouse", locationId: "wh_bole", quantity: 1800 },
-  { catalogId: "mat_nyy", locationKind: "site", locationId: "site_westin", quantity: 420 },
-  { catalogId: "mat_mcb", locationKind: "warehouse", locationId: "wh_bole", quantity: 640 },
-  { catalogId: "mat_mcb", locationKind: "site", locationId: "site_westin", quantity: 86 },
-  { catalogId: "mat_din", locationKind: "warehouse", locationId: "wh_bole", quantity: 210 },
-  { catalogId: "mat_pvc", locationKind: "warehouse", locationId: "wh_kaliti", quantity: 900 },
-  { catalogId: "mat_pvc", locationKind: "site", locationId: "site_westin", quantity: 140 },
-  { catalogId: "mat_board", locationKind: "warehouse", locationId: "wh_bole", quantity: 12 },
-  { catalogId: "mat_board", locationKind: "site", locationId: "site_westin", quantity: 4 },
-  { catalogId: "mat_cat6", locationKind: "warehouse", locationId: "wh_bole", quantity: 2500 },
-  { catalogId: "mat_cat6", locationKind: "site", locationId: "site_ebc", quantity: 600 },
+  { materialId: "mat_nyy", locationKind: "warehouse", locationId: "wh_bole", quantity: 1800 },
+  { materialId: "mat_nyy", locationKind: "site", locationId: "site_westin", quantity: 420 },
+  { materialId: "mat_mcb", locationKind: "warehouse", locationId: "wh_bole", quantity: 640 },
+  { materialId: "mat_mcb", locationKind: "site", locationId: "site_westin", quantity: 86 },
+  { materialId: "mat_din", locationKind: "warehouse", locationId: "wh_bole", quantity: 210 },
+  { materialId: "mat_pvc", locationKind: "warehouse", locationId: "wh_kaliti", quantity: 900 },
+  { materialId: "mat_pvc", locationKind: "site", locationId: "site_westin", quantity: 140 },
+  { materialId: "mat_board", locationKind: "warehouse", locationId: "wh_bole", quantity: 12 },
+  { materialId: "mat_board", locationKind: "site", locationId: "site_westin", quantity: 4 },
+  { materialId: "mat_cat6", locationKind: "warehouse", locationId: "wh_bole", quantity: 2500 },
+  { materialId: "mat_cat6", locationKind: "site", locationId: "site_ebc", quantity: 600 },
 ];
 
 export const materialLogs: MaterialLog[] = [

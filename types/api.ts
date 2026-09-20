@@ -23,8 +23,7 @@ export interface MaterialSubitem {
 
 export interface MaterialLog {
   id: string;
-  catalogId?: string;
-  materialId?: string;
+  materialId: string;
   logType: string;
   quantity: number;
   unitPrice: string | number;
@@ -49,9 +48,11 @@ export interface MaterialLog {
 export interface InventoryBalance {
   id: string;
   materialId: string;
-  siteId?: string;
-  warehouseId?: string;
+  siteId?: string | null;
+  warehouseId?: string | null;
   quantity: number;
+  avgUnitPrice: string;
+  updatedAt: string;
 }
 
 export interface Equipment {
@@ -211,7 +212,6 @@ export interface License {
   id: string;
   name: string;
   createdAt: string;
-  updatedAt: string;
   deletedAt: string | null;
 }
 
@@ -220,7 +220,6 @@ export interface Warehouse {
   name: string;
   location: string | null;
   createdAt: string;
-  updatedAt: string;
   deletedAt: string | null;
 }
 
@@ -231,6 +230,7 @@ export interface Transaction {
   warehouseId: string | null;
   equipmentId: string | null;
   categoryId: string | null;
+  materialId: string | null;
   type: "money_in" | "money_out";
   amount: string;
   description: string | null;
@@ -249,6 +249,15 @@ export interface TransactionCategory {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+}
+
+export interface SoldItemsOverview {
+  soldEquipmentCount: number;
+  soldEquipmentTotal: string;
+  soldMaterialCount: number;
+  soldMaterialTotal: string;
+  totalCount: number;
+  totalRevenue: string;
 }
 
 export interface ProjectLedger {
@@ -305,7 +314,7 @@ export type MaterialLogAction =
       materialId: string | "new";
       quantity: number;
       purchaseCost: string;
-      destination?: LocationRef;
+      destination: LocationRef;
       categoryId?: string;
       licenseId?: string;
       notes?: string;
@@ -349,6 +358,12 @@ export type MaterialLogAction =
       source?: LocationRef;
       notes?: string;
     };
+
+export interface InventoryBalanceAdjustPayload {
+  quantity: number;
+  newUnitPrice?: string;
+  notes?: string;
+}
 
 export type EquipmentLogAction =
   | {
@@ -422,15 +437,8 @@ export type EquipmentLogAction =
       notes?: string;
     };
 
-export interface RentalAdjustPayload {
-  adjustmentAmount: string;
-  notes?: string;
-}
-
-export interface RentalReturnPayload {
-  rentReturnDate: string;
-  notes?: string;
-}
+// NOTE: the correct RentalAdjustPayload and RentalReturnPayload are declared
+// below (lines ~464). These placeholder declarations were wrong and removed.
 
 export type RentalCreatePayload =
   | {
@@ -512,9 +520,12 @@ export interface SpendAnalytics {
 export interface BudgetHealthEntry {
   siteId: string;
   siteName: string;
-  budgetAllocated: string;
-  cashSpent: string;
-  assetAllocation: string;
+  materialBudget: string;
+  laborBudget: string;
+  totalBudget: string;
+  materialSpent: string;
+  laborSpent: string;
+  otherSpent: string;
   totalSpent: string;
   variance: string;
   isOverBudget: boolean;
@@ -558,9 +569,19 @@ export interface InventoryAnalytics {
   totalMaterials: number;
   totalEquipment: number;
   totalMaterialValue: string;
+  totalEquipmentValue: string;
   bySite: { siteId: string; siteName: string; materialCount: number; totalQuantity: number }[];
   byWarehouse: { warehouseId: string; warehouseName: string; materialCount: number; totalQuantity: number }[];
   movementVolume: { movementType: string; count: number; totalQuantity: number }[];
+}
+
+export interface SalesAnalytics {
+  soldEquipmentCount: number;
+  soldEquipmentTotal: string;
+  soldMaterialCount: number;
+  soldMaterialTotal: string;
+  totalCount: number;
+  totalRevenue: string;
 }
 export interface InventoryLocationSummary {
   id: string;

@@ -46,6 +46,7 @@ import { useLicenses } from "@/hooks/use-licenses";
 import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
 import { TransactionForm } from "@/components/forms/transaction";
+import { InventoryAdjustForm } from "@/components/forms/inventory-adjust";
 import type { Site, SiteTask, Equipment, InventoryBalance, MaterialCatalog, License, SiteLifecycleLog } from "@/types/api";
 
 const getTaskStatus = (task: SiteTask) => {
@@ -79,6 +80,7 @@ export default function SiteDetailPage() {
   const [taskMode, setTaskMode] = useState<RecordMode<SiteTask>>(closedMode);
   const [lifecycleModalOpen, setLifecycleModalOpen] = useState(false);
   const [moveMaterialId, setMoveMaterialId] = useState<string | null>(null);
+  const [adjustBalance, setAdjustBalance] = useState<{ id: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
   const [purchaseMaterialOpen, setPurchaseMaterialOpen] = useState(false);
   const [purchaseEquipmentOpen, setPurchaseEquipmentOpen] = useState(false);
@@ -409,7 +411,7 @@ export default function SiteDetailPage() {
                   <td className="text-right">
                     <div className="flex flex-wrap items-center justify-end gap-2">
                       {(getTaskStatus(task) === "open") &&
-                        (user?.role === "site_manager" || user?.role === "admin" || user?.role === "superadmin") &&
+                        user?.role === "site_manager" &&
                         !isClosed ? (
                         <button
                           type="button"
@@ -472,7 +474,7 @@ export default function SiteDetailPage() {
                   <tbody>
                     {bals.map((b) => {
                       const m = materials?.find((mat) => mat.id === (b as any).materialId);
-                      const key = m?.id;
+                      const key = b.id;
                       if (!m || !key) return null
                       return (
                         <tr key={key}>
@@ -491,6 +493,17 @@ export default function SiteDetailPage() {
                             {canMutate && (
                               <span className="inline-block text-left">
                                 <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId(m?.id)}>Move</button>
+                                <button
+                                  className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
+                                  onClick={() => setAdjustBalance({
+                                    id: b.id,
+                                    materialName: m.name,
+                                    unit: m.unit,
+                                    currentQuantity: b.quantity
+                                  })}
+                                >
+                                  Adjust
+                                </button>
                               </span>
                             )}
                           </td>
@@ -502,7 +515,7 @@ export default function SiteDetailPage() {
               </TableWrap>
             ) : (
               <div className="border border-dashed border-black/20 p-8 text-center text-sm text-black/40">
-                No stock recorded at this warehouse.
+                No stock recorded at this site.
               </div>
             )}
           </div>
@@ -644,6 +657,20 @@ export default function SiteDetailPage() {
               ) : null}
             </ol>
           </div>
+        </ModalPanel>
+      ) : null}
+
+      {adjustBalance ? (
+        <ModalPanel kicker="Site Inventory" title="Adjust Balance" onClose={() => setAdjustBalance(null)}>
+          <InventoryAdjustForm
+            noBg
+            balanceId={adjustBalance.id}
+            materialName={adjustBalance.materialName}
+            unit={adjustBalance.unit}
+            currentQuantity={adjustBalance.currentQuantity}
+            onSuccess={() => setAdjustBalance(null)}
+            onCancel={() => setAdjustBalance(null)}
+          />
         </ModalPanel>
       ) : null}
     </div>

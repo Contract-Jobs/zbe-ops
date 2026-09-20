@@ -79,7 +79,7 @@ export default function MaterialDetailPage() {
   const traceHistory = traceData?.data?.history;
 
   const bals: InventoryBalance[] = balancesData?.data ??
-    (store.balances.filter((b) => b.catalogId === item.id && b.quantity !== 0) as unknown as InventoryBalance[]);
+    (store.balances.filter((b) => b.materialId === item.id && b.quantity !== 0) as unknown as InventoryBalance[]);
   const logs: MaterialLog[] = logsData?.data ??
     (store.materialLogs.filter((l) => l.materialId === item.id) as unknown as MaterialLog[]);
   const kits: MaterialSubitem[] = subItemsData?.data ??

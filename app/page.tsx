@@ -8,7 +8,7 @@ import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
 import { useApprovals } from "@/hooks/use-approvals";
 import { useEquipmentList } from "@/hooks/use-equipment";
 import { useSites } from "@/hooks/use-sites";
-import { useSpendAnalytics, useBudgetHealth } from "@/hooks/use-analytics";
+import { useSpendAnalytics, useBudgetHealth, useSalesAnalytics } from "@/hooks/use-analytics";
 import type { Approval, Equipment, Site } from "@/types/api";
 
 export default function BoardPage() {
@@ -22,6 +22,7 @@ export default function BoardPage() {
   const { data: sitesData } = useSites({ page: sitePage, limit: 10 });
   const { data: spendData } = useSpendAnalytics();
   const { data: budgetHealthData } = useBudgetHealth();
+  const { data: salesAnalyticsData } = useSalesAnalytics();
 
   const sites = useMemo(() => {
     const list = sitesData?.data ?? (store.sites as unknown as Site[]);
@@ -61,11 +62,41 @@ export default function BoardPage() {
 
     const out = Number(siteSpend?.cashOut) || 0;
     const inn = Number(siteSpend?.cashIn) || 0;
-    const cash = Number(health?.cashSpent) || 0; // mapping cashSpent to labor
-    const material = Number(health?.assetAllocation) || 0; // mapping assetAllocation to material
+    const labor = Number(health?.laborSpent) || 0;
+    const material = Number(health?.materialSpent) || 0;
 
-    return { out, inn, cash, material };
+    return { out, inn, labor, material };
   };
+
+  let salesAnalytics = salesAnalyticsData?.data;
+  if (!salesAnalyticsData) {
+    let eqTotal = 0;
+    let eqCount = 0;
+    store.equipmentLogs
+      .filter((l) => l.logType === "sale" && !l.isReversal)
+      .forEach((l) => {
+        eqCount++;
+        eqTotal += Number(l.price) || 0;
+      });
+
+    let matTotal = 0;
+    let matCount = 0;
+    store.materialLogs
+      .filter((l) => l.logType === "sale" && !l.isReversal)
+      .forEach((l) => {
+        matCount++;
+        matTotal += Number(l.unitPrice) || 0;
+      });
+
+    salesAnalytics = {
+      soldEquipmentCount: eqCount,
+      soldEquipmentTotal: String(eqTotal),
+      soldMaterialCount: matCount,
+      soldMaterialTotal: String(matTotal),
+      totalCount: eqCount + matCount,
+      totalRevenue: String(eqTotal + matTotal),
+    } as import("@/types/api").SalesAnalytics;
+  }
 
   return (
     <div>
@@ -106,9 +137,9 @@ export default function BoardPage() {
                         </div>
                       </td>
                       <td className="font-mono text-sm">
-                        {etb(s.cash)}
+                        {etb(s.labor)}
                         <span className="block text-[0.7rem] text-black/45">of {etb(laborBudget + materialBudget)}</span>
-                        <Bar used={s.cash} max={laborBudget + materialBudget} />
+                        <Bar used={s.labor} max={laborBudget + materialBudget} />
                       </td>
                     </tr>
                   );
@@ -125,8 +156,29 @@ export default function BoardPage() {
           </TableWrap>
         </section>
 
-        <section>
-          <p className="kicker mb-3">Waiting on you</p>
+        <section className="flex flex-col gap-10">
+          {salesAnalytics && (
+            <div>
+              <p className="kicker mb-3">Sales Overview</p>
+              <div className="grid gap-px bg-black/10">
+                <div className="bg-white p-4">
+                  <p className="text-sm font-medium text-black/60">Total Revenue</p>
+                  <p className="mt-1 font-mono text-xl">{etb(Number(salesAnalytics.totalRevenue))}</p>
+                </div>
+                <div className="bg-white p-4">
+                  <p className="text-sm font-medium text-black/60">Sold Equipment</p>
+                  <p className="mt-1 font-mono text-xl">{salesAnalytics.soldEquipmentCount} <span className="text-sm text-black/50">units</span></p>
+                </div>
+                <div className="bg-white p-4">
+                  <p className="text-sm font-medium text-black/60">Sold Materials</p>
+                  <p className="mt-1 font-mono text-xl">{salesAnalytics.soldMaterialCount} <span className="text-sm text-black/50">batches</span></p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <p className="kicker mb-3">Waiting on you</p>
           <ul className="border border-black/10">
             {pending.slice(0, 6).map((a) => {
               const summary = (a as unknown as { summary?: string }).summary ??
@@ -152,6 +204,7 @@ export default function BoardPage() {
               In the shop: {maintenance.map((e) => e.name).join(", ")}.
             </p>
           ) : null}
+          </div>
         </section>
       </div>
     </div>

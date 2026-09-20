@@ -6,6 +6,7 @@ import type {
     BudgetHealthEntry,
     LicenseAnalytics,
     CostBreakdown,
+    SalesAnalytics,
 } from "@/types/api"
 
 interface DateRangeParams {
@@ -47,4 +48,8 @@ export function getLicenseAnalytics(params: DateRangeParams = {}) {
 
 export function getCostBreakdown(params: { siteId: string } & DateRangeParams) {
     return apiClient.get<CostBreakdown>("/api/analytics/cost-breakdown", toSearchParams(params))
+}
+
+export function getSalesAnalytics(params: { warehouseId?: string } & DateRangeParams = {}) {
+    return apiClient.get<SalesAnalytics>("/api/analytics/sales", toSearchParams(params))
 }

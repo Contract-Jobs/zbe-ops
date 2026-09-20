@@ -8,6 +8,7 @@ import { useInventoryLocations, useInventoryLocationMaterials, useInventoryLocat
 import { useMaterials } from "@/hooks/use-materials";
 import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
+import { InventoryAdjustForm } from "@/components/forms/inventory-adjust";
 import type { InventoryBalance, Equipment, MaterialCatalog } from "@/types/api";
 
 export default function InventoryLocationPage() {
@@ -51,6 +52,7 @@ export default function InventoryLocationPage() {
       : true; // Admin can mutate anything
 
   const [moveMaterialId, setMoveMaterialId] = useState<string | null>(null);
+  const [adjustBalance, setAdjustBalance] = useState<{ id: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
 
   const bals = useMemo(() => {
@@ -94,23 +96,37 @@ export default function InventoryLocationPage() {
               <thead>
                 <tr>
                   <th>Material</th>
-                  <th className="text-right">Quantity</th>
+                  <th className="text-left">Quantity</th>
+                  <th className="text-left">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {bals.map((b) => {
-                  const materialId = (b as unknown as { catalogId?: string }).catalogId ?? b.materialId;
+                  const materialId = b.materialId;
                   const mat = materials.find((m) => m.id === materialId);
                   return (
                     <tr key={`${materialId}-${b.id ?? b.siteId}`}>
                       <td>
                         <p className="font-medium">{mat?.name ?? materialId}</p>
                       </td>
-                      <td className="font-mono text-right min-w-[120px]">
+                      <td className="font-mono text-left min-w-[120px]">
                         {b.quantity} {mat?.unit ?? "pcs"}
+                      </td>
+                      <td className="text-left">
                         {canMutate && (
-                          <span className="ml-3 inline-block">
+                          <span className="inline-block">
                             <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveMaterialId(materialId)}>Move</button>
+                            <button
+                              className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
+                              onClick={() => setAdjustBalance({
+                                id: (b as any).id ?? "",
+                                materialName: mat?.name ?? materialId,
+                                unit: mat?.unit ?? "pcs",
+                                currentQuantity: b.quantity
+                              })}
+                            >
+                              Adjust
+                            </button>
                           </span>
                         )}
                       </td>
@@ -195,6 +211,20 @@ export default function InventoryLocationPage() {
             allowedActions={eqActions}
             onSuccess={() => setMoveEquipmentId(null)}
             onCancel={() => setMoveEquipmentId(null)}
+          />
+        </ModalPanel>
+      ) : null}
+
+      {adjustBalance ? (
+        <ModalPanel kicker="Inventory Detail" title="Adjust Balance" onClose={() => setAdjustBalance(null)}>
+          <InventoryAdjustForm
+            noBg
+            balanceId={adjustBalance.id}
+            materialName={adjustBalance.materialName}
+            unit={adjustBalance.unit}
+            currentQuantity={adjustBalance.currentQuantity}
+            onSuccess={() => setAdjustBalance(null)}
+            onCancel={() => setAdjustBalance(null)}
           />
         </ModalPanel>
       ) : null}

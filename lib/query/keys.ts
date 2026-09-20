@@ -81,7 +81,12 @@ export const queryKeys = {
 
   tenders: simpleCrudKeys("tenders"),
   licenses: simpleCrudKeys("licenses"),
-  warehouses: simpleCrudKeys("warehouses"),
+  warehouses: {
+    ...simpleCrudKeys("warehouses"),
+    soldItems: (id: string) => ["warehouses", "detail", id, "sold-items"] as const,
+    soldEquipment: (id: string, params?: unknown) => ["warehouses", "detail", id, "sold-equipment", params] as const,
+    soldMaterials: (id: string, params?: unknown) => ["warehouses", "detail", id, "sold-materials", params] as const,
+  },
   categories: simpleCrudKeys("categories"),
   users: simpleCrudKeys("users"),
 
@@ -115,6 +120,7 @@ export const queryKeys = {
     budgetHealth: ["analytics", "budget-health"] as const,
     inventory: ["analytics", "inventory"] as const,
     licenses: ["analytics", "licenses"] as const,
+    sales: ["analytics", "sales"] as const,
     costBreakdown: (siteId: string, dateFrom?: string, dateTo?: string) =>
       ["analytics", "cost-breakdown", siteId, dateFrom, dateTo] as const,
   },

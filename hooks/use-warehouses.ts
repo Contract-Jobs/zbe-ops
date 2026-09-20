@@ -1,8 +1,14 @@
 
+import { useQuery } from "@tanstack/react-query"
 import { createSimpleCrudHooks } from "./use-simple-crud"
-// import { warehousesApi } from "@/lib/api/warehouses"
-import { warehousesApi } from "@/lib/api/warehouses"
+import {
+    warehousesApi,
+    getWarehouseSoldOverview,
+    getWarehouseSoldEquipment,
+    getWarehouseSoldMaterials
+} from "@/lib/api/warehouses"
 import { queryKeys } from "@/lib/query/keys"
+import type { ListParams } from "@/lib/api/list-params"
 
 const {
     useList,
@@ -14,6 +20,27 @@ const {
 } = createSimpleCrudHooks(warehousesApi, queryKeys.warehouses)
 
 export const useWarehouses = useList
+
+export function useWarehouseSoldOverview(id: string) {
+    return useQuery({
+        queryKey: queryKeys.warehouses.soldItems(id),
+        queryFn: () => getWarehouseSoldOverview(id).then((res: any) => res.data),
+    })
+}
+
+export function useWarehouseSoldEquipment(id: string, params?: ListParams) {
+    return useQuery({
+        queryKey: queryKeys.warehouses.soldEquipment(id, params),
+        queryFn: () => getWarehouseSoldEquipment(id, params),
+    })
+}
+
+export function useWarehouseSoldMaterials(id: string, params?: ListParams) {
+    return useQuery({
+        queryKey: queryKeys.warehouses.soldMaterials(id, params),
+        queryFn: () => getWarehouseSoldMaterials(id, params),
+    })
+}
 export const useWarehouse = useDetail
 export const useCreateWarehouse = useCreate
 export const useUpdateWarehouse = useUpdate

@@ -1,8 +1,10 @@
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import * as inventoryApi from "@/lib/api/inventory"
 import type { InventoryBalanceParams } from "@/lib/api/inventory"
 import type { ListParams } from "@/lib/api/list-params"
 import { queryKeys } from "@/lib/query/keys"
+import { onActionSettled } from "@/lib/query/approval-invalidation"
+import type { InventoryBalanceAdjustPayload } from "@/types/api"
 
 export function useInventoryBalances(params: InventoryBalanceParams = {}) {
     return useQuery({
@@ -39,5 +41,23 @@ export function useInventoryLocationEquipments(id: string | undefined, params: L
         queryKey: queryKeys.inventory.locationEquipments(id ?? "", params),
         queryFn: () => inventoryApi.getInventoryLocationEquipments(id as string, params),
         enabled: !!id,
+    })
+}
+
+export function useAdjustInventoryBalance() {
+    const queryClient = useQueryClient()
+    return useMutation({
+        mutationFn: ({ id, payload }: { id: string; payload: InventoryBalanceAdjustPayload }) =>
+            inventoryApi.adjustInventoryBalance(id, payload),
+        onSuccess: ({ data: log }) => {
+            onActionSettled(
+                queryClient,
+                "material_movement",
+                log.id,
+                log.approvalStatus,
+                log.fromSiteId ?? undefined
+            )
+            queryClient.invalidateQueries({ queryKey: ["inventory"] })
+        },
     })
 }

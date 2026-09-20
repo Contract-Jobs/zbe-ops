@@ -76,8 +76,14 @@ export function useCanActOnApproval(
                 const { data } = await materialsApi.getMaterialLog(approval!.recordId)
                 return data.toSiteId
             }
-            const { data } = await equipmentApi.getEquipmentLog(approval!.recordId)
-            return data.toSiteId
+            if (approval!.approvalType === "equipment_movement") {
+                const { data } = await equipmentApi.getEquipmentLog(approval!.recordId)
+                return data.toSiteId
+            }
+            // Only material_movement and equipment_movement are in
+            // SITE_MANAGER_APPROVABLE_TYPES, so needsRecordCheck is false for
+            // any other type — this branch should never be reached.
+            throw new Error(`Unexpected approvalType in site-manager record check: ${approval!.approvalType}`)
         },
         enabled: needsRecordCheck,
     })

@@ -54,3 +54,11 @@ export function useCostBreakdown(params: Parameters<typeof analyticsApi.getCostB
         enabled: !!params?.siteId,
     })
 }
+
+export function useSalesAnalytics(params: Parameters<typeof analyticsApi.getSalesAnalytics>[0] = {}) {
+    return useQuery({
+        queryKey: [...queryKeys.analytics.sales, params],
+        queryFn: () => analyticsApi.getSalesAnalytics(params),
+        staleTime: ANALYTICS_STALE_TIME,
+    })
+}
