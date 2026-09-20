@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { PageHead, TableWrap } from "@/components/ui";
+import { PageHead, TableWrap, Username } from "@/components/ui";
 import { useStore } from "@/lib/store";
 import {
   useWarehouseSoldOverview,
@@ -132,7 +132,7 @@ export default function WarehouseSoldItemsPage() {
                     <td>{l.equipment?.name ?? "Unknown equipment"}</td>
                     <td>{l.buyerName ?? "—"}</td>
                     <td className="font-mono">{etb(Number(l.price))}</td>
-                    <td>{userName(l.loggedBy ?? "", store)}</td>
+                    <td><Username userId={l.loggedBy ?? ""} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -170,7 +170,7 @@ export default function WarehouseSoldItemsPage() {
                     </td>
                     <td>{l.buyerName ?? "—"}</td>
                     <td className="font-mono">{etb(Number(l.unitPrice))}</td>
-                    <td>{userName(l.loggedBy ?? "", store)}</td>
+                    <td><Username userId={l.loggedBy ?? ""} /></td>
                   </tr>
                 ))}
               </tbody>
