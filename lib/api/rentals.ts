@@ -71,6 +71,10 @@ export function getRental(id: string) {
     return apiClient.get<RentalAgreement>(`/api/rentals/${id}`)
 }
 
+export function getRentalEvents(id: string, params: ListParams = {}) {
+    return apiClient.get<RentalEvent[]>(`/api/rentals/${id}/events`, buildListParams(params))
+}
+
 // Response shapes differ from Materials/Equipment — these return a nested
 // { agreement/event, approval } object rather than a single record with
 // its own approvalStatus field, per the doc.

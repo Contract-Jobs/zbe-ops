@@ -4,6 +4,7 @@ import type { RentalListParams } from "@/lib/api/rentals"
 import { queryKeys } from "@/lib/query/keys"
 import { onApprovalProcessed } from "@/lib/query/approval-invalidation"
 import type { RentalCreatePayload, RentalAdjustPayload, RentalReturnPayload } from "@/types/api"
+import type { ListParams } from "@/lib/api/list-params"
 
 export function useRentals(params: RentalListParams = {}) {
     return useQuery({
@@ -16,6 +17,14 @@ export function useRental(id: string | undefined) {
     return useQuery({
         queryKey: queryKeys.rentals.detail(id ?? ""),
         queryFn: () => rentalsApi.getRental(id as string),
+        enabled: !!id,
+    })
+}
+
+export function useRentalEvents(id: string | undefined, params: ListParams = {}) {
+    return useQuery({
+        queryKey: [...queryKeys.rentals.detail(id ?? ""), "events", params],
+        queryFn: () => rentalsApi.getRentalEvents(id as string, params),
         enabled: !!id,
     })
 }

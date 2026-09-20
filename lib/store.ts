@@ -22,6 +22,7 @@ import type {
   User,
   Warehouse,
 } from "./types";
+import type { RentalAgreement, RentalEvent } from "@/types/api";
 
 export type Store = {
   session: Session;
@@ -41,6 +42,8 @@ export type Store = {
   categories: typeof seed.categories;
   transactions: Transaction[];
   approvals: Approval[];
+  rentals: RentalAgreement[];
+  rentalEvents: RentalEvent[];
 };
 
 function clone(): Store {
@@ -65,6 +68,8 @@ function clone(): Store {
       categories: structuredClone(seed.categories),
       transactions: structuredClone(seed.transactions),
       approvals: structuredClone(seed.approvals),
+      rentals: structuredClone(seed.rentals),
+      rentalEvents: structuredClone(seed.rentalEvents),
     };
   }
 
@@ -87,6 +92,8 @@ function clone(): Store {
     categories: [],
     transactions: [],
     approvals: [],
+    rentals: [],
+    rentalEvents: [],
   };
 }
 
@@ -258,7 +265,9 @@ function requireQty(
   locationId: string,
   qty: number,
 ) {
-  const hit = balances.find((b) => b.materialId === materialId && b.locationKind === kind && b.locationId === locationId);
+  const hit = balances.find(
+    (b) => b.materialId === materialId && b.locationKind === kind && b.locationId === locationId,
+  );
   if (!hit || hit.quantity < qty) {
     throw new Error("Insufficient quantity at source");
   }
@@ -675,7 +684,9 @@ export function claimTask(taskId: string, notes?: string) {
   const user = currentUser();
   set({
     tasks: state.tasks.map((t) =>
-      t.id === taskId && !t.isCompleted && !t.completionClaimBy ? { ...t, completionClaimBy: user.id, notes: notes || null } : t,
+      t.id === taskId && !t.isCompleted && !t.completionClaimBy
+        ? { ...t, completionClaimBy: user.id, notes: notes || null }
+        : t,
     ),
   });
 }
@@ -683,7 +694,9 @@ export function claimTask(taskId: string, notes?: string) {
 export function completeTask(taskId: string, reviewNotes: string) {
   set({
     tasks: state.tasks.map((t) =>
-      t.id === taskId && !t.isCompleted && t.completionClaimBy ? { ...t, isCompleted: true, completedDate: new Date().toISOString(), reviewNotes } : t,
+      t.id === taskId && !t.isCompleted && t.completionClaimBy
+        ? { ...t, isCompleted: true, completedDate: new Date().toISOString(), reviewNotes }
+        : t,
     ),
   });
 }

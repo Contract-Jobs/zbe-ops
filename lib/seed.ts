@@ -473,3 +473,73 @@ export const approvals: Approval[] = [
     summary: "Consume 14 pcs MCB 32A 1P on Westin Addis Ababa",
   },
 ];
+import type { RentalAgreement, RentalEvent } from "@/types/api";
+
+export const rentals: RentalAgreement[] = [
+  {
+    id: "ra_1",
+    equipmentId: "eq_excavator_2",
+    type: "rent_in",
+    status: "active",
+    siteId: "site_kality",
+    licenseId: "lic_grade1",
+    vendorName: "RentIt All Plc",
+    buyerName: null,
+    rentStartDate: "2024-03-01T10:00:00Z",
+    expectedReturnDate: "2024-06-01T10:00:00Z",
+    actualReturnDate: null,
+    createdAt: "2024-03-01T09:00:00Z",
+    updatedAt: "2024-03-01T09:00:00Z",
+  },
+  {
+    id: "ra_2",
+    equipmentId: "eq_crane_1",
+    type: "rent_out",
+    status: "completed",
+    siteId: null,
+    licenseId: null,
+    vendorName: null,
+    buyerName: "BuildFast Construction",
+    rentStartDate: "2023-11-01T08:00:00Z",
+    expectedReturnDate: "2023-12-01T08:00:00Z",
+    actualReturnDate: "2023-12-05T15:00:00Z",
+    createdAt: "2023-10-25T10:00:00Z",
+    updatedAt: "2023-12-05T15:00:00Z",
+  }
+];
+
+export const rentalEvents: RentalEvent[] = [
+  {
+    id: "re_1",
+    agreementId: "ra_1",
+    eventType: "initiation",
+    timestamp: "2024-03-01T09:00:00Z",
+    dailyRate: "5000",
+    lumpSumAmount: "25000",
+    notes: "Initial rental agreement",
+    transactionId: "tx_12345",
+    loggedBy: "Admin User",
+  },
+  {
+    id: "re_2",
+    agreementId: "ra_2",
+    eventType: "initiation",
+    timestamp: "2023-10-25T10:00:00Z",
+    dailyRate: "8000",
+    lumpSumAmount: "0",
+    notes: "Rented out crane",
+    transactionId: null,
+    loggedBy: "Admin User",
+  },
+  {
+    id: "re_3",
+    agreementId: "ra_2",
+    eventType: "settlement",
+    timestamp: "2023-12-05T15:00:00Z",
+    dailyRate: null,
+    lumpSumAmount: "32000",
+    notes: "Returned 4 days late, penalty applied.",
+    transactionId: "tx_12346",
+    loggedBy: "System",
+  }
+];

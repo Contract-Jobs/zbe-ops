@@ -17,18 +17,22 @@ export type Warehouse = {
 
 export type SiteStatus = "active" | "on_hold" | "closed";
 
-export type Site = {
+export interface Site {
   id: string;
   name: string;
+  location: string | null;
+  status: "active" | "closed" | string;
+  laborBudget: string | null;
+  materialBudget: string | null;
+  tenderId: string | null;
+  managerId: string | null;
   licenseId: string;
-  status: SiteStatus;
-  laborBudget: number;
-  materialBudget: number;
-  address: string;
-  managerUserId: string;
   createdAt: string;
-  deletedAt?: string;
-};
+  updatedAt: string;
+  deletedAt: string | null;
+  materialSpent?: string;
+  laborSpent?: string;
+}
 
 export type SiteLifecycleLog = {
   id: string;
@@ -83,13 +87,7 @@ export type InventoryBalance = {
   quantity: number;
 };
 
-export type MaterialLogType =
-  | "purchase"
-  | "transfer"
-  | "sale"
-  | "consume"
-  | "missing"
-  | "reversal";
+export type MaterialLogType = "purchase" | "transfer" | "sale" | "consume" | "missing" | "reversal";
 
 export type MaterialLog = {
   id: string;
@@ -109,14 +107,7 @@ export type MaterialLog = {
   reversesId?: string;
 };
 
-export type EquipmentStatus =
-  | "available"
-  | "deployed"
-  | "maintenance"
-  | "missing"
-  | "sold"
-  | "disposed"
-  | "returned";
+export type EquipmentStatus = "available" | "deployed" | "maintenance" | "missing" | "sold" | "disposed" | "returned";
 
 export type OwnershipStatus = "owned" | "rented_in" | "rented_out";
 
@@ -192,12 +183,7 @@ export type TxCategory = {
   createdAt: string;
 };
 
-export type SourceRefType =
-  | "manual"
-  | "material"
-  | "equipment"
-  | "rental"
-  | "maintenance";
+export type SourceRefType = "manual" | "material" | "equipment" | "rental" | "maintenance";
 
 export type Transaction = {
   id: string;

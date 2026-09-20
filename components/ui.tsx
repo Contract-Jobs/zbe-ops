@@ -350,29 +350,35 @@ export function FormActions({
 /** New / Edit / Delete buttons for a record. */
 export function RecordActions({
   onNew,
+  newDisabled,
   onEdit,
+  editDisabled,
   onDelete,
+  deleteDisabled,
   newLabel = "New",
 }: {
   onNew?: () => void;
+  newDisabled?: boolean;
   onEdit?: () => void;
+  editDisabled?: boolean,
   onDelete?: () => void;
+  deleteDisabled?: boolean;
   newLabel?: string;
 }) {
   return (
     <div className="flex flex-wrap gap-2">
       {onNew ? (
-        <button type="button" className="btn" onClick={onNew}>
+        <button disabled={newDisabled} type="button" className="btn" onClick={onNew}>
           {newLabel}
         </button>
       ) : null}
       {onEdit ? (
-        <button type="button" className="btn btn-ghost" onClick={onEdit}>
+        <button disabled={editDisabled} type="button" className="btn btn-ghost" onClick={onEdit}>
           Edit
         </button>
       ) : null}
       {onDelete ? (
-        <button type="button" className="btn btn-ghost-bad" onClick={onDelete}>
+        <button disabled={deleteDisabled} type="button" className="btn btn-ghost-bad" onClick={onDelete}>
           Delete
         </button>
       ) : null}

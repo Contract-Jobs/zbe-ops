@@ -97,7 +97,8 @@ export function useCreateSiteTask(siteId: string) {
   return useMutation({
     mutationFn: (payload: CreateSiteTaskPayload) => sitesApi.createSiteTask(siteId, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.sites.tasks(siteId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sites.tasks(siteId), exact: false });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sites.detail(siteId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.sites.summary(siteId) });
     },
   });

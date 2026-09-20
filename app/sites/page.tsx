@@ -15,7 +15,7 @@ import {
   type RecordMode,
 } from "@/components/ui";
 import { etb } from "@/lib/format";
-import { isSiteManager, siteSpend, useStore, visibleSites } from "@/lib/store";
+import { isSiteManager, useStore, visibleSites } from "@/lib/store";
 import { useSites, useDeleteSite } from "@/hooks/use-sites";
 import { useLicenses } from "@/hooks/use-licenses";
 import type { Site } from "@/types/api";
@@ -32,14 +32,11 @@ export default function SitesPage() {
   const { data: licensesData } = useLicenses();
   const deleteMutation = useDeleteSite();
 
-  const sites = sitesData ? sitesData.data : (store.sites as unknown as Site[]);
+  const sites = sitesData ? sitesData.data : (store.sites);
   const licensesList = licensesData ? licensesData.data : store.licenses;
 
   // Site manager scoping: filter client-side against visible sites from the store
   const visibleIds = useMemo(() => visibleSites(store).map((s) => s.id), [store]);
-  const rows = (isSiteManager(store) ? sites.filter((s) => visibleIds.includes(s.id)) : sites).filter(
-    (s) => showDeleted || !s.deletedAt
-  );
 
   async function handleDelete() {
     if (mode.kind === "delete" && mode.record) {
@@ -108,26 +105,25 @@ export default function SitesPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((site) => {
+              {sites.map((site) => {
                 const license = licensesList.find((l) => l.id === site.licenseId);
-                const spend = siteSpend(site.id, store);
                 return (
                   <tr key={site.id}>
                     <td>
                       <Link href={`/sites/${site.id}`} className="font-medium hover:text-yellow">
                         {site.name}
                       </Link>
-                      <p className="text-sm text-black/50">{site.location}</p>
+                      <p className="text-sm text-black/50">{site.name}</p>
                       <p className="mt-1 font-mono text-[0.7rem] text-black/45 sm:hidden">
-                        Labor {etb(spend.labor)} · Mat {etb(spend.material)}
+                        Labor {etb(site.laborSpent || "0.00")} · Mat {etb(site.materialSpent || "0.00")}
                       </p>
                     </td>
                     <td className="hidden md:table-cell">{license?.name}</td>
                     <td className="hidden font-mono text-sm sm:table-cell">
-                      {etb(spend.labor)} / {site.laborBudget ? etb(Number(site.laborBudget)) : "—"}
+                      {etb(site.laborSpent || "0.00")} / {site.laborBudget ? etb(Number(site.laborBudget)) : "—"}
                     </td>
                     <td className="hidden font-mono text-sm sm:table-cell">
-                      {etb(spend.material)} / {site.materialBudget ? etb(Number(site.materialBudget)) : "—"}
+                      {etb(site.materialSpent) || "0.00"} / {site.materialBudget ? etb(Number(site.materialBudget)) : "—"}
                     </td>
                     <td>
                       <Stamp value={site.status} tone={statusTone(site.status)} />

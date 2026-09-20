@@ -23,6 +23,7 @@ const nav = [
   { href: "/materials", label: "Materials" },
   { href: "/inventory", label: "Inventory" },
   { href: "/equipment", label: "Equipment" },
+  { href: "/rentals", label: "Rentals" },
   { href: "/warehouses", label: "Warehouses" },
   { href: "/tenders", label: "Tenders" },
   { href: "/licenses", label: "Licenses" },

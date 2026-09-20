@@ -22,10 +22,8 @@ export default function InventoryLocationPage() {
   const { data: materialsData, isLoading: isMatLoading } = useInventoryLocationMaterials(id, { page: matPage, limit: 10 });
   const [eqPage, setEqPage] = useState(1);
   const { data: equipmentsData, isLoading: isEqLoading } = useInventoryLocationEquipments(id, { page: eqPage, limit: 10 });
-  const { data: catalogData } = useMaterials();
 
-  const materials = catalogData?.data ?? (store.materials as unknown as MaterialCatalog[]);
-
+  console.log(materialsData)
   // Resolve location info
   const locations = locationsData?.data ?? [];
   const locationInfo = locations.find(l => l.id === id);
@@ -103,14 +101,13 @@ export default function InventoryLocationPage() {
               <tbody>
                 {bals.map((b) => {
                   const materialId = b.materialId;
-                  const mat = materials.find((m) => m.id === materialId);
                   return (
                     <tr key={`${materialId}-${b.id ?? b.siteId}`}>
                       <td>
-                        <p className="font-medium">{mat?.name ?? materialId}</p>
+                        <p className="font-medium">{b?.material.name ?? materialId}</p>
                       </td>
                       <td className="font-mono text-left min-w-[120px]">
-                        {b.quantity} {mat?.unit ?? "pcs"}
+                        {b.quantity} {b?.material.unit ?? "pcs"}
                       </td>
                       <td className="text-left">
                         {canMutate && (
@@ -120,8 +117,8 @@ export default function InventoryLocationPage() {
                               className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
                               onClick={() => setAdjustBalance({
                                 id: (b as any).id ?? "",
-                                materialName: mat?.name ?? materialId,
-                                unit: mat?.unit ?? "pcs",
+                                materialName: b?.material.name ?? materialId,
+                                unit: b?.material.unit ?? "pcs",
                                 currentQuantity: b.quantity
                               })}
                             >

@@ -28,8 +28,8 @@ const actions: Array<{ type: ActionType; label: string }> = [
   { type: "sold", label: "Sell" },
   { type: "degraded", label: "Write down value" },
   { type: "appreciated", label: "Write up value" },
-  { type: "maintenance_dispatch", label: "Send to shop" },
-  { type: "maintenance_return", label: "Return from shop" },
+  { type: "maintenance_dispatch", label: "Send to maintenance" },
+  { type: "maintenance_return", label: "Return from maintenance" },
   { type: "used_up", label: "Dispose" },
   { type: "missing", label: "Report missing" },
 ];

@@ -9,7 +9,7 @@ import { useApprovals } from "@/hooks/use-approvals";
 import { useEquipmentList } from "@/hooks/use-equipment";
 import { useSites } from "@/hooks/use-sites";
 import { useSpendAnalytics, useBudgetHealth, useSalesAnalytics } from "@/hooks/use-analytics";
-import type { Approval, Equipment, Site } from "@/types/api";
+import type { Approval, BudgetHealthEntry, Equipment, Site } from "@/types/api";
 
 export default function BoardPage() {
   const store = useStore();
@@ -19,7 +19,7 @@ export default function BoardPage() {
   const { data: approvalsData } = useApprovals({ status: ["pending"] });
   const { data: equipmentData } = useEquipmentList();
   const [sitePage, setSitePage] = useState(1);
-  const { data: sitesData } = useSites({ page: sitePage, limit: 10 });
+  const { data: sitesData } = useSites({ page: sitePage, limit: 20000 });
   const { data: spendData } = useSpendAnalytics();
   const { data: budgetHealthData } = useBudgetHealth();
   const { data: salesAnalyticsData } = useSalesAnalytics();
@@ -51,22 +51,12 @@ export default function BoardPage() {
     );
   }, [equipment]);
 
-  const spend = Number(spendData?.data?.totalCashOut) || 0;
-  const income = Number(spendData?.data?.totalCashIn) || 0;
+  const totalSpendDisplay = spendData?.data ? Number(spendData.data.totalSpend) : 0;
 
-  const healths = budgetHealthData?.data ?? [];
+  const healths: BudgetHealthEntry[] = budgetHealthData?.data ?? [];
 
-  const getSiteSpend = (siteId: string) => {
-    const health = healths.find(h => h.siteId === siteId);
-    const siteSpend = spendData?.data?.bySite?.find(s => s.siteId === siteId);
-
-    const out = Number(siteSpend?.cashOut) || 0;
-    const inn = Number(siteSpend?.cashIn) || 0;
-    const labor = Number(health?.laborSpent) || 0;
-    const material = Number(health?.materialSpent) || 0;
-
-    return { out, inn, labor, material };
-  };
+  const getHealthEntry = (siteId: string): BudgetHealthEntry | undefined =>
+    healths.find((h) => h.siteId === siteId);
 
   let salesAnalytics = salesAnalyticsData?.data;
   if (!salesAnalyticsData) {
@@ -104,10 +94,18 @@ export default function BoardPage() {
 
       <div className="grid gap-px bg-black/10 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Pending approvals" value={String(pending.length)} href="/approvals" />
-        <Stat label="Money out (Approved)" value={etb(spend)} href="/ledger" />
-        <Stat label="Money in (Approved)" value={etb(income)} href="/ledger" />
+        <Stat label="Total Spent" value={etb(totalSpendDisplay)} href="/ledger" />
         <Stat label="Plant on loan" value={String(onLoan.length)} href="/equipment" />
       </div>
+
+      {spendData?.data && (
+        <div className="mt-px grid gap-px bg-black/10 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="Material Spend" value={etb(Number(spendData.data.materialSpend))} href="/ledger" />
+          <Stat label="Labour Spend" value={etb(Number(spendData.data.laborSpend))} href="/ledger" />
+          <Stat label="Other Spend" value={etb(Number(spendData.data.otherSpend))} href="/ledger" />
+          <Stat label="Equipment Capital" value={etb(Number(spendData.data.totalEquipmentValue))} href="/equipment" />
+        </div>
+      )}
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[1.15fr_0.85fr]">
         <section>
@@ -117,14 +115,22 @@ export default function BoardPage() {
               <thead>
                 <tr>
                   <th>Site</th>
-                  <th>Budget Performance</th>
+                  <th>Labor Performance</th>
+                  <th className="hidden md:table-cell">Material Performance</th>
+                  <th className="hidden lg:table-cell">Other Spends</th>
+                  <th className="hidden sm:table-cell">Budget Performance</th>
                 </tr>
               </thead>
               <tbody>
                 {sites.map((site) => {
-                  const s = getSiteSpend(site.id);
-                  const laborBudget = Number(site.laborBudget) || 0;
-                  const materialBudget = Number(site.materialBudget) || 0;
+                  const entry = getHealthEntry(site.id);
+                  const laborSpent = Number(entry?.laborSpent ?? 0);
+                  const laborBudget = Number(entry?.laborBudget ?? site.laborBudget ?? 0);
+                  const materialSpent = Number(entry?.materialSpent ?? 0);
+                  const materialBudget = Number(entry?.materialBudget ?? site.materialBudget ?? 0);
+                  const otherSpent = Number(entry?.otherSpent ?? 0);
+                  const totalSpent = Number(entry?.totalSpent ?? 0);
+                  const totalBudget = Number(entry?.totalBudget ?? (laborBudget + materialBudget));
 
                   return (
                     <tr key={site.id}>
@@ -136,17 +142,38 @@ export default function BoardPage() {
                           <Stamp value={site.status} tone={statusTone(site.status)} />
                         </div>
                       </td>
+
+                      {/* Labor Performance */}
                       <td className="font-mono text-sm">
-                        {etb(s.labor)}
-                        <span className="block text-[0.7rem] text-black/45">of {etb(laborBudget + materialBudget)}</span>
-                        <Bar used={s.labor} max={laborBudget + materialBudget} />
+                        {etb(laborSpent)}
+                        <span className="block text-[0.7rem] text-black/45">of {etb(laborBudget)}</span>
+                        <Bar used={laborSpent} max={laborBudget} />
+                      </td>
+
+                      {/* Material Performance */}
+                      <td className="hidden font-mono text-sm md:table-cell">
+                        {etb(materialSpent)}
+                        <span className="block text-[0.7rem] text-black/45">of {etb(materialBudget)}</span>
+                        <Bar used={materialSpent} max={materialBudget} />
+                      </td>
+
+                      {/* Other Spends */}
+                      <td className="hidden font-mono text-sm lg:table-cell">
+                        {etb(otherSpent)}
+                      </td>
+
+                      {/* Total Budget Performance */}
+                      <td className="hidden font-mono text-sm sm:table-cell">
+                        {etb(totalSpent)}
+                        <span className="block text-[0.7rem] text-black/45">of {etb(totalBudget)}</span>
+                        <Bar used={totalSpent} max={totalBudget} />
                       </td>
                     </tr>
                   );
                 })}
                 {sites.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-8 text-center text-sm text-black/45">
+                    <td colSpan={5} className="py-8 text-center text-sm text-black/45">
                       No active sites found.
                     </td>
                   </tr>
@@ -179,31 +206,31 @@ export default function BoardPage() {
 
           <div>
             <p className="kicker mb-3">Waiting on you</p>
-          <ul className="border border-black/10">
-            {pending.slice(0, 6).map((a) => {
-              const summary = (a as unknown as { summary?: string }).summary ??
-                (a.notes || `${a.approvalType.replaceAll("_", " ")} #${a.recordId?.slice(0, 8) ?? a.id.slice(0, 8)}`);
+            <ul className="border border-black/10">
+              {pending.slice(0, 6).map((a) => {
+                const summary = (a as unknown as { summary?: string }).summary ??
+                  (a.notes || `${a.approvalType.replaceAll("_", " ")} #${a.recordId?.slice(0, 8) ?? a.id.slice(0, 8)}`);
 
-              return (
-                <li key={a.id} className="border-b border-black/10 last:border-0">
-                  <Link href={`/approvals/${a.id}`} className="block border-l-2 border-yellow px-4 py-3 hover:bg-paper/50">
-                    <p className="text-sm font-medium leading-snug">{summary}</p>
-                    <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-wider text-black/45">
-                      {a.approvalType.replaceAll("_", " ")}
-                    </p>
-                  </Link>
-                </li>
-              );
-            })}
-            {pending.length === 0 ? (
-              <li className="px-4 py-8 text-center text-black/45">Queue is clear.</li>
+                return (
+                  <li key={a.id} className="border-b border-black/10 last:border-0">
+                    <Link href={`/approvals/${a.id}`} className="block border-l-2 border-yellow px-4 py-3 hover:bg-paper/50">
+                      <p className="text-sm font-medium leading-snug">{summary}</p>
+                      <p className="mt-1 font-mono text-[0.65rem] uppercase tracking-wider text-black/45">
+                        {a.approvalType.replaceAll("_", " ")}
+                      </p>
+                    </Link>
+                  </li>
+                );
+              })}
+              {pending.length === 0 ? (
+                <li className="px-4 py-8 text-center text-black/45">Queue is clear.</li>
+              ) : null}
+            </ul>
+            {maintenance.length > 0 ? (
+              <p className="mt-6 text-sm text-black/70">
+                In the shop: {maintenance.map((e) => e.name).join(", ")}.
+              </p>
             ) : null}
-          </ul>
-          {maintenance.length > 0 ? (
-            <p className="mt-6 text-sm text-black/70">
-              In the shop: {maintenance.map((e) => e.name).join(", ")}.
-            </p>
-          ) : null}
           </div>
         </section>
       </div>

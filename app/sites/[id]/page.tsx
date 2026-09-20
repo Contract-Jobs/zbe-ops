@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SiteForm, TaskForm } from "@/components/forms/site";
 import {
   closedMode,
@@ -31,6 +31,7 @@ import {
 import {
   useSite,
   useSiteTasks,
+  useSiteSummary,
   useCreateSiteTask,
   useClaimSiteTask,
   useCompleteSiteTask,
@@ -40,8 +41,8 @@ import {
 } from "@/hooks/use-sites";
 import { useEquipmentList } from "@/hooks/use-equipment";
 import { useInventoryBalances } from "@/hooks/use-inventory";
-import { useMaterials } from "@/hooks/use-materials";
-import { useTransactions } from "@/hooks/use-transactions";
+import { useBudgetOverview } from "@/hooks/use-analytics";
+
 import { useLicenses } from "@/hooks/use-licenses";
 import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
@@ -63,14 +64,16 @@ export default function SiteDetailPage() {
 
   const { data: siteData, isLoading: isSiteLoading } = useSite(id);
   const [taskPage, setTaskPage] = useState(1);
-  const { data: tasksData } = useSiteTasks(id, { page: taskPage, limit: 10 });
+  const [taskCompletion, setTaskCompletion] = useState(0)
+  const { data: tasksData } = useSiteTasks(id, { page: taskPage, limit: Number.MAX_SAFE_INTEGER });
   const [equipPage, setEquipPage] = useState(1);
   const { data: equipData } = useEquipmentList({ siteId: id ? [id] : undefined, page: equipPage, limit: 10 });
   const [balPage, setBalPage] = useState(1);
   const { data: balancesData } = useInventoryBalances({ siteId: id ? [id] : undefined, page: balPage, limit: 10 });
-  const { data: materialsData } = useMaterials();
+  // const { data: materialsData } = useMaterials();
   const { data: lifecycleData } = useSiteLifecycle(id);
-  const { data: txData } = useTransactions({ siteId: id ? [id] : undefined });
+  const { data: summaryData } = useSiteSummary(id);
+  const { data: budgetData } = useBudgetOverview({ siteId: id });
   const { data: licensesData } = useLicenses();
 
   const site = siteData?.data ?? (store.sites.find((s) => s.id === id) as unknown as Site | undefined);
@@ -92,30 +95,19 @@ export default function SiteDetailPage() {
   const deleteSiteTaskMutation = useDeleteSiteTask(id || "");
   const deleteSiteMutation = useDeleteSite();
 
+  useEffect(() => {
+    const totalCompletedTasks = (tasksData?.data || []).reduce((prev, curr) => curr.isCompleted ? prev + 1 : prev + 0, 0);
+    console.log(totalCompletedTasks)
+    setTaskCompletion(totalCompletedTasks / (tasksData?.data || []).length)
+  }, [tasksData])
+
   const manager = isSiteManager(store);
   const canMutate = !manager;
   const user = currentUser(store);
   const isClosed = site?.status === "closed";
 
-  const transactions = useMemo(() => {
-    return txData?.data ?? store.transactions.filter((t) => t.siteId === id && !t.isReversal);
-  }, [id, store.transactions, txData?.data]);
-
-  const spend = useMemo(() => {
-    const out = transactions
-      .filter((t) => t.type === "money_out")
-      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const inn = transactions
-      .filter((t) => t.type === "money_in")
-      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const labor = transactions
-      .filter((t) => t.type === "money_out" && t.categoryId === "cat_labor")
-      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    const material = transactions
-      .filter((t) => t.type === "money_out" && t.categoryId === "cat_mat")
-      .reduce((s, t) => s + (Number(t.amount) || 0), 0);
-    return { out, inn, labor, material };
-  }, [transactions]);
+  const summary = summaryData?.data;
+  const budget = budgetData?.data;
 
   if (isSiteLoading && !site) {
     return <p className="p-8 text-center text-sm text-black/50">Loading site...</p>;
@@ -148,6 +140,7 @@ export default function SiteDetailPage() {
       // Ignore or show error
     }
   };
+
 
   const handleEditTask = async (data: { title: string; targetDate?: string }) => {
     // In a real app, this would mutate the task.
@@ -208,6 +201,7 @@ export default function SiteDetailPage() {
     }
   };
 
+
   return (
     <div>
       <PageHead
@@ -266,25 +260,80 @@ export default function SiteDetailPage() {
         </FormPanel>
       ) : null}
 
-      <div className="grid gap-px bg-black/10 sm:grid-cols-3">
-        <div className="bg-white p-5">
-          <p className="kicker">Labor Budget</p>
-          <p className="mt-2 break-words text-2xl tracking-tight">{etb(Number(site.laborBudget))}</p>
+      <div className="grid gap-px bg-black/10 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="bg-white p-5 flex flex-col justify-between">
+          <div>
+            <p className="kicker">Labor Budget</p>
+            <p className="mt-2 break-words text-2xl tracking-tight">{etb(Number(budget?.laborBudget ?? site.laborBudget))}</p>
+          </div>
+          {budget && (
+            <div className="mt-4">
+              <div className="flex justify-between text-xs text-black/60 mb-1">
+                <span>{etb(Number(budget.laborSpend))} spent</span>
+                <span>{Math.min(100, (Number(budget.laborSpend) / Number(budget.laborBudget || 1)) * 100).toFixed(0)}%</span>
+              </div>
+              <div className="w-full bg-black/5 h-1.5 overflow-hidden">
+                <div className="bg-yellow h-full" style={{ width: `${Math.min(100, (Number(budget.laborSpend) / Number(budget.laborBudget || 1)) * 100)}%` }} />
+              </div>
+            </div>
+          )}
         </div>
-        <div className="bg-white p-5">
-          <p className="kicker">Materials Budget</p>
-          <p className="mt-2 break-words text-2xl tracking-tight">{etb(Number(site.materialBudget))}</p>
+        <div className="bg-white p-5 flex flex-col justify-between">
+          <div>
+            <p className="kicker">Materials Budget</p>
+            <p className="mt-2 break-words text-2xl tracking-tight">{etb(Number(budget?.materialBudget ?? site.materialBudget))}</p>
+          </div>
+          {budget && (
+            <div className="mt-4">
+              <div className="flex justify-between text-xs text-black/60 mb-1">
+                <span>{etb(Number(budget.materialSpend))} spent</span>
+                <span>{Math.min(100, (Number(budget.materialSpend) / Number(budget.materialBudget || 1)) * 100).toFixed(0)}%</span>
+              </div>
+              <div className="w-full bg-black/5 h-1.5 overflow-hidden">
+                <div className="bg-yellow h-full" style={{ width: `${Math.min(100, (Number(budget.materialSpend) / Number(budget.materialBudget || 1)) * 100)}%` }} />
+              </div>
+            </div>
+          )}
         </div>
-        <div className="bg-white p-5">
-          <p className="kicker">Approved Spend</p>
-          <p className="mt-2 break-words text-2xl tracking-tight">{etb(spend.out)}</p>
-          <p className="text-sm text-black/45">Revenue {etb(spend.inn)}</p>
+        <div className="bg-white p-5 flex flex-col gap-4 justify-center">
+          <div>
+            <p className="kicker">Other Spend</p>
+            <p className="mt-2 break-words text-2xl tracking-tight">{etb(Number(budget?.otherSpend ?? 0))}</p>
+          </div>
+
+          <div>
+            <p className="kicker">Total Equipment Value</p>
+            <p className="mt-2 break-words text-2xl tracking-tight">{etb(Number(budget?.equipmentCapital ?? 0))}</p>
+          </div>
+        </div>
+        <div className="bg-white p-5 flex flex-col justify-between">
+          <div>
+            <p className="kicker">Total Budget</p>
+            <p className="mt-2 break-words text-2xl tracking-tight">{etb(Number(budget?.totalBudgeted || 0))}</p>
+          </div>
+          {budget && (
+            <div className="mt-4">
+              <div className="flex justify-between text-xs text-black/60 mb-1">
+                <span>Spent: {etb(Number(budget.totalSpent))}</span>
+                <span>{Math.min(100, (Number(budget.totalSpent) / Number(budget.totalBudgeted || 1)) * 100).toFixed(0)}%</span>
+              </div>
+              <div className="w-full bg-black/5 h-1.5 overflow-hidden">
+                <div className="bg-black/80 h-full" style={{ width: `${Math.min(100, (Number(budget.totalSpent) / Number(budget.totalBudgeted || 1)) * 100)}%` }} />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       <section className="mt-10">
         <div className="mb-4 flex items-center justify-between">
-          <p className="kicker">Tasks</p>
+          <div className="w-1/2 flex flex-col gap-2">
+            <p className="kicker">Tasks</p>
+            <p>{(taskCompletion * 100).toFixed(0)}% complete</p>
+            <div className="w-full bg-black/5 h-1.5 overflow-hidden">
+              <div className="bg-yellow h-full" style={{ width: `${(taskCompletion * 100).toFixed(2)}%` }} />
+            </div>
+          </div>
           {(!manager || user.siteIds.includes(site.id)) && !isClosed ? (
             <button
               className="btn"
@@ -415,15 +464,17 @@ export default function SiteDetailPage() {
                         !isClosed ? (
                         <button
                           type="button"
+                          disabled={isClosed}
                           className="btn"
                           onClick={() => setTaskMode({ kind: "claim", record: task })}
                         >
                           Claim Completion
                         </button>
                       ) : null}
-                      {getTaskStatus(task) === "claimed" && (user?.role === "admin" || user?.role === "superadmin") && !isClosed ? (
+                      {getTaskStatus(task) === "claimed" && (user?.role === "admin" || user?.role === "superadmin") ? (
                         <button
                           type="button"
+                          disabled={isClosed}
                           className="btn btn-ghost"
                           onClick={() => setTaskMode({ kind: "complete", record: task })}
                         >
@@ -432,8 +483,8 @@ export default function SiteDetailPage() {
                       ) : null}
                       <button type="button" className="btn btn-ghost" onClick={() => setTaskMode({ kind: "view", record: task })}>View</button>
                       <RecordActions
-                        onEdit={() => setTaskMode({ kind: "edit", record: task })}
-                        onDelete={() => setTaskMode({ kind: "delete", record: task, label: task.title })}
+                        onEdit={() => setTaskMode({ kind: "edit", record: task, })} editDisabled={isClosed}
+                        onDelete={() => setTaskMode({ kind: "delete", record: task, label: task.title })} deleteDisabled={isClosed}
                       />
                     </div>
                   </td>

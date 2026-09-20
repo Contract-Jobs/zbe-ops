@@ -214,6 +214,10 @@ button {
   @apply cursor-pointer;
 }
 
+button:disabled {
+  @apply opacity-40 hover:bg-transparent hover:text-black hover:border-transparent;
+}
+
 @media (max-width: 720px) {
   .data th,
   .data td {

@@ -49,6 +49,7 @@ export interface InventoryBalance {
   id: string;
   materialId: string;
   siteId?: string | null;
+  material: MaterialCatalog;
   warehouseId?: string | null;
   quantity: number;
   avgUnitPrice: string;
@@ -117,13 +118,12 @@ export interface RentalEvent {
   id: string;
   agreementId: string;
   eventType: "initiation" | "rate_change" | "upfront_payment" | "penalty" | "settlement";
-  eventDate: string;
+  timestamp: string; // Serialized Date
   dailyRate: string | null;
-  upfrontFee: string | null;
-  adjustmentAmount: string | null;
+  lumpSumAmount: string | null;
   notes: string | null;
-  approvalStatus: ApprovalStatus;
-  createdAt: string;
+  transactionId: string | null;
+  loggedBy: string;
 }
 
 export interface Site {
@@ -139,6 +139,8 @@ export interface Site {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  materialSpent?: string;
+  laborSpent?: string;
 }
 
 export interface SiteLifecycleLog {
@@ -498,23 +500,11 @@ export interface CostBreakdown {
 }
 
 export interface SpendAnalytics {
-  totalCashIn: string;
-  totalCashOut: string;
-  netCashExpenses: string;
-  materialAllocation: string;
-  equipmentAllocation: string;
-  assetAllocation: string;
-  totalCost: string;
-  byCategory: { categoryId: string | null; categoryName: string; total: string; count: number }[];
-  bySite: {
-    siteId: string;
-    siteName: string;
-    cashIn: string;
-    cashOut: string;
-    netCashExpenses: string;
-    assetAllocation: string;
-    totalCost: string;
-  }[];
+  materialSpend: string;
+  laborSpend: string;
+  otherSpend: string;
+  totalEquipmentValue: string;
+  totalSpend: string;
 }
 
 export interface BudgetHealthEntry {
@@ -558,6 +548,10 @@ export interface BudgetOverview {
   siteId: string;
   laborBudget: string | null;
   materialBudget: string | null;
+  materialSpend: string;
+  laborSpend: string;
+  otherSpend: string;
+  equipmentCapital: string;
   totalBudgeted: string;
   totalSpent: string;
   variance: string;
