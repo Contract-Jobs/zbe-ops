@@ -73,7 +73,7 @@ export default function WarehouseDetailPage() {
         <p className="text-black/70">Location: {warehouse.location ?? "—"}</p>
       </div>
 
-      {inventoryAnalytics?.data && <div className="grid gap-px bg-black/10 sm:grid-cols-3">
+      {inventoryAnalytics?.data && <div className="grid gap-px bg-black/10 sm:grid-cols-4">
         <div className="bg-white p-5">
           <p className="kicker">Total Materials</p>
           <p className="mt-2 break-words text-2xl tracking-tight">{inventoryAnalytics.data.totalMaterials}</p>
@@ -85,6 +85,10 @@ export default function WarehouseDetailPage() {
         <div className="bg-white p-5">
           <p className="kicker">Total Material Value</p>
           <p className="mt-2 break-words text-2xl tracking-tight">{etb(inventoryAnalytics.data.totalMaterialValue)}</p>
+        </div>
+        <div className="bg-white p-5">
+          <p className="kicker">Total Equipment Value</p>
+          <p className="mt-2 break-words text-2xl tracking-tight">{etb(inventoryAnalytics.data.totalEquipmentValue)}</p>
         </div>
       </div>}
       <div className="mb-8">
