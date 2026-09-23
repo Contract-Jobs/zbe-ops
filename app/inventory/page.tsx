@@ -2,61 +2,44 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { PageHead, TableWrap, Stamp } from "@/components/ui";
-import { qty } from "@/lib/format";
-import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
-import { useInventoryLocations } from "@/hooks/use-inventory";
-import type { InventoryLocationSummary } from "@/types/api";
+import { ConfirmDialog, PageHead, TableWrap } from "@/components/ui";
+import { currentUser, isSiteManager, useStore } from "@/lib/store";
+import { useInventoryNodes } from "@/hooks/use-inventories";
+import { useRebuildInventoryBalances } from "@/hooks/use-inventory-balances";
 
 export default function InventoryPage() {
   const store = useStore();
   const manager = isSiteManager(store);
-  const allowedSites = visibleSiteIds(store);
+  const isSuperadmin = currentUser(store).role === "superadmin";
   const [q, setQ] = useState("");
+  const rebuildBalancesMutation = useRebuildInventoryBalances();
+  const [confirmRebuild, setConfirmRebuild] = useState(false);
+  const [rebuildMsg, setRebuildMsg] = useState<string | null>(null);
 
-  const { data: locationsData, isLoading } = useInventoryLocations();
+  const handleRebuildBalances = async () => {
+    setRebuildMsg(null);
+    try {
+      const res = await rebuildBalancesMutation.mutateAsync();
+      setRebuildMsg(`Rebuilt ${res.data.rebuilt} balance(s).${res.data.errors.length ? ` ${res.data.errors.length} error(s).` : ""}`);
+    } catch (e) {
+      setRebuildMsg(e instanceof Error ? e.message : "Failed to rebuild balances");
+    } finally {
+      setConfirmRebuild(false);
+    }
+  };
+
+  const { data: nodesData, isLoading } = useInventoryNodes({ limit: 50 });
 
   const locations = useMemo(() => {
-    // If backend returns data, use it
-    if (locationsData?.data) {
-      return locationsData.data;
-    }
-
-    // Otherwise, compute fallback from store
-    const computed: InventoryLocationSummary[] = [];
-
-    // Group warehouses
-    for (const w of store.warehouses) {
-      if (manager) continue;
-      const wBals = store.balances.filter(b => b.locationKind === "warehouse" && b.locationId === w.id && b.quantity > 0);
-      const wEqs = store.equipment.filter(e => e.warehouseId === w.id);
-      computed.push({
-        id: w.id,
-        name: w.name,
-        type: "warehouse",
-        materialTypesCount: wBals.length,
-        materialQuantityTotal: wBals.reduce((sum, b) => sum + b.quantity, 0),
-        equipmentCount: wEqs.length
-      });
-    }
-
-    // Group sites
-    for (const s of store.sites) {
-      if (manager && !allowedSites.has(s.id)) continue;
-      const sBals = store.balances.filter(b => b.locationKind === "site" && b.locationId === s.id && b.quantity > 0);
-      const sEqs = store.equipment.filter(e => e.siteId === s.id);
-      computed.push({
-        id: s.id,
-        name: s.name,
-        type: "site",
-        materialTypesCount: sBals.length,
-        materialQuantityTotal: sBals.reduce((sum, b) => sum + b.quantity, 0),
-        equipmentCount: sEqs.length
-      });
-    }
-
-    return computed;
-  }, [locationsData, store.balances, store.equipment, store.sites, store.warehouses, manager, allowedSites]);
+    return (nodesData?.data ?? []).map((node) => ({
+      id: node.id,
+      name: node.site?.name ?? node.warehouse?.name ?? "Unknown",
+      type: node.inventoryType,
+      materialItemCount: node.materialItemCount ?? 0,
+      bulkEquipmentItemCount: node.bulkEquipmentItemCount ?? 0,
+      individualEquipmentCount: node.individualEquipmentCount ?? 0,
+    }));
+  }, [nodesData]);
 
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -66,59 +49,83 @@ export default function InventoryPage() {
 
   return (
     <div>
-      <PageHead kicker="Stock" title="Inventory Locations" />
+      <PageHead
+        kicker="Stock"
+        title="Inventory Locations"
+        action={
+          isSuperadmin ? (
+            <button
+              className="btn btn-ghost"
+              onClick={() => setConfirmRebuild(true)}
+              disabled={rebuildBalancesMutation.isPending}
+            >
+              {rebuildBalancesMutation.isPending ? "Rebuilding..." : "Rebuild balances"}
+            </button>
+          ) : undefined
+        }
+      />
       {manager ? (
         <p className="mb-4 text-sm text-black/60">Site desk shows only stock on your jobs — not central warehouses.</p>
       ) : null}
+      {rebuildMsg ? <p className="mb-4 text-sm text-black/60">{rebuildMsg}</p> : null}
       <input
         className="field mb-5 w-full max-w-sm"
         placeholder="Search locations"
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
-      {isLoading && !locationsData ? (
+      {isLoading && !nodesData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading inventory locations...</div>
       ) : (
-        <TableWrap data={rows} showSort={false}>
-          {(paginatedRows) => (
-          <table className="data w-full text-left">
-            <thead>
-              <tr>
-                <th>Location</th>
-                <th>Material Types</th>
-                <th>Total Qty</th>
-                <th>Equipment</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedRows.map((l) => (
-                <tr key={l.id}>
-                  <td>
-                    <Link href={`/inventory/${l.id}`} className="font-medium hover:text-yellow">
-                      {l.name}
-                    </Link>
-                    <span className="ml-3 font-mono text-[0.65rem] uppercase text-black/40">
-                      {l.type}
-                    </span>
-                  </td>
-                  <td className="font-mono">{l.materialTypesCount}</td>
-                  <td className="font-mono">{qty(l.materialQuantityTotal, "")}</td>
-                  <td className="font-mono">{l.equipmentCount}</td>
-                </tr>
-              ))}
-              {rows.length === 0 ? (
+        <TableWrap data={rows}>
+          {(pageRows) => (
+            <table className="data w-full text-left">
+              <thead>
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-sm text-black/45">
-                    No locations found.
-                  </td>
+                  <th>Location</th>
+                  <th>Type</th>
+                  <th>Material Items</th>
+                  <th>Bulk Equipment Items</th>
+                  <th>Equipment</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {pageRows.map((l) => (
+                  <tr key={l.id}>
+                    <td>
+                      <Link href={`/inventory/${l.id}`} className="font-medium hover:text-yellow">
+                        {l.name}
+                      </Link>
+                    </td>
+                    <td className="font-mono text-[0.7rem] uppercase text-black/50">{l.type}</td>
+                    <td className="font-mono">{l.materialItemCount}</td>
+                    <td className="font-mono">{l.bulkEquipmentItemCount}</td>
+                    <td className="font-mono">{l.individualEquipmentCount}</td>
+                  </tr>
+                ))}
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-sm text-black/45">
+                      No locations found.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
           )}
         </TableWrap>
       )}
+
+      <ConfirmDialog
+        open={confirmRebuild}
+        title="Rebuild all inventory balances?"
+        body="Recomputes every (item, inventory) balance from the movement ledger from scratch. Heavy — a recovery tool, not routine maintenance."
+        confirmLabel="Rebuild"
+        danger
+        loading={rebuildBalancesMutation.isPending}
+        onCancel={() => setConfirmRebuild(false)}
+        onConfirm={handleRebuildBalances}
+      />
     </div>
   );
 }
-

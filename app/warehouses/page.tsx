@@ -5,7 +5,7 @@ import { useState } from "react";
 import { WarehouseForm } from "@/components/forms/master";
 import { closedMode, DeleteConfirm, FormPanel, PageHead, RecordActions, TableWrap, type RecordMode } from "@/components/ui";
 import { isSiteManager, useStore } from "@/lib/store";
-import { useWarehouses, useDeleteWarehouse } from "@/hooks/use-warehouses";
+import { useWarehouses, useDeleteWarehouse, useRestoreWarehouse } from "@/hooks/use-warehouses";
 import type { Warehouse } from "@/types/api";
 
 export default function WarehousesPage() {
@@ -18,6 +18,7 @@ export default function WarehousesPage() {
 
   const { data: warehousesData, isLoading } = useWarehouses({ page, limit: 10 });
   const deleteMutation = useDeleteWarehouse();
+  const restoreMutation = useRestoreWarehouse();
 
   const warehouses = (warehousesData ? warehousesData.data : (store.warehouses as unknown as Warehouse[])).filter(
     (w) => showDeleted || !w.deletedAt
@@ -31,6 +32,14 @@ export default function WarehousesPage() {
       } catch {
         // Handled
       }
+    }
+  }
+
+  async function handleRestore(id: string) {
+    try {
+      await restoreMutation.mutateAsync(id);
+    } catch {
+      // Handled
     }
   }
 
@@ -100,8 +109,10 @@ export default function WarehousesPage() {
                     {canMutate ? (
                       <td>
                         <RecordActions
-                          onEdit={() => setMode({ kind: "edit", record: w })}
+                          onEdit={!w.deletedAt ? () => setMode({ kind: "edit", record: w }) : undefined}
                           onDelete={!w.deletedAt ? () => setMode({ kind: "delete", record: w, label: w.name }) : undefined}
+                          onRestore={w.deletedAt ? () => handleRestore(w.id) : undefined}
+                          restoreDisabled={restoreMutation.isPending}
                         />
                       </td>
                     ) : null}

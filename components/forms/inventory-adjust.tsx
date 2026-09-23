@@ -1,10 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useAdjustInventoryBalance } from "@/hooks/use-inventory";
+import { useLogInventoryLoss } from "@/hooks/use-inventory-movements";
 
+// v2 has no balance "adjust" action — the closest equivalent for real
+// physical shrinkage/damage is a `loss` movement (requires a reason,
+// priced from the current weighted-average cost, no client-supplied
+// price). See docs/api-v2-migration-plan.md §3.1. For fixing a plain
+// data-entry mistake, the correct v2 path is reversing the offending
+// movement instead (POST /api/inventory-movements/[id]/reverse) — not
+// covered by this form.
 export interface InventoryAdjustFormProps {
-  balanceId: string;
+  itemId: string;
+  inventoryId: string;
   materialName: string;
   unit: string;
   currentQuantity: number;
@@ -14,7 +22,8 @@ export interface InventoryAdjustFormProps {
 }
 
 export function InventoryAdjustForm({
-  balanceId,
+  itemId,
+  inventoryId,
   materialName,
   unit,
   currentQuantity,
@@ -23,11 +32,10 @@ export function InventoryAdjustForm({
   noBg,
 }: InventoryAdjustFormProps) {
   const [quantity, setQuantity] = useState<string>("");
-  const [newUnitPrice, setNewUnitPrice] = useState("");
-  const [notes, setNotes] = useState("");
+  const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const { mutateAsync: adjustBalance, isPending } = useAdjustInventoryBalance();
+  const { mutateAsync: logLoss, isPending } = useLogInventoryLoss();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,35 +47,37 @@ export function InventoryAdjustForm({
       return;
     }
     if (q > currentQuantity) {
-      setError(`Cannot adjust more than current balance (${currentQuantity} ${unit}).`);
+      setError(`Cannot report a loss greater than the current balance (${currentQuantity} ${unit}).`);
+      return;
+    }
+    if (!reason.trim()) {
+      setError("A reason is required.");
       return;
     }
 
     try {
-      await adjustBalance({
-        id: balanceId,
-        payload: {
-          quantity: q,
-          newUnitPrice: newUnitPrice ? newUnitPrice : undefined,
-          notes: notes ? notes : undefined,
-        },
+      await logLoss({
+        itemId,
+        quantity: q,
+        sourceInventoryId: inventoryId,
+        metadata: { reason: reason.trim() },
       });
       onSuccess?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to adjust balance");
+      setError(err instanceof Error ? err.message : "Failed to report loss");
     }
   };
 
   return (
     <div className={noBg ? "" : "border border-black/10 bg-paper/40 p-5"}>
-      <p className="kicker mb-3">Adjust Balance: {materialName}</p>
-      
+      <p className="kicker mb-3">Report loss: {materialName}</p>
+
       <p className="mb-3 text-sm text-black/60">
         Current balance: <span className="font-mono text-black">{currentQuantity} {unit}</span>
       </p>
 
       <label className="mb-3 block text-sm">
-        Units to deduct *
+        Units lost *
         <input
           type="number"
           step="0.01"
@@ -81,25 +91,14 @@ export function InventoryAdjustForm({
       </label>
 
       <label className="mb-3 block text-sm">
-        Override Unit Price (ETB)
-        <input
-          type="number"
-          step="0.01"
-          value={newUnitPrice}
-          onChange={(e) => setNewUnitPrice(e.target.value)}
-          className="field mt-1 font-mono"
-          placeholder="Leave blank for average cost"
-        />
-      </label>
-
-      <label className="mb-3 block text-sm">
-        Notes
+        Reason *
         <input
           type="text"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          required
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
           className="field mt-1"
-          placeholder="Reason (e.g. damaged)"
+          placeholder="e.g. damaged in transit"
         />
       </label>
 
@@ -109,7 +108,7 @@ export function InventoryAdjustForm({
           onClick={handleSubmit}
           disabled={isPending}
         >
-          {isPending ? "Submitting..." : "Adjust Balance"}
+          {isPending ? "Submitting..." : "Report loss"}
         </button>
         {onCancel && (
           <button

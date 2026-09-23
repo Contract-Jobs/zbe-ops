@@ -95,7 +95,7 @@ export default function LedgerPage() {
             </thead>
             <tbody>
               {rows.map((row) => {
-                const desc = row.description || (row.sourceRefType === "material_log" ? "Material transaction" : "Ledger entry");
+                const desc = row.description || (row.sourceRefType === "material" ? "Material transaction" : "Ledger entry");
                 const isOut = Number(row.amount) < 0;
                 const siteName = row.siteId ? allSites.find(s => s.id === row.siteId)?.name : "HQ";
 

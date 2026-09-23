@@ -8,6 +8,7 @@ import type {
   UpdateSitePayload,
   CreateSiteTaskPayload,
   UpdateSiteTaskPayload,
+  MaterialsAtSiteParams,
 } from "@/lib/api/sites";
 import { queryKeys } from "@/lib/query/keys";
 import { onActionSettled } from "@/lib/query/approval-invalidation";
@@ -42,6 +43,12 @@ export function useUpdateSite() {
     onSuccess: (_result, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sites.lists() });
       queryClient.invalidateQueries({ queryKey: queryKeys.sites.detail(variables.id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sites.summary(variables.id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.analytics.budget({ siteId: variables.id }) });
+      // Every update logs a lifecycle event (site_updated/site_closed) with
+      // a JSON diff — the Lifecycle Logs modal reads this and was going
+      // stale after the exact edit it's meant to show.
+      queryClient.invalidateQueries({ queryKey: queryKeys.sites.lifecycleAll(variables.id) });
     },
   });
 }
@@ -76,6 +83,32 @@ export function useSiteSummary(id: string | undefined) {
   });
 }
 
+// Pre-joined inventory at this site — resolves the site's node internally,
+// no separate node-id lookup needed.
+export function useSiteMaterials(siteId: string | undefined, params: MaterialsAtSiteParams = {}) {
+  return useQuery({
+    queryKey: queryKeys.sites.materials(siteId ?? "", params),
+    queryFn: () => sitesApi.getSiteMaterials(siteId as string, params),
+    enabled: !!siteId,
+  });
+}
+
+export function useSiteIndividualEquipment(siteId: string | undefined, params: MaterialsAtSiteParams = {}) {
+  return useQuery({
+    queryKey: queryKeys.sites.equipment(siteId ?? "", params),
+    queryFn: () => sitesApi.getSiteIndividualEquipment(siteId as string, params),
+    enabled: !!siteId,
+  });
+}
+
+export function useSiteBulkEquipment(siteId: string | undefined, params: MaterialsAtSiteParams = {}) {
+  return useQuery({
+    queryKey: queryKeys.sites.bulkEquipment(siteId ?? "", params),
+    queryFn: () => sitesApi.getSiteBulkEquipment(siteId as string, params),
+    enabled: !!siteId,
+  });
+}
+
 export function useSiteLifecycle(id: string | undefined, params: SiteLifecycleParams = {}) {
   return useQuery({
     queryKey: queryKeys.sites.lifecycle(id ?? "", params),
@@ -97,7 +130,7 @@ export function useCreateSiteTask(siteId: string) {
   return useMutation({
     mutationFn: (payload: CreateSiteTaskPayload) => sitesApi.createSiteTask(siteId, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.sites.tasks(siteId), exact: false });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sites.tasksAll(siteId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.sites.detail(siteId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.sites.summary(siteId) });
     },
@@ -109,7 +142,10 @@ export function useUpdateSiteTask(siteId: string) {
   return useMutation({
     mutationFn: ({ taskId, payload }: { taskId: string; payload: UpdateSiteTaskPayload }) =>
       sitesApi.updateSiteTask(siteId, taskId, payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.sites.tasks(siteId) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sites.tasksAll(siteId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sites.summary(siteId) });
+    },
   });
 }
 
@@ -118,7 +154,7 @@ export function useDeleteSiteTask(siteId: string) {
   return useMutation({
     mutationFn: (taskId: string) => sitesApi.deleteSiteTask(siteId, taskId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.sites.tasks(siteId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sites.tasksAll(siteId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.sites.summary(siteId) });
     },
   });
@@ -134,8 +170,8 @@ export function useClaimSiteTask(siteId: string) {
       sitesApi.claimSiteTask(siteId, taskId, { notes }),
     onSuccess: ({ data: task }) => {
       onActionSettled(queryClient, "progress_log", task.id, task.isCompleted ? "approved" : "pending", task.siteId);
-      queryClient.invalidateQueries({ queryKey: ["sites", "detail", siteId, "tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["sites", "detail", siteId, "summary"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sites.tasksAll(siteId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sites.summary(siteId) });
     },
   });
 }
@@ -148,8 +184,8 @@ export function useCompleteSiteTask(siteId: string) {
     mutationFn: ({ taskId, review }: { taskId: string; review?: string }) =>
       sitesApi.completeSiteTask(siteId, taskId, { review }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["sites", "detail", siteId, "tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["sites", "detail", siteId, "summary"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sites.tasksAll(siteId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sites.summary(siteId) });
     },
   });
 }

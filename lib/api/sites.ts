@@ -1,14 +1,16 @@
 import { apiClient } from "./client";
 import { buildListParams } from "./list-params";
 import type { ListParams } from "./list-params";
-import type { Site, SiteLifecycleLog, SiteSummary, SiteTask } from "@/types/api";
+import type { Site, SiteLifecycleLog, SiteSummary, SiteTask, MaterialAtInventory, BulkEquipmentAtInventory, IndividualEquipmentItem } from "@/types/api";
 
 export interface CreateSitePayload {
   name: string;
   licenseId: string;
+  slug?: string;
   location?: string;
   laborBudget?: string;
   materialBudget?: string;
+  otherBudget?: string;
   tenderId?: string;
   managerId?: string;
 }
@@ -20,6 +22,7 @@ export interface UpdateSitePayload {
   location?: string;
   laborBudget?: string;
   materialBudget?: string;
+  otherBudget?: string;
   tenderId?: string;
   licenseId?: string;
   managerId?: string;
@@ -107,3 +110,20 @@ export type SiteTaskListParams = ListParams<{
   targetDateFrom?: string[];
   targetDateTo?: string[];
 }>;
+
+// ---- Inventory at this site (resolves the site's node internally; 404s if
+// the site has none) — pre-joined, no separate node-id lookup needed. ----
+
+export type MaterialsAtSiteParams = ListParams<{ includeZeroQuantity?: "true" }>;
+
+export function getSiteMaterials(siteId: string, params: MaterialsAtSiteParams = {}) {
+  return apiClient.get<MaterialAtInventory[]>(`/api/sites/${siteId}/materials`, buildListParams(params));
+}
+
+export function getSiteIndividualEquipment(siteId: string, params: MaterialsAtSiteParams = {}) {
+  return apiClient.get<IndividualEquipmentItem[]>(`/api/sites/${siteId}/equipment`, buildListParams(params));
+}
+
+export function getSiteBulkEquipment(siteId: string, params: MaterialsAtSiteParams = {}) {
+  return apiClient.get<BulkEquipmentAtInventory[]>(`/api/sites/${siteId}/bulk-equipment`, buildListParams(params));
+}

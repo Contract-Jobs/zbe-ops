@@ -75,6 +75,19 @@ export function getRentalEvents(id: string, params: ListParams = {}) {
     return apiClient.get<RentalEvent[]>(`/api/rentals/${id}/events`, buildListParams(params))
 }
 
+export type RentalEventListParams = ListParams<{
+    agreementId?: string
+    eventType?: string
+}>
+
+// Flat listing across every agreement — same relationship to
+// /api/rentals/[id]/events that /api/tasks has to /api/sites/[id]/tasks.
+// Site-managers are scoped to events on agreements belonging to their own
+// sites.
+export function listAllRentalEvents(params: RentalEventListParams = {}) {
+    return apiClient.get<RentalEvent[]>("/api/rental-events", buildListParams(params))
+}
+
 // Response shapes differ from Materials/Equipment — these return a nested
 // { agreement/event, approval } object rather than a single record with
 // its own approvalStatus field, per the doc.

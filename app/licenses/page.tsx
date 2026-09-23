@@ -5,7 +5,7 @@ import { LicenseForm } from "@/components/forms/master";
 import { closedMode, DeleteConfirm, FormPanel, PageHead, RecordActions, type RecordMode } from "@/components/ui";
 import { etb } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
-import { useLicenses, useDeleteLicense } from "@/hooks/use-licenses";
+import { useLicenses, useDeleteLicense, useRestoreLicense } from "@/hooks/use-licenses";
 import type { License } from "@/types/api";
 import { useLicenseAnalytics } from "@/hooks/use-analytics";
 import { useSites } from "@/hooks/use-sites";
@@ -20,6 +20,7 @@ export default function LicensesPage() {
   const { data: licenseAnalytics } = useLicenseAnalytics();
   const { data: sites } = useSites();
   const deleteMutation = useDeleteLicense();
+  const restoreMutation = useRestoreLicense();
 
 
   const licenses = (licensesData ? licensesData.data : (store.licenses as unknown as License[])).filter(
@@ -34,6 +35,14 @@ export default function LicensesPage() {
       } catch {
         // Keep open or handle error
       }
+    }
+  }
+
+  async function handleRestore(id: string) {
+    try {
+      await restoreMutation.mutateAsync(id);
+    } catch {
+      // Handle silently
     }
   }
 
@@ -83,8 +92,10 @@ export default function LicensesPage() {
                   </div>
                   {canMutate ? (
                     <RecordActions
-                      onEdit={() => setMode({ kind: "edit", record: l })}
+                      onEdit={!l.deletedAt ? () => setMode({ kind: "edit", record: l }) : undefined}
                       onDelete={!l.deletedAt ? () => setMode({ kind: "delete", record: l, label: l.name }) : undefined}
+                      onRestore={l.deletedAt ? () => handleRestore(l.id) : undefined}
+                      restoreDisabled={restoreMutation.isPending}
                     />
                   ) : null}
                 </div>

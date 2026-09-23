@@ -73,6 +73,43 @@ export function statusTone(status: string): "ink" | "ok" | "warn" | "bad" | "yel
   return "ink";
 }
 
+// A row of table/section switches for a crowded detail page — one table
+// per tab, not a navigation control. Plain local state on the caller side
+// (no URL sync); each tab keeps its own header button + TableWrap exactly
+// as it looked stacked, just shown one at a time.
+export function Tabs({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: { id: string; label: string; count?: number }[];
+  active: string;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <div role="tablist" className="mb-5 flex flex-wrap gap-1 border-b border-black/10">
+      {tabs.map((t) => {
+        const isActive = t.id === active;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(t.id)}
+            className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium ${
+              isActive ? "border-yellow text-black" : "border-transparent text-black/50 hover:text-black"
+            }`}
+          >
+            {t.label}
+            {t.count !== undefined ? <span className="font-mono text-[0.65rem] text-black/40">{t.count}</span> : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="border border-dashed border-black/20 px-4 py-10 text-center text-black/50">{children}</p>;
 }
@@ -284,11 +321,16 @@ export function ModalPanel({
   title,
   onClose,
   children,
+  wide,
 }: {
   kicker: string;
   title: string;
   onClose: () => void;
   children: ReactNode;
+  // For content that doesn't fit a form's usual width — a data table with
+  // several columns, say. Default stays max-w-lg for every existing (form)
+  // caller.
+  wide?: boolean;
 }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -309,7 +351,7 @@ export function ModalPanel({
       <div
         role="dialog"
         aria-modal="true"
-        className="relative w-full max-w-lg max-h-full overflow-y-auto border border-black bg-white p-6 shadow-xl"
+        className={`relative w-full ${wide ? "max-w-4xl" : "max-w-lg"} max-h-full overflow-y-auto border border-black bg-white p-6 shadow-xl`}
       >
         <div className="mb-6 flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -355,6 +397,8 @@ export function RecordActions({
   editDisabled,
   onDelete,
   deleteDisabled,
+  onRestore,
+  restoreDisabled,
   newLabel = "New",
 }: {
   onNew?: () => void;
@@ -363,6 +407,8 @@ export function RecordActions({
   editDisabled?: boolean,
   onDelete?: () => void;
   deleteDisabled?: boolean;
+  onRestore?: () => void;
+  restoreDisabled?: boolean;
   newLabel?: string;
 }) {
   return (
@@ -380,6 +426,11 @@ export function RecordActions({
       {onDelete ? (
         <button disabled={deleteDisabled} type="button" className="btn btn-ghost-bad" onClick={onDelete}>
           Delete
+        </button>
+      ) : null}
+      {onRestore ? (
+        <button disabled={restoreDisabled} type="button" className="btn btn-ghost" onClick={onRestore}>
+          Restore
         </button>
       ) : null}
     </div>

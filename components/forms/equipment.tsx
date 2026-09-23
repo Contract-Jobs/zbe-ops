@@ -2,62 +2,46 @@
 
 import { useState } from "react";
 import { Field, FormActions } from "@/components/ui";
-import { LocationSelect } from "@/components/LocationSelect";
-import { useCreateEquipment, useUpdateEquipment } from "@/hooks/use-equipment";
-import type { Equipment } from "@/types/api";
-import type { LocationKind } from "@/lib/types";
+import { useUpdateEquipment } from "@/hooks/use-equipment";
+import type { IndividualEquipmentItem } from "@/types/api";
 
+// Direct create is disabled server-side in v2 — equipment can only
+// originate from a purchase equipment-movement (see
+// EquipmentMovementForm's "purchase" action) or a rental's
+// equipmentId: "new". This form is edit-only.
 export function EquipmentForm({
   initial,
-  licenses,
   onCancel,
   onDone,
 }: {
-  initial?: Equipment;
-  licenses: { id: string; name: string }[];
+  initial: IndividualEquipmentItem;
   onCancel: () => void;
   onDone: () => void;
 }) {
-  const creating = !initial;
-  const createMutation = useCreateEquipment();
   const updateMutation = useUpdateEquipment();
   const [error, setError] = useState<string | null>(null);
 
-  const [toKind, setToKind] = useState<LocationKind | "">("");
-  const [toId, setToId] = useState("");
-
-  const isPending = createMutation.isPending || updateMutation.isPending;
+  const isPending = updateMutation.isPending;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     const fd = new FormData(e.currentTarget);
-    const name = String(fd.get("name") ?? "").trim();
-    const serialNumber = String(fd.get("serialNumber") ?? "").trim();
-    const licenseId = String(fd.get("licenseId") ?? "").trim();
+    const identifier = String(fd.get("identifier") ?? "").trim();
+    const vendorName = String(fd.get("vendorName") ?? "").trim();
     const originalValue = String(fd.get("originalValue") ?? "").trim();
-
-    if (!name) return;
+    const bookValue = String(fd.get("bookValue") ?? "").trim();
 
     try {
-      if (initial) {
-        await updateMutation.mutateAsync({
-          id: initial.id,
-          payload: {
-            name,
-            serialNumber: serialNumber || undefined,
-          },
-        });
-      } else {
-        await createMutation.mutateAsync({
-          name,
-          serialNumber: serialNumber || undefined,
-          licenseId: licenseId || undefined,
+      await updateMutation.mutateAsync({
+        id: initial.id,
+        payload: {
+          identifier: identifier || undefined,
+          vendorName: vendorName || undefined,
           originalValue: originalValue || undefined,
-          siteId: toKind === "site" && toId ? toId : undefined,
-          warehouseId: toKind === "warehouse" && toId ? toId : undefined,
-        });
-      }
+          bookValue: bookValue || undefined,
+        },
+      });
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save equipment");
@@ -71,40 +55,22 @@ export function EquipmentForm({
           {error}
         </p>
       ) : null}
-      <Field label="Name">
-        <input className="field" name="name" required defaultValue={initial?.name ?? ""} disabled={isPending} />
+      <Field label="Identifier">
+        <input className="field" name="identifier" defaultValue={initial.identifier} disabled={isPending} />
       </Field>
-      <Field label="Serial">
-        <input className="field" name="serialNumber" defaultValue={initial?.serialNumber ?? ""} disabled={isPending} />
+      <Field label="Vendor">
+        <input className="field" name="vendorName" defaultValue={initial.vendorName ?? ""} disabled={isPending} />
       </Field>
-      {creating ? (
-        <>
-          <Field label="License">
-            <select className="field" name="licenseId" defaultValue={licenses[0]?.id ?? ""} disabled={isPending}>
-              {licenses.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Original value (ETB)">
-            <input className="field" name="originalValue" defaultValue="" disabled={isPending} />
-          </Field>
-          <div className="sm:col-span-2">
-            <p className="mb-1 text-sm font-medium">Initial Destination</p>
-            <LocationSelect kind={toKind} id={toId} onKind={setToKind} onId={setToId} />
-          </div>
-          <p className="text-sm text-black/55 sm:col-span-2">
-            Rent rate is set by hire events, not on create. Location moves through Approvals after creation.
-          </p>
-        </>
-      ) : (
-        <p className="text-sm text-black/55 sm:col-span-2">
-          Site, warehouse, value, and rent rate cannot be patched here — raise an event.
-        </p>
-      )}
-      <FormActions saveLabel={initial ? "Save equipment" : "Create equipment"} onCancel={onCancel} loading={isPending} />
+      <Field label="Original value (ETB)">
+        <input className="field" name="originalValue" defaultValue={initial.originalValue} disabled={isPending} />
+      </Field>
+      <Field label="Book value (ETB)">
+        <input className="field" name="bookValue" defaultValue={initial.bookValue ?? ""} disabled={isPending} />
+      </Field>
+      <p className="text-sm text-black/55 sm:col-span-2">
+        Location, condition, assignment, and lifecycle cannot be patched here — raise a movement.
+      </p>
+      <FormActions saveLabel="Save equipment" onCancel={onCancel} loading={isPending} />
     </form>
   );
 }

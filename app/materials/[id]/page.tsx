@@ -3,7 +3,6 @@
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { MaterialForm, SubitemForm } from "@/components/forms/material";
-import { LocationSelect } from "@/components/LocationSelect";
 import {
   closedMode,
   DeleteConfirm,
@@ -15,24 +14,10 @@ import {
   type RecordMode,
 } from "@/components/ui";
 import { day, qty, etb } from "@/lib/format";
-import { isSiteManager, locationName, useStore } from "@/lib/store";
-import {
-  useMaterial,
-  useDeleteMaterial,
-  useSubItems,
-  useRemoveSubItem,
-  useMaterialLogs,
-  usePurchaseMaterial,
-  useTransferMaterial,
-  useSellMaterial,
-  useConsumeMaterial,
-  useReportMissingMaterial,
-} from "@/hooks/use-materials";
-import { useInventoryBalances, useMaterialTrace } from "@/hooks/use-inventory";
-import { useSites } from "@/hooks/use-sites";
-import { useWarehouses } from "@/hooks/use-warehouses";
-import type { LocationKind } from "@/lib/types";
-import type { MaterialCatalog, MaterialLog, MaterialSubitem, InventoryBalance } from "@/types/api";
+import { isSiteManager, useStore } from "@/lib/store";
+import { useInventoryItem, useDeleteInventoryItem, useSubitems, useRemoveSubitem, useItemBalances, useItemHistory } from "@/hooks/use-inventory-items";
+import { QUANTITY_MOVEMENT_LABELS } from "@/lib/movement-labels";
+import type { InventoryItem, InventoryItemSubitem } from "@/types/api";
 
 import { MaterialMovementForm } from "@/components/forms/material-movement";
 
@@ -41,32 +26,22 @@ export default function MaterialDetailPage() {
   const router = useRouter();
   const store = useStore();
 
-  const { data: materialData, isLoading: isMaterialLoading } = useMaterial(id);
-  const { data: subItemsData } = useSubItems(id);
-  const { data: traceData, isLoading: isTraceLoading } = useMaterialTrace(id);
+  const { data: materialData, isLoading: isMaterialLoading } = useInventoryItem(id);
+  const { data: subItemsData } = useSubitems(id);
   const [balPage, setBalPage] = useState(1);
-  const { data: balancesData } = useInventoryBalances({ materialId: id ? [id] : undefined, page: balPage, limit: 10 });
-  const [logPage, setLogPage] = useState(1);
-  const { data: logsData } = useMaterialLogs({ materialId: id, page: logPage, limit: 10 });
-  const { data: sitesData } = useSites();
-  const { data: warehousesData } = useWarehouses();
-  const { data: matTrace } = useMaterialTrace(id)
-  const totalCount = matTrace?.data ? matTrace.data.currentBalances.map(cb => cb.quantity).reduce((prev, curr) => curr + prev, 0) : 0;
-  const averagePrice = matTrace?.data ? (matTrace.data.currentBalances.map(cb => cb.avgUnitPrice).reduce((prev, curr) => (curr || 0) + (prev || 0), 0) || 0) / (matTrace.data.currentBalances?.length || 1) : 0
+  const { data: balancesData } = useItemBalances(id, { page: balPage, limit: 10 });
+  const [histPage, setHistPage] = useState(1);
+  const { data: historyData } = useItemHistory(id, { page: histPage, limit: 20, sortBy: "movementDate", sortOrder: "desc" });
 
-  console.log(totalCount, averagePrice, matTrace?.data.currentBalances.map(cb => cb.avgUnitPrice).reduce((prev, curr) => (curr || 0) + (prev || 0), 0))
-  const deleteMaterialMutation = useDeleteMaterial();
-  const removeSubItemMutation = useRemoveSubItem(id || "");
+  const deleteMaterialMutation = useDeleteInventoryItem();
+  const removeSubItemMutation = useRemoveSubitem(id || "");
 
-
-
-  const item = materialData?.data ?? (store.materials.find((m) => m.id === id) as unknown as MaterialCatalog | undefined);
+  const item = materialData?.data;
   const manager = isSiteManager(store);
   const canMutate = !manager;
 
-
-  const [mode, setMode] = useState<RecordMode<MaterialCatalog>>(closedMode);
-  const [subMode, setSubMode] = useState<RecordMode<MaterialSubitem>>(closedMode);
+  const [mode, setMode] = useState<RecordMode<InventoryItem>>(closedMode);
+  const [subMode, setSubMode] = useState<RecordMode<InventoryItemSubitem>>(closedMode);
   const [msg, setMsg] = useState<string | null>(null);
 
   if (isMaterialLoading && !item) {
@@ -75,32 +50,14 @@ export default function MaterialDetailPage() {
 
   if (!item) return <p>Material not found.</p>;
 
-  const traceBalances = traceData?.data?.currentBalances;
-  const traceHistory = traceData?.data?.history;
-
-  const bals: InventoryBalance[] = balancesData?.data ??
-    (store.balances.filter((b) => b.materialId === item.id && b.quantity !== 0) as unknown as InventoryBalance[]);
-  const logs: MaterialLog[] = logsData?.data ??
-    (store.materialLogs.filter((l) => l.materialId === item.id) as unknown as MaterialLog[]);
-  const kits: MaterialSubitem[] = subItemsData?.data ??
-    (store.subitems.filter((s) => s.materialId === item.id) as unknown as MaterialSubitem[]);
-
-  const getLocationName = (kind?: "site" | "warehouse" | LocationKind, locId?: string | null) => {
-    if (!locId) return "—";
-    if (kind === "site" || (!kind && sitesData?.data.some((s) => s.id === locId))) {
-      return sitesData?.data.find((s) => s.id === locId)?.name ?? locationName("site", locId, store);
-    }
-    return warehousesData?.data.find((w) => w.id === locId)?.name ?? locationName("warehouse", locId, store);
-  };
-
-
+  const kits: InventoryItemSubitem[] = subItemsData?.data ?? [];
+  const balances = balancesData?.data ?? [];
+  const history = historyData?.data ?? [];
 
   const handleDeleteMaterial = async () => {
     if (mode.kind === "delete" && mode.record) {
       try {
-        if (materialData) {
-          await deleteMaterialMutation.mutateAsync(mode.record.id);
-        }
+        await deleteMaterialMutation.mutateAsync(mode.record.id);
         setMode(closedMode());
         router.push("/materials");
       } catch (e) {
@@ -112,9 +69,7 @@ export default function MaterialDetailPage() {
   const handleRemoveSubItem = async () => {
     if (subMode.kind === "delete" && subMode.record) {
       try {
-        if (subItemsData) {
-          await removeSubItemMutation.mutateAsync(subMode.record.id);
-        }
+        await removeSubItemMutation.mutateAsync(subMode.record.id);
         setSubMode(closedMode());
       } catch (e) {
         setMsg(e instanceof Error ? e.message : "Failed to delete sub-item");
@@ -137,7 +92,7 @@ export default function MaterialDetailPage() {
         }
       />
       <p className="mb-6 font-mono text-sm text-black/50">
-        {item.unit} · {item.type}
+        {item.unit} · {item.compositionType}
       </p>
       {mode.kind === "edit" ? (
         <FormPanel kicker="Catalog" title="Edit material" onClose={() => setMode(closedMode())}>
@@ -153,7 +108,7 @@ export default function MaterialDetailPage() {
           <div className="mb-8">
             <div className="mb-2 flex items-center justify-between gap-3">
               <p className="kicker">Set contents</p>
-              {canMutate && item.type === "set" ? (
+              {canMutate && item.compositionType === "set" ? (
                 <button type="button" className="btn btn-ghost" onClick={() => setSubMode({ kind: "create" })}>
                   Add part
                 </button>
@@ -196,21 +151,23 @@ export default function MaterialDetailPage() {
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-black/45">{item.type === "set" ? "No parts listed." : "Not a set."}</p>
+              <p className="text-sm text-black/45">{item.compositionType === "set" ? "No parts listed." : "Not a set."}</p>
             )}
 
-            {matTrace?.data && <div className="grid gap-px bg-black/10 sm:grid-cols-3">
+            {/* Server-computed totals off the catalog item itself — not a
+                sum of the (paginated) balances list below, which only ever
+                covers one page of locations. */}
+            <div className="grid gap-px bg-black/10 sm:grid-cols-3">
               <div className="bg-white p-5">
                 <p className="kicker">Total</p>
-                <p className="mt-2 break-words text-2xl tracking-tight">{qty(totalCount, materialData?.data.unit)}</p>
+                <p className="mt-2 break-words text-2xl tracking-tight">{qty(item.totalQuantity, item.unit)}</p>
               </div>
 
               <div className="bg-white p-5">
                 <p className="kicker">Total Value</p>
-                <p className="mt-2 break-words text-2xl tracking-tight">{etb(averagePrice * totalCount)}</p>
+                <p className="mt-2 break-words text-2xl tracking-tight">{etb(item.totalValue)}</p>
               </div>
             </div>
-            }
           </div>
           <p className="kicker mb-2">Global Distribution</p>
           <TableWrap pagination={balancesData?.pagination} onPageChange={setBalPage}>
@@ -223,29 +180,14 @@ export default function MaterialDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {traceBalances ? (
-                  traceBalances.map((b, i) => (
-                    <tr key={i}>
-                      <td>{b.location}</td>
-                      <td className="font-mono">{qty(b.quantity, item.unit)}</td>
-                      <td className="font-mono">{b.avgUnitPrice ? etb(b.avgUnitPrice) : "—"}</td>
-                    </tr>
-                  ))
-                ) : (
-                  bals.map((b) => {
-                    const locationKind = (b as unknown as { locationKind?: LocationKind }).locationKind ??
-                      (b.siteId ? "site" : "warehouse");
-                    const locationId = (b as unknown as { locationId?: string }).locationId ?? (b.siteId || b.warehouseId);
-                    return (
-                      <tr key={`${b.id ?? locationId}`}>
-                        <td>{getLocationName(locationKind, locationId)}</td>
-                        <td className="font-mono">{qty(b.quantity, item.unit)}</td>
-                        <td className="font-mono">—</td>
-                      </tr>
-                    );
-                  })
-                )}
-                {(traceBalances ? traceBalances.length === 0 : bals.length === 0) ? (
+                {balances.map((b) => (
+                  <tr key={b.locationId}>
+                    <td>{b.location}</td>
+                    <td className="font-mono">{qty(b.quantity, item.unit)}</td>
+                    <td className="font-mono">{b.averageUnitValue ? etb(b.averageUnitValue) : "—"}</td>
+                  </tr>
+                ))}
+                {balances.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="py-4 text-center text-sm text-black/45">
                       No stock currently distributed.
@@ -257,7 +199,7 @@ export default function MaterialDetailPage() {
           </TableWrap>
 
           <p className="kicker mb-2">Activity Ledger</p>
-          <TableWrap pagination={logsData?.pagination} onPageChange={setLogPage}>
+          <TableWrap pagination={historyData?.pagination} onPageChange={setHistPage}>
             <table className="data w-full text-left">
               <thead>
                 <tr>
@@ -266,48 +208,35 @@ export default function MaterialDetailPage() {
                   <th>Qty</th>
                   <th className="hidden sm:table-cell">From / To</th>
                   <th>Unit Cost</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {traceHistory ? (
-                  traceHistory.map((h, i) => (
-                    <tr key={i}>
-                      <td>{day(h.log.timestamp)}</td>
-                      <td>
-                        <Stamp value={h.log.logType} />
-                      </td>
-                      <td className="font-mono">{h.log.quantity}</td>
-                      <td className="hidden text-sm sm:table-cell">
-                        {h.fromLabel || "—"} → {h.toLabel || "—"}
-                      </td>
-                      <td className="font-mono">{(h.log as any).unitPrice ? etb((h.log as any).unitPrice) : "—"}</td>
-                    </tr>
-                  ))
-                ) : (
-                  logs.map((l) => {
-                    const fromId = l.fromSiteId ?? l.fromWarehouseId ?? (l as unknown as { fromId?: string }).fromId;
-                    const fromKind = l.fromSiteId ? "site" : l.fromWarehouseId ? "warehouse" : (l as unknown as { fromKind?: LocationKind }).fromKind;
-                    const toId = l.toSiteId ?? l.toWarehouseId ?? (l as unknown as { toId?: string }).toId;
-                    const toKind = l.toSiteId ? "site" : l.toWarehouseId ? "warehouse" : (l as unknown as { toKind?: LocationKind }).toKind;
-
-                    return (
-                      <tr key={l.id}>
-                        <td>{day(l.timestamp ?? l.createdAt)}</td>
-                        <td>
-                          <Stamp value={l.logType} />
-                        </td>
-                        <td className="font-mono">{l.quantity}</td>
-                        <td className="hidden text-sm sm:table-cell">
-                          {getLocationName(fromKind, fromId)} → {getLocationName(toKind, toId)}
-                        </td>
-                        <td className="font-mono">{(l as any).purchaseCost ? etb((l as any).purchaseCost) : "—"}</td>
-                      </tr>
-                    );
-                  })
-                )}
-                {(traceHistory ? traceHistory.length === 0 : logs.length === 0) ? (
+                {history.map((h) => (
+                  <tr key={h.movement.id}>
+                    <td>{day(h.movement.movementDate)}</td>
+                    <td>
+                      <Stamp value={QUANTITY_MOVEMENT_LABELS[h.movement.movementType]} />
+                    </td>
+                    <td className="font-mono">{h.movement.quantity}</td>
+                    <td className="hidden text-sm sm:table-cell">
+                      {h.fromLabel || "—"} → {h.toLabel || "—"}
+                    </td>
+                    <td className="font-mono">{h.movement.unitCost ? etb(h.movement.unitCost) : "—"}</td>
+                    <td>
+                      {h.movement.isReversed ? (
+                        <Stamp value="reversed" tone="bad" />
+                      ) : h.movement.isReversal ? (
+                        <Stamp value="reversal" tone="yellow" />
+                      ) : (
+                        <Stamp value="posted" tone="ok" />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {history.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-4 text-center text-sm text-black/45">
+                    <td colSpan={6} className="py-4 text-center text-sm text-black/45">
                       No activity recorded yet.
                     </td>
                   </tr>
@@ -333,7 +262,7 @@ export default function MaterialDetailPage() {
         onClose={() => setSubMode(closedMode())}
         onConfirm={handleRemoveSubItem}
       />
+      {msg ? <p className="mt-3 text-sm text-black/70">{msg}</p> : null}
     </div>
   );
 }
-

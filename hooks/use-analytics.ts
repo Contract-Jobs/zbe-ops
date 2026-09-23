@@ -9,7 +9,7 @@ const ANALYTICS_STALE_TIME = 2 * 60 * 1000
 
 export function useSpendAnalytics(params: Parameters<typeof analyticsApi.getSpendAnalytics>[0] = {}) {
     return useQuery({
-        queryKey: [...queryKeys.analytics.spend, params],
+        queryKey: queryKeys.analytics.spend(params),
         queryFn: () => analyticsApi.getSpendAnalytics(params),
         staleTime: ANALYTICS_STALE_TIME,
     })
@@ -17,7 +17,7 @@ export function useSpendAnalytics(params: Parameters<typeof analyticsApi.getSpen
 
 export function useBudgetOverview(params: Parameters<typeof analyticsApi.getBudgetOverview>[0] = {}) {
     return useQuery({
-        queryKey: [...queryKeys.analytics.budget, params],
+        queryKey: queryKeys.analytics.budget(params),
         queryFn: () => analyticsApi.getBudgetOverview(params),
         staleTime: ANALYTICS_STALE_TIME,
     })
@@ -25,7 +25,7 @@ export function useBudgetOverview(params: Parameters<typeof analyticsApi.getBudg
 
 export function useInventoryAnalytics(params: Parameters<typeof analyticsApi.getInventoryAnalytics>[0] = {}) {
     return useQuery({
-        queryKey: [...queryKeys.analytics.inventory, params],
+        queryKey: queryKeys.analytics.inventory(params),
         queryFn: () => analyticsApi.getInventoryAnalytics(params),
         staleTime: ANALYTICS_STALE_TIME,
     })
@@ -33,7 +33,7 @@ export function useInventoryAnalytics(params: Parameters<typeof analyticsApi.get
 
 export function useBudgetHealth(params: Parameters<typeof analyticsApi.getBudgetHealth>[0] = {}) {
     return useQuery({
-        queryKey: [...queryKeys.analytics.budgetHealth, params],
+        queryKey: queryKeys.analytics.budgetHealth(params),
         queryFn: () => analyticsApi.getBudgetHealth(params),
         staleTime: ANALYTICS_STALE_TIME,
     })
@@ -41,24 +41,25 @@ export function useBudgetHealth(params: Parameters<typeof analyticsApi.getBudget
 
 export function useLicenseAnalytics(params: Parameters<typeof analyticsApi.getLicenseAnalytics>[0] = {}) {
     return useQuery({
-        queryKey: [...queryKeys.analytics.licenses, params],
+        queryKey: queryKeys.analytics.licenses(params),
         queryFn: () => analyticsApi.getLicenseAnalytics(params),
         staleTime: ANALYTICS_STALE_TIME,
     })
 }
 
-export function useCostBreakdown(params: Parameters<typeof analyticsApi.getCostBreakdown>[0] | undefined) {
+export function useSalesAnalytics(params: Parameters<typeof analyticsApi.getSalesAnalytics>[0] = {}) {
     return useQuery({
-        queryKey: params ? [...queryKeys.analytics.costBreakdown(params.siteId, params.dateFrom, params.dateTo)] : [],
-        queryFn: () => analyticsApi.getCostBreakdown(params!),
-        enabled: !!params?.siteId,
+        queryKey: queryKeys.analytics.sales(params),
+        queryFn: () => analyticsApi.getSalesAnalytics(params),
+        staleTime: ANALYTICS_STALE_TIME,
     })
 }
 
-export function useSalesAnalytics(params: Parameters<typeof analyticsApi.getSalesAnalytics>[0] = {}) {
+// New in v2, admin/superadmin only — see docs/new_api.md §9.
+export function useCompanyFinancials(params: Parameters<typeof analyticsApi.getCompanyFinancials>[0] = {}) {
     return useQuery({
-        queryKey: [...queryKeys.analytics.sales, params],
-        queryFn: () => analyticsApi.getSalesAnalytics(params),
+        queryKey: queryKeys.analytics.company(params),
+        queryFn: () => analyticsApi.getCompanyFinancials(params),
         staleTime: ANALYTICS_STALE_TIME,
     })
 }

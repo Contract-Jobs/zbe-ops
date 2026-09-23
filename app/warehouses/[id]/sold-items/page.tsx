@@ -12,8 +12,7 @@ import {
 } from "@/hooks/use-warehouses";
 import { etb } from "@/lib/format";
 import { day } from "@/lib/format";
-import type { SoldItemsOverview, EquipmentLog, MaterialLog, Equipment, MaterialCatalog, Warehouse } from "@/types/api";
-import { userName } from "@/lib/store";
+import type { SoldItemsOverview, Warehouse } from "@/types/api";
 
 export default function WarehouseSoldItemsPage() {
   const { id } = useParams<{ id: string }>();
@@ -25,12 +24,11 @@ export default function WarehouseSoldItemsPage() {
 
   const { data: warehouseData, isLoading: isWhLoading } = useWarehouse(id);
   const { data: overviewData } = useWarehouseSoldOverview(id);
-  const { data: equipmentData, isLoading: equipLoading } = useWarehouseSoldEquipment(id, { page: equipPage, limit: 10 });
-  const { data: materialsData, isLoading: matLoading } = useWarehouseSoldMaterials(id, { page: matPage, limit: 10 });
+  const { data: equipmentData } = useWarehouseSoldEquipment(id, { page: equipPage, limit: 10 });
+  const { data: materialsData } = useWarehouseSoldMaterials(id, { page: matPage, limit: 10 });
 
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
 
-  // Fallback calculations for Demo Mode (since GET requests bypass interceptor)
   const fallbackOverview: SoldItemsOverview = {
     soldEquipmentCount: 0,
     soldEquipmentTotal: "0",
@@ -40,39 +38,9 @@ export default function WarehouseSoldItemsPage() {
     totalRevenue: "0",
   };
 
-  const fallbackEquipLogs: (EquipmentLog & { equipment: Equipment | null })[] = [];
-  const fallbackMatLogs: (MaterialLog & { material: MaterialCatalog | null })[] = [];
-
-  if (!overviewData && !equipLoading && !matLoading) {
-    let eqTotal = 0;
-    store.equipmentLogs
-      .filter((l) => l.logType === "sale" && l.fromKind === "warehouse" && l.fromId === id && !l.isReversal)
-      .forEach((l) => {
-        fallbackOverview.soldEquipmentCount++;
-        eqTotal += Number(l.price) || 0;
-        const equipment = store.equipment.find((e) => e.id === l.equipmentId) as unknown as Equipment | undefined;
-        fallbackEquipLogs.push({ ...(l as unknown as EquipmentLog), equipment: equipment ?? null });
-      });
-
-    let matTotal = 0;
-    store.materialLogs
-      .filter((l) => l.logType === "sale" && l.fromKind === "warehouse" && l.fromId === id && !l.isReversal)
-      .forEach((l) => {
-        fallbackOverview.soldMaterialCount++;
-        matTotal += Number(l.unitPrice) || 0; // Assuming unitPrice is total price of sale here for demo
-        const material = store.materials.find((m) => m.id === l.materialId) as unknown as MaterialCatalog | undefined;
-        fallbackMatLogs.push({ ...(l as unknown as MaterialLog), material: material ?? null });
-      });
-
-    fallbackOverview.soldEquipmentTotal = String(eqTotal);
-    fallbackOverview.soldMaterialTotal = String(matTotal);
-    fallbackOverview.totalCount = fallbackOverview.soldEquipmentCount + fallbackOverview.soldMaterialCount;
-    fallbackOverview.totalRevenue = String(eqTotal + matTotal);
-  }
-
-  const overview = overviewData ?? fallbackOverview;
-  const soldEquip = equipmentData?.data ?? fallbackEquipLogs;
-  const soldMats = materialsData?.data ?? fallbackMatLogs;
+  const overview = overviewData?.data ?? fallbackOverview;
+  const soldEquip = equipmentData?.data ?? [];
+  const soldMats = materialsData?.data ?? [];
 
   if (isWhLoading && !warehouse) {
     return <p className="p-8 text-center text-sm text-black/50">Loading warehouse...</p>;
@@ -126,12 +94,12 @@ export default function WarehouseSoldItemsPage() {
                 </tr>
               </thead>
               <tbody>
-                {soldEquip.map((l: any) => (
+                {soldEquip.map((l) => (
                   <tr key={l.id}>
-                    <td className="whitespace-nowrap">{day(l.timestamp || l.createdAt)}</td>
-                    <td>{l.equipment?.name ?? "Unknown equipment"}</td>
-                    <td>{l.buyerName ?? "—"}</td>
-                    <td className="font-mono">{etb(Number(l.price))}</td>
+                    <td className="whitespace-nowrap">{day(l.movementDate)}</td>
+                    <td>{l.equipment?.identifier ?? "Unknown equipment"}</td>
+                    <td>{l.clientName ?? "—"}</td>
+                    <td className="font-mono">{etb(Number(l.movementCost ?? 0))}</td>
                     <td><Username userId={l.loggedBy ?? ""} /></td>
                   </tr>
                 ))}
@@ -161,15 +129,15 @@ export default function WarehouseSoldItemsPage() {
                 </tr>
               </thead>
               <tbody>
-                {soldMats.map((l: any) => (
+                {soldMats.map((l) => (
                   <tr key={l.id}>
-                    <td className="whitespace-nowrap">{day(l.timestamp || l.createdAt)}</td>
-                    <td>{l.material?.name ?? "Unknown material"}</td>
+                    <td className="whitespace-nowrap">{day(l.movementDate)}</td>
+                    <td>{l.item?.name ?? "Unknown material"}</td>
                     <td className="font-mono">
-                      {l.quantity} {l.material?.unit ?? ""}
+                      {l.quantity} {l.item?.unit ?? ""}
                     </td>
-                    <td>{l.buyerName ?? "—"}</td>
-                    <td className="font-mono">{etb(Number(l.unitPrice))}</td>
+                    <td>{l.clientName ?? "—"}</td>
+                    <td className="font-mono">{etb(l.unitCost)}</td>
                     <td><Username userId={l.loggedBy ?? ""} /></td>
                   </tr>
                 ))}

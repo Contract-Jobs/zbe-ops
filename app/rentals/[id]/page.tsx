@@ -15,9 +15,8 @@ import {
   Username,
 } from "@/components/ui";
 import { day, etb } from "@/lib/format";
-import { isSiteManager, locationName, useStore } from "@/lib/store";
+import { isSiteManager, useStore } from "@/lib/store";
 import { useRental, useRentalEvents } from "@/hooks/use-rentals";
-import { useEquipmentList } from "@/hooks/use-equipment";
 
 export default function RentalDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -27,10 +26,8 @@ export default function RentalDetailPage() {
   const { data: rentalData, isLoading } = useRental(id);
   const [page, setPage] = useState(1);
   const { data: eventsData, isLoading: eventsLoading } = useRentalEvents(id, { page, limit: 10 });
-  const { data: equipmentData } = useEquipmentList({ limit: 1000 });
 
   const item = rentalData?.data ?? store.rentals.find((r) => r.id === id);
-  const equipmentList = equipmentData ? equipmentData.data : store.equipment;
 
   const [mode, setMode] = useState<"closed" | "adjust" | "return">("closed");
 
@@ -40,7 +37,9 @@ export default function RentalDetailPage() {
 
   if (!item) return <p>Rental not found.</p>;
 
-  const equipment = equipmentList.find((e) => e.id === item.equipmentId);
+  // Enriched server-side on the rental itself — no separate equipment/
+  // catalog lookup needed.
+  const equipmentDisplayName = item.equipment?.itemName ?? item.equipment?.identifier;
   const isRentIn = item.type === "rent_in";
   
   const relatedEvents = eventsData?.data ?? store.rentalEvents.filter(e => e.agreementId === id).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -82,7 +81,7 @@ export default function RentalDetailPage() {
           <dl className="mb-10 grid grid-cols-2 gap-4 text-sm">
             <div>
               <dt className="kicker">Equipment</dt>
-              <dd className="mt-1">{equipment?.name ?? item.equipmentId}</dd>
+              <dd className="mt-1">{equipmentDisplayName ?? item.equipmentId}</dd>
             </div>
             <div>
               <dt className="kicker">{isRentIn ? "Vendor" : "Customer"}</dt>

@@ -1,90 +1,67 @@
 import { apiClient } from "./client"
 import { buildListParams } from "./list-params"
 import type { ListParams } from "./list-params"
-import type { Equipment, EquipmentLog, EquipmentLogAction } from "@/types/api"
+import type {
+    IndividualEquipmentItem,
+    EquipmentTraceResponse,
+    EquipmentAssignmentStatus,
+    EquipmentLifecycleStatus,
+    EquipmentCondition,
+    VerifyEquipmentStateResult,
+    RebuildResult,
+} from "@/types/api"
 
-export interface CreateEquipmentPayload {
-    name: string
-    serialNumber?: string
-    siteId?: string
-    warehouseId?: string
-    licenseId?: string
-    originalValue?: string
-    value?: string   // new
-    vendorName?: string
-}
-
-
-export interface CreateEquipmentPayload {
-    name: string
-    serialNumber?: string
-    siteId?: string
-    warehouseId?: string
-    licenseId?: string
-    originalValue?: string
-    value?: string
-    vendorName?: string
-}
-
+// Direct create is disabled server-side in v2 (unconditional VALIDATION
+// throw) — every equipment record must originate from a `purchase`
+// equipment-movement (see equipment-movements.ts) or a rental's
+// equipmentId: "new". There is deliberately no createEquipment() here.
 
 export interface UpdateEquipmentPayload {
-    name?: string
-    serialNumber?: string
-    licenseId?: string
+    identifier?: string
     vendorName?: string
-    // Note: location and value are NOT updatable via PATCH — doc explicitly
-    // forbids it. Those only change through action endpoints (transfer,
-    // degrade, appreciate, etc.)
+    originalValue?: string
+    bookValue?: string
+    // location/condition/assignment/lifecycle are movement-only — not
+    // accepted keys on this schema at all in v2.
 }
 
-
 export type EquipmentListParams = ListParams<{
-    siteId?: string[]
-    warehouseId?: string[]
-    licenseId?: string[]
-    status?: string[]
-    ownershipStatus?: string[]
+    itemId?: string[]
+    inventoryId?: string[]
+    lifecycleStatus?: EquipmentLifecycleStatus[]
+    assignmentStatus?: EquipmentAssignmentStatus[]
+    condition?: EquipmentCondition[]
 }>
 
 export function listEquipment(params: EquipmentListParams = {}) {
-    return apiClient.get<Equipment[]>("/api/equipment", buildListParams(params))
+    return apiClient.get<IndividualEquipmentItem[]>("/api/equipment", buildListParams(params))
 }
 
 export function getEquipment(id: string) {
-    return apiClient.get<Equipment>(`/api/equipment/${id}`)
-}
-
-export function createEquipment(payload: CreateEquipmentPayload) {
-    return apiClient.post<Equipment>("/api/equipment", payload)
+    return apiClient.get<IndividualEquipmentItem>(`/api/equipment/${id}`)
 }
 
 export function updateEquipment(id: string, payload: UpdateEquipmentPayload) {
-    return apiClient.patch<Equipment>(`/api/equipment/${id}`, payload)
+    return apiClient.patch<IndividualEquipmentItem>(`/api/equipment/${id}`, payload)
 }
-
-export function createEquipmentLog(payload: EquipmentLogAction) {
-    return apiClient.post<EquipmentLog>("/api/equipment/logs", payload)
-}
-
-export function listEquipmentLogs(
-    params: ListParams<{ equipmentId?: string; siteId?: string; warehouseId?: string; logType?: string }> = {}
-) {
-    return apiClient.get<EquipmentLog[]>("/api/equipment/logs", buildListParams(params))
-}
-
-export function getEquipmentLog(id: string) {
-    return apiClient.get<EquipmentLog>(`/api/equipment/logs/${id}`)
-}
-
-export function reverseEquipmentLog(id: string) {
-    return apiClient.post<EquipmentLog>(`/api/equipment/logs/${id}/reverse`)
-}
-
 
 export function deleteEquipment(id: string) {
     return apiClient.delete<void>(`/api/equipment/${id}`)
 }
 
 export function restoreEquipment(id: string) {
-    return apiClient.post<Equipment>(`/api/equipment/${id}/restore`)
+    return apiClient.post<IndividualEquipmentItem>(`/api/equipment/${id}/restore`)
+}
+
+export function traceEquipment(id: string) {
+    return apiClient.get<EquipmentTraceResponse>(`/api/equipment/${id}/trace`)
+}
+
+export function verifyEquipmentState(id: string) {
+    return apiClient.get<VerifyEquipmentStateResult>(`/api/equipment-states/${id}/verify`)
+}
+
+// Superadmin only.
+export function rebuildEquipmentStates() {
+    return apiClient.post<RebuildResult>("/api/equipment-states/rebuild")
 }

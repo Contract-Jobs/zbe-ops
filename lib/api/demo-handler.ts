@@ -260,8 +260,10 @@ export async function demoHandler(method: string, path: string, body?: any): Pro
       equipmentId: eqId,
       type: body.type as any,
       status: "active" as any,
-      siteId: isRentIn ? (body.toSiteId || null) : null,
-      warehouseId: isRentIn ? (body.toWarehouseId || null) : null,
+      siteId: isRentIn ? (body.siteId || null) : null,
+      warehouseId: isRentIn ? (body.warehouseId || null) : null,
+      returnSiteId: null,
+      returnWarehouseId: null,
       licenseId: body.licenseId || null,
       vendorName: body.vendorName || null,
       buyerName: body.buyerName || null,
@@ -277,11 +279,14 @@ export async function demoHandler(method: string, path: string, body?: any): Pro
       agreementId: agreement.id,
       eventType: "initiation" as any,
       timestamp: now,
-      dailyRate: body.dailyRate || null,
-      lumpSumAmount: body.upfrontFee || null,
+      dailyRate: body.dailyRate != null ? String(body.dailyRate) : null,
+      lumpSumAmount: body.upfrontFee != null ? String(body.upfrontFee) : null,
       notes: body.notes || null,
       transactionId: nid("tx"),
+      equipmentMovementId: null,
       loggedBy: getStore().session.userId,
+      createdAt: now,
+      updatedAt: now,
     };
     
     const approval = {
@@ -312,11 +317,14 @@ export async function demoHandler(method: string, path: string, body?: any): Pro
       agreementId,
       eventType: "rate_change" as any,
       timestamp: now,
-      dailyRate: body.dailyRate || null,
-      lumpSumAmount: body.lumpSumFee || null,
+      dailyRate: body.dailyRate != null ? String(body.dailyRate) : null,
+      lumpSumAmount: body.lumpSumFee != null ? String(body.lumpSumFee) : null,
       notes: body.notes || null,
       transactionId: nid("tx"),
+      equipmentMovementId: null,
       loggedBy: getStore().session.userId,
+      createdAt: now,
+      updatedAt: now,
     };
     const approval = {
       id: nid("ap"),
@@ -344,10 +352,13 @@ export async function demoHandler(method: string, path: string, body?: any): Pro
       eventType: "settlement" as any,
       timestamp: now,
       dailyRate: null,
-      lumpSumAmount: body.finalCostOverride || null,
+      lumpSumAmount: body.finalCostOverride != null ? String(body.finalCostOverride) : null,
       notes: body.notes || null,
       transactionId: nid("tx"),
+      equipmentMovementId: null,
       loggedBy: getStore().session.userId,
+      createdAt: now,
+      updatedAt: now,
     };
     const approval = {
       id: nid("ap"),
@@ -361,7 +372,14 @@ export async function demoHandler(method: string, path: string, body?: any): Pro
 
     updateStore((prev) => ({
       ...prev,
-      rentals: prev.rentals.map(r => r.id === agreementId ? { ...r, status: "completed" as any, actualReturnDate: body.actualReturnDate, updatedAt: now } : r),
+      rentals: prev.rentals.map(r => r.id === agreementId ? {
+        ...r,
+        status: "completed" as any,
+        actualReturnDate: body.actualReturnDate,
+        returnSiteId: body.returnSiteId ?? null,
+        returnWarehouseId: body.returnWarehouseId ?? null,
+        updatedAt: now,
+      } : r),
       rentalEvents: [event, ...prev.rentalEvents],
       approvals: [approval, ...prev.approvals],
     }));

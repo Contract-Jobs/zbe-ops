@@ -15,7 +15,7 @@ import {
 } from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
-import { useTenders, useDeleteTender } from "@/hooks/use-tenders";
+import { useTenders, useDeleteTender, useRestoreTender } from "@/hooks/use-tenders";
 import { useLicenses } from "@/hooks/use-licenses";
 import type { Tender } from "@/types/api";
 
@@ -30,6 +30,7 @@ export default function TendersPage() {
   const { data: tendersData, isLoading } = useTenders({ page, limit: 10 });
   const { data: licensesData } = useLicenses();
   const deleteMutation = useDeleteTender();
+  const restoreMutation = useRestoreTender();
 
   const licensesList = licensesData ? licensesData.data : store.licenses;
   const allTenders = tendersData ? tendersData.data : (store.tenders as unknown as Tender[]);
@@ -47,6 +48,14 @@ export default function TendersPage() {
       } catch {
         // Handled
       }
+    }
+  }
+
+  async function handleRestore(id: string) {
+    try {
+      await restoreMutation.mutateAsync(id);
+    } catch {
+      // Handled
     }
   }
 
@@ -119,8 +128,10 @@ export default function TendersPage() {
                     {canMutate ? (
                       <td>
                         <RecordActions
-                          onEdit={() => setMode({ kind: "edit", record: t })}
+                          onEdit={!t.deletedAt ? () => setMode({ kind: "edit", record: t }) : undefined}
                           onDelete={!t.deletedAt ? () => setMode({ kind: "delete", record: t, label: t.name }) : undefined}
+                          onRestore={t.deletedAt ? () => handleRestore(t.id) : undefined}
+                          restoreDisabled={restoreMutation.isPending}
                         />
                       </td>
                     ) : null}

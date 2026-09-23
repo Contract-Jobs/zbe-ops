@@ -158,13 +158,18 @@ export default function TransactionsPage() {
                 const siteName = allSites.find(s => s.id === t.siteId)?.name ?? "HQ";
                 const canReverse =
                   !t.isReversal &&
+                  !t.isReversed &&
+                  // Only manual transactions are reversible this way — a
+                  // system-generated one (the automatic ledger side-effect of
+                  // a movement) would 403.
+                  !t.isSystemGenerated &&
                   (
                     // Admins can reverse any transaction
                     // Site managers can reverse manual transactions on sites they manage;
                     // equipmentId !== null means auto-linked to an equipment log — excluded.
                     // Material-log-linked transactions have no client field, so the API
                     // will 403 and the error is surfaced in the confirm dialog.
-                    ((manager || (user?.role === "admin" || user?.role === "superadmin")) && !!t.siteId && sites.has(t.siteId) && t.equipmentId === null && t.materialId === null)
+                    ((manager || (user?.role === "admin" || user?.role === "superadmin")) && !!t.siteId && sites.has(t.siteId) && t.equipmentId === null && t.itemId === null)
                   );
 
                 return (

@@ -29,20 +29,29 @@ export function useCreateTransaction() {
                 queryClient,
                 "transaction",
                 transaction.id,
-                transaction.approvalStatus,
+                transaction.isApproved ? "approved" : "pending",
                 transaction.siteId ?? undefined
             )
         },
     })
 }
 
+// A reversal is itself staged through the approval flow (auto-approved for
+// admin/superadmin, else pending) — mirrors useCreateTransaction so a
+// pending reversal shows up in Approvals and an auto-approved one refreshes
+// the site's ledger/summary immediately instead of only on next reload.
 export function useReverseTransaction() {
     const queryClient = useQueryClient()
     return useMutation({
         mutationFn: (id: string) => transactionsApi.reverseTransaction(id),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all })
-            queryClient.invalidateQueries({ queryKey: queryKeys.ledgers.all })
+        onSuccess: ({ data: reversal }) => {
+            onActionSettled(
+                queryClient,
+                "transaction",
+                reversal.id,
+                reversal.isApproved ? "approved" : "pending",
+                reversal.siteId ?? undefined
+            )
         },
     })
 }

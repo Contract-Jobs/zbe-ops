@@ -9,7 +9,7 @@ import { useApprovals } from "@/hooks/use-approvals";
 import { useEquipmentList } from "@/hooks/use-equipment";
 import { useSites } from "@/hooks/use-sites";
 import { useSpendAnalytics, useBudgetHealth, useSalesAnalytics } from "@/hooks/use-analytics";
-import type { Approval, BudgetHealthEntry, Equipment, Site } from "@/types/api";
+import type { Approval, BudgetHealthEntry, IndividualEquipmentItem, Site } from "@/types/api";
 
 export default function BoardPage() {
   const store = useStore();
@@ -17,9 +17,12 @@ export default function BoardPage() {
   const allowedSiteIds = visibleSiteIds(store);
 
   const { data: approvalsData } = useApprovals({ status: ["pending"] });
-  const { data: equipmentData } = useEquipmentList();
+  // These stat tiles count across ALL equipment — the endpoint's default
+  // page size of 10 was silently undercounting "on loan"/maintenance once
+  // the fleet grew past that.
+  const { data: equipmentData } = useEquipmentList({ limit: 50 });
   const [sitePage, setSitePage] = useState(1);
-  const { data: sitesData } = useSites({ page: sitePage, limit: 20000 });
+  const { data: sitesData } = useSites({ page: sitePage, limit: 50 });
   const { data: spendData } = useSpendAnalytics();
   const { data: budgetHealthData } = useBudgetHealth();
   const { data: salesAnalyticsData } = useSalesAnalytics();
@@ -37,18 +40,16 @@ export default function BoardPage() {
   }, [approvalsData?.data, store.approvals]);
 
   const equipment = useMemo(() => {
-    const list = equipmentData?.data ?? (store.equipment as unknown as Equipment[]);
+    const list: IndividualEquipmentItem[] = equipmentData?.data ?? [];
     return list.filter((e) => !e.deletedAt);
-  }, [equipmentData?.data, store.equipment]);
+  }, [equipmentData?.data]);
 
   const onLoan = useMemo(() => {
-    return equipment.filter((e) => (e as unknown as { isOnLoan?: boolean }).isOnLoan);
+    return equipment.filter((e) => e.assignmentStatus === "rented_to_client" || e.assignmentStatus === "rented_from_client");
   }, [equipment]);
 
   const maintenance = useMemo(() => {
-    return equipment.filter(
-      (e) => e.currentStatus === "maintenance" || (e as unknown as { status?: string }).status === "maintenance"
-    );
+    return equipment.filter((e) => e.condition === "under_maintenance");
   }, [equipment]);
 
   const totalSpendDisplay = spendData?.data ? Number(spendData.data.totalSpend) : 0;
@@ -58,35 +59,7 @@ export default function BoardPage() {
   const getHealthEntry = (siteId: string): BudgetHealthEntry | undefined =>
     healths.find((h) => h.siteId === siteId);
 
-  let salesAnalytics = salesAnalyticsData?.data;
-  if (!salesAnalyticsData) {
-    let eqTotal = 0;
-    let eqCount = 0;
-    store.equipmentLogs
-      .filter((l) => l.logType === "sale" && !l.isReversal)
-      .forEach((l) => {
-        eqCount++;
-        eqTotal += Number(l.price) || 0;
-      });
-
-    let matTotal = 0;
-    let matCount = 0;
-    store.materialLogs
-      .filter((l) => l.logType === "sale" && !l.isReversal)
-      .forEach((l) => {
-        matCount++;
-        matTotal += Number(l.unitPrice) || 0;
-      });
-
-    salesAnalytics = {
-      soldEquipmentCount: eqCount,
-      soldEquipmentTotal: String(eqTotal),
-      soldMaterialCount: matCount,
-      soldMaterialTotal: String(matTotal),
-      totalCount: eqCount + matCount,
-      totalRevenue: String(eqTotal + matTotal),
-    } as import("@/types/api").SalesAnalytics;
-  }
+  const salesAnalytics = salesAnalyticsData?.data;
 
   return (
     <div>
@@ -103,7 +76,7 @@ export default function BoardPage() {
           <Stat label="Material Spend" value={etb(Number(spendData.data.materialSpend))} href="/ledger" />
           <Stat label="Labour Spend" value={etb(Number(spendData.data.laborSpend))} href="/ledger" />
           <Stat label="Other Spend" value={etb(Number(spendData.data.otherSpend))} href="/ledger" />
-          <Stat label="Equipment Capital" value={etb(Number(spendData.data.totalEquipmentValue))} href="/equipment" />
+          <Stat label="Equipment Capital" value={etb(Number(spendData.data.equipmentValue))} href="/equipment" />
         </div>
       )}
 
@@ -194,11 +167,11 @@ export default function BoardPage() {
                 </div>
                 <div className="bg-white p-4">
                   <p className="text-sm font-medium text-black/60">Sold Equipment</p>
-                  <p className="mt-1 font-mono text-xl">{salesAnalytics.soldEquipmentCount} <span className="text-sm text-black/50">units</span></p>
+                  <p className="mt-1 font-mono text-xl">{salesAnalytics.equipmentSaleCount} <span className="text-sm text-black/50">units</span></p>
                 </div>
                 <div className="bg-white p-4">
                   <p className="text-sm font-medium text-black/60">Sold Materials</p>
-                  <p className="mt-1 font-mono text-xl">{salesAnalytics.soldMaterialCount} <span className="text-sm text-black/50">batches</span></p>
+                  <p className="mt-1 font-mono text-xl">{salesAnalytics.materialSaleCount} <span className="text-sm text-black/50">batches</span></p>
                 </div>
               </div>
             </div>
@@ -228,7 +201,7 @@ export default function BoardPage() {
             </ul>
             {maintenance.length > 0 ? (
               <p className="mt-6 text-sm text-black/70">
-                In the shop: {maintenance.map((e) => e.name).join(", ")}.
+                In the shop: {maintenance.map((e) => e.identifier).join(", ")}.
               </p>
             ) : null}
           </div>

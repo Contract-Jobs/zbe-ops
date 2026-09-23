@@ -3,21 +3,9 @@ import { buildListParams } from "./list-params"
 import type { ListParams } from "./list-params"
 import type { Transaction } from "@/types/api"
 
-// export interface CreateTransactionPayload {
-//     type: "money_in" | "money_out"
-//     amount: string
-//     licenseId?: string
-//     siteId?: string
-//     warehouseId?: string
-//     categoryId?: string
-//     equipmentId?: string
-//     description?: string
-//     transactionDate?: string
-//     // isReversal?/reversalofId? intentionally omitted — the latest doc lists
-//     // them on this payload alongside a separate POST .../reverse endpoint,
-//     // which is odd; not building against them until confirmed with backend dev.
-// }
-
+// v2's create schema has no isReversal/reversalOfId fields — a reversal can
+// only be produced by POST /api/transactions/[id]/reverse, which resolves
+// and links the original itself. See docs/api-v2-migration-plan.md §3.6.
 export interface CreateTransactionPayload {
     type: "money_in" | "money_out"
     amount: string
@@ -28,8 +16,6 @@ export interface CreateTransactionPayload {
     equipmentId?: string
     description?: string
     transactionDate?: string
-    isReversal?: boolean
-    reversalOfId?: string // capital O — confirmed by backend dev
 }
 
 export type TransactionListParams = ListParams<{
@@ -40,6 +26,10 @@ export type TransactionListParams = ListParams<{
     type?: string[]
     dateFrom?: string[]
     dateTo?: string[]
+    // Excludes the automatic financial side-effect entries of purchase/sale
+    // movements by default wherever this is passed — callers opt in to see
+    // them, matching every other "hidden by default" list flag in the app.
+    isSystemGenerated?: string[]
 }>
 
 export function listTransactions(params: TransactionListParams = {}) {
@@ -54,6 +44,6 @@ export function createTransaction(payload: CreateTransactionPayload) {
     return apiClient.post<Transaction>("/api/transactions", payload)
 }
 
-export function reverseTransaction(id: string) {
-    return apiClient.post<Transaction>(`/api/transactions/${id}/reverse`)
+export function reverseTransaction(id: string, payload: { description?: string } = {}) {
+    return apiClient.post<Transaction>(`/api/transactions/${id}/reverse`, payload)
 }

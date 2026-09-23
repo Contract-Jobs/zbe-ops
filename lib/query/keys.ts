@@ -2,18 +2,18 @@
 //
 // One factory per resource. Every list-type key takes its ListParams object
 // as part of the key, so different filter/search/page combos cache separately
-// and get invalidated together via the parent key (e.g. materials.lists()).
+// and get invalidated together via the parent key (e.g. inventoryItems.lists()).
 //
 // A few resources are RBAC-filtered by the backend (Site Managers see a
-// restricted view of the same endpoint an Admin calls) — see the doc's
-// "restricted to own site(s)" / "own submitted only" notes on Sites,
-// Inventory Balances, Approvals, Transactions, and Ledgers. For those, the
-// calling hook passes the current userId into the params object so two
-// different users never collide on the same cache entry. Resources where
-// the doc says "RBAC: All roles" with no scoping note (Materials, Equipment,
-// Tenders, Licenses, Warehouses, Categories) don't need this.
+// restricted view of the same endpoint an Admin calls) — see docs/new_api.md's
+// "site_manager grants" notes on Sites, Inventory Balances, Approvals,
+// Transactions, and Ledgers. For those, the calling hook passes the current
+// userId into the params object so two different users never collide on the
+// same cache entry. Resources where site_manager has the same read access as
+// admin (Inventory Items, Equipment, Tenders, Licenses, Warehouses,
+// Categories) don't need this.
 
-// ---- Reusable factory for the four identical simple-CRUD resources ----
+// ---- Reusable factory for the identical simple-CRUD resources ----
 
 function simpleCrudKeys(resource: string) {
   return {
@@ -26,16 +26,34 @@ function simpleCrudKeys(resource: string) {
 }
 
 export const queryKeys = {
-  materials: {
-    all: ["materials"] as const,
-    lists: () => ["materials", "list"] as const,
-    list: (params?: unknown) => ["materials", "list", params] as const,
-    details: () => ["materials", "detail"] as const,
-    detail: (id: string) => ["materials", "detail", id] as const,
-    subItems: (materialId: string) =>
-      ["materials", "detail", materialId, "sub-items"] as const,
-    logs: (params?: unknown) => ["material-logs", "list", params] as const,
-    log: (id: string) => ["material-logs", "detail", id] as const,
+  inventoryItems: {
+    ...simpleCrudKeys("inventory-items"),
+    subitems: (itemId: string) => ["inventory-items", "detail", itemId, "subitems"] as const,
+    balances: (itemId: string, params?: unknown) => ["inventory-items", "detail", itemId, "balances", params] as const,
+    history: (itemId: string, params?: unknown) => ["inventory-items", "detail", itemId, "history", params] as const,
+  },
+
+  inventoryMovements: {
+    all: ["inventory-movements"] as const,
+    lists: () => ["inventory-movements", "list"] as const,
+    list: (params?: unknown) => ["inventory-movements", "list", params] as const,
+  },
+
+  inventoryBalances: {
+    all: ["inventory-balances"] as const,
+    // scoped: Site Managers restricted to own site(s) — pass userId in params
+    list: (params?: unknown) => ["inventory-balances", "list", params] as const,
+    movements: (params?: unknown) => ["inventory-balances", "movements", params] as const,
+    verify: (itemId: string, inventoryId: string) => ["inventory-balances", "verify", itemId, inventoryId] as const,
+  },
+
+  inventories: {
+    all: ["inventories"] as const,
+    list: (params?: unknown) => ["inventories", "list", params] as const,
+    detail: (id: string) => ["inventories", "detail", id] as const,
+    materials: (nodeId: string, params?: unknown) => ["inventories", "detail", nodeId, "materials", params] as const,
+    equipment: (nodeId: string, params?: unknown) => ["inventories", "detail", nodeId, "equipment", params] as const,
+    bulkEquipment: (nodeId: string, params?: unknown) => ["inventories", "detail", nodeId, "bulk-equipment", params] as const,
   },
 
   equipment: {
@@ -44,17 +62,14 @@ export const queryKeys = {
     list: (params?: unknown) => ["equipment", "list", params] as const,
     details: () => ["equipment", "detail"] as const,
     detail: (id: string) => ["equipment", "detail", id] as const,
-    logs: (params?: unknown) => ["equipment-logs", "list", params] as const,
-    log: (id: string) => ["equipment-logs", "detail", id] as const,
+    trace: (id: string) => ["equipment", "detail", id, "trace"] as const,
+    verify: (id: string) => ["equipment", "detail", id, "verify"] as const,
   },
 
-  inventory: {
-    // scoped: Site Managers get a restricted view — pass userId in params
-    balances: (params?: unknown) => ["inventory", "balances", params] as const,
-    trace: (catalogId: string) => ["inventory", "trace", catalogId] as const,
-    locations: () => ["inventory", "locations"] as const,
-    locationMaterials: (id: string, params?: unknown) => ["inventory", "location-materials", id, params] as const,
-    locationEquipments: (id: string, params?: unknown) => ["inventory", "location-equipments", id, params] as const,
+  equipmentMovements: {
+    all: ["equipment-movements"] as const,
+    lists: () => ["equipment-movements", "list"] as const,
+    list: (params?: unknown) => ["equipment-movements", "list", params] as const,
   },
 
   rentals: {
@@ -63,6 +78,8 @@ export const queryKeys = {
     list: (params?: unknown) => ["rentals", "list", params] as const,
     details: () => ["rentals", "detail"] as const,
     detail: (id: string) => ["rentals", "detail", id] as const,
+    events: (id: string, params?: unknown) => ["rentals", "detail", id, "events", params] as const,
+    allEvents: (params?: unknown) => ["rentals", "events", params] as const,
   },
 
   sites: {
@@ -73,10 +90,29 @@ export const queryKeys = {
     details: () => ["sites", "detail"] as const,
     detail: (id: string) => ["sites", "detail", id] as const,
     summary: (id: string) => ["sites", "detail", id, "summary"] as const,
+    materials: (id: string, params?: unknown) => ["sites", "detail", id, "materials", params] as const,
+    equipment: (id: string, params?: unknown) => ["sites", "detail", id, "equipment", params] as const,
+    bulkEquipment: (id: string, params?: unknown) => ["sites", "detail", id, "bulk-equipment", params] as const,
     lifecycle: (id: string, params?: unknown) =>
       ["sites", "detail", id, "lifecycle", params] as const,
     tasks: (id: string, params?: unknown) =>
       ["sites", "detail", id, "tasks", params] as const,
+    // Prefix-only variants for invalidating every params variant at once.
+    // NOTE: calling `lifecycle(id)`/`tasks(id)` without the params arg does
+    // NOT do this — it produces a same-length key with `params: undefined`,
+    // which TanStack's partialMatchKey does not treat as a wildcard (an
+    // `undefined` slot never structurally matches a real params object, even
+    // `{}`), so it silently invalidates nothing. Use these instead.
+    lifecycleAll: (id: string) => ["sites", "detail", id, "lifecycle"] as const,
+    tasksAll: (id: string) => ["sites", "detail", id, "tasks"] as const,
+  },
+
+  tasks: {
+    all: ["tasks"] as const,
+    lists: () => ["tasks", "list"] as const,
+    list: (params?: unknown) => ["tasks", "list", params] as const,
+    details: () => ["tasks", "detail"] as const,
+    detail: (id: string) => ["tasks", "detail", id] as const,
   },
 
   tenders: simpleCrudKeys("tenders"),
@@ -86,12 +122,15 @@ export const queryKeys = {
     soldItems: (id: string) => ["warehouses", "detail", id, "sold-items"] as const,
     soldEquipment: (id: string, params?: unknown) => ["warehouses", "detail", id, "sold-equipment", params] as const,
     soldMaterials: (id: string, params?: unknown) => ["warehouses", "detail", id, "sold-materials", params] as const,
+    materials: (id: string, params?: unknown) => ["warehouses", "detail", id, "materials", params] as const,
+    equipment: (id: string, params?: unknown) => ["warehouses", "detail", id, "equipment", params] as const,
+    bulkEquipment: (id: string, params?: unknown) => ["warehouses", "detail", id, "bulk-equipment", params] as const,
   },
   categories: simpleCrudKeys("categories"),
   users: simpleCrudKeys("users"),
 
   transactions: {
-    // scoped: "All roles (restricted view)" — pass userId in params
+    // scoped: "restricted view" — pass userId in params
     all: ["transactions"] as const,
     lists: () => ["transactions", "list"] as const,
     list: (params?: unknown) => ["transactions", "list", params] as const,
@@ -103,6 +142,9 @@ export const queryKeys = {
     // scoped: Site Managers restricted to own site — pass userId in params
     all: ["ledgers"] as const,
     list: (params?: unknown) => ["ledgers", "list", params] as const,
+    costBreakdown: (siteId: string, dateFrom?: string, dateTo?: string) =>
+      ["ledgers", "cost-breakdown", siteId, dateFrom, dateTo] as const,
+    verify: (siteId: string) => ["ledgers", "verify", siteId] as const,
   },
 
   approvals: {
@@ -115,13 +157,12 @@ export const queryKeys = {
   },
 
   analytics: {
-    spend: ["analytics", "spend"] as const,
-    budget: ["analytics", "budget"] as const,
-    budgetHealth: ["analytics", "budget-health"] as const,
-    inventory: ["analytics", "inventory"] as const,
-    licenses: ["analytics", "licenses"] as const,
-    sales: ["analytics", "sales"] as const,
-    costBreakdown: (siteId: string, dateFrom?: string, dateTo?: string) =>
-      ["analytics", "cost-breakdown", siteId, dateFrom, dateTo] as const,
+    spend: (params?: unknown) => ["analytics", "spend", params] as const,
+    budget: (params?: unknown) => ["analytics", "budget", params] as const,
+    budgetHealth: (params?: unknown) => ["analytics", "budget-health", params] as const,
+    inventory: (params?: unknown) => ["analytics", "inventory", params] as const,
+    licenses: (params?: unknown) => ["analytics", "licenses", params] as const,
+    sales: (params?: unknown) => ["analytics", "sales", params] as const,
+    company: (params?: unknown) => ["analytics", "company", params] as const,
   },
 };

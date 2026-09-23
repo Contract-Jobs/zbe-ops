@@ -1,9 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as equipmentApi from "@/lib/api/equipment";
-import type { EquipmentListParams, CreateEquipmentPayload, UpdateEquipmentPayload } from "@/lib/api/equipment";
+import type { EquipmentListParams, UpdateEquipmentPayload } from "@/lib/api/equipment";
 import { queryKeys } from "@/lib/query/keys";
-import { onActionSettled } from "@/lib/query/approval-invalidation";
-import type { EquipmentLogAction } from "@/types/api";
+
+// No useCreateEquipment — POST /api/equipment is disabled server-side in v2.
+// Equipment can only originate from usePurchaseEquipment (below) or a
+// rental's equipmentId: "new" (hooks/use-rentals.ts).
 
 export function useEquipmentList(params: EquipmentListParams = {}) {
   return useQuery({
@@ -17,14 +19,6 @@ export function useEquipment(id: string | undefined) {
     queryKey: queryKeys.equipment.detail(id ?? ""),
     queryFn: () => equipmentApi.getEquipment(id as string),
     enabled: !!id,
-  });
-}
-
-export function useCreateEquipment() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (payload: CreateEquipmentPayload) => equipmentApi.createEquipment(payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.equipment.lists() }),
   });
 }
 
@@ -62,68 +56,30 @@ export function useRestoreEquipment() {
   });
 }
 
-// ---- Actions ----
-
-function useLogAction() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (payload: EquipmentLogAction) => equipmentApi.createEquipmentLog(payload),
-    onSuccess: ({ data: log }) => {
-      const siteId = log.toSiteId ?? log.fromSiteId ?? undefined;
-      onActionSettled(queryClient, "equipment_movement", log.id, log.approvalStatus, siteId);
-      queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all });
-    },
-  });
-}
-
-type ActionPayload<A extends EquipmentLogAction["action"]> = Omit<Extract<EquipmentLogAction, { action: A }>, "action">;
-
-function makeActionHook<A extends EquipmentLogAction["action"]>(action: A) {
-  return function useAction() {
-    const { mutate, mutateAsync, isPending, error } = useLogAction();
-    return {
-      mutate: (payload: ActionPayload<A>) => mutate({ action, ...payload } as EquipmentLogAction),
-      mutateAsync: (payload: ActionPayload<A>) => mutateAsync({ action, ...payload } as EquipmentLogAction),
-      isPending,
-      error,
-    };
-  };
-}
-
-export const usePurchaseEquipment = makeActionHook("purchased");
-export const useTransferEquipment = makeActionHook("transferred");
-export const useSellEquipment = makeActionHook("sold");
-export const useConsumeEquipment = makeActionHook("used_up");
-export const useReportMissingEquipment = makeActionHook("missing");
-export const useMaintenanceDispatch = makeActionHook("maintenance_dispatch");
-export const useMaintenanceReturn = makeActionHook("maintenance_return");
-export const useDegradeEquipment = makeActionHook("degraded");
-export const useAppreciateEquipment = makeActionHook("appreciated");
-
-// ---- Logs list/detail/reverse ----
-
-export function useEquipmentLogs(params: Parameters<typeof equipmentApi.listEquipmentLogs>[0] = {}) {
+export function useEquipmentTrace(id: string | undefined) {
   return useQuery({
-    queryKey: queryKeys.equipment.logs(params),
-    queryFn: () => equipmentApi.listEquipmentLogs(params),
-  });
-}
-
-export function useEquipmentLog(id: string | undefined) {
-  return useQuery({
-    queryKey: queryKeys.equipment.log(id ?? ""),
-    queryFn: () => equipmentApi.getEquipmentLog(id as string),
+    queryKey: queryKeys.equipment.trace(id ?? ""),
+    queryFn: () => equipmentApi.traceEquipment(id as string),
     enabled: !!id,
   });
 }
 
-export function useReverseEquipmentLog() {
+export function useVerifyEquipmentState(id: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.equipment.verify(id ?? ""),
+    queryFn: () => equipmentApi.verifyEquipmentState(id as string),
+    enabled: !!id,
+  });
+}
+
+// Superadmin/admin recovery tool — recomputes every equipment's projected
+// state from its movement ledger from scratch.
+export function useRebuildEquipmentStates() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => equipmentApi.reverseEquipmentLog(id),
-    onSuccess: ({ data: log }) => {
-      const siteId = log.toSiteId ?? log.fromSiteId ?? undefined;
-      onActionSettled(queryClient, "equipment_movement", log.id, log.approvalStatus, siteId);
+    mutationFn: () => equipmentApi.rebuildEquipmentStates(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all });
     },
   });
 }

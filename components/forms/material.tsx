@@ -2,22 +2,22 @@
 
 import { useState } from "react";
 import { Field, FormActions } from "@/components/ui";
-import { useCreateMaterial, useUpdateMaterial, useAddSubItem, useUpdateSubItem } from "@/hooks/use-materials";
-import type { MaterialCatalog, MaterialSubitem } from "@/types/api";
+import { useCreateInventoryItem, useUpdateInventoryItem, useAddSubitem, useUpdateSubitem } from "@/hooks/use-inventory-items";
+import type { InventoryItem, InventoryItemSubitem } from "@/types/api";
 
 export function MaterialForm({
   initial,
   onCancel,
   onDone,
 }: {
-  initial?: MaterialCatalog;
+  initial?: InventoryItem;
   onCancel: () => void;
   onDone: () => void;
 }) {
-  const [type, setType] = useState(initial?.type ?? "single");
+  const [compositionType, setCompositionType] = useState(initial?.compositionType ?? "single");
   const [lines, setLines] = useState<Array<{ name: string; quantity: string }>>([{ name: "", quantity: "1" }]);
-  const createMutation = useCreateMaterial();
-  const updateMutation = useUpdateMaterial();
+  const createMutation = useCreateInventoryItem();
+  const updateMutation = useUpdateInventoryItem();
   const [error, setError] = useState<string | null>(null);
 
   const isPending = createMutation.isPending || updateMutation.isPending;
@@ -41,8 +41,11 @@ export function MaterialForm({
         await createMutation.mutateAsync({
           name,
           unit: unit || undefined,
-          type: type as "single" | "set",
-          subitems: type === "set" ? lines.map((l) => ({ name: l.name, quantity: Number(l.quantity) })) : undefined,
+          category: "material",
+          tracking: "quantity",
+          compositionType,
+          subitems:
+            compositionType === "set" ? lines.map((l) => ({ name: l.name, quantity: Number(l.quantity) })) : undefined,
         });
       }
       onDone();
@@ -67,16 +70,16 @@ export function MaterialForm({
       <Field label="Type">
         <select
           className="field"
-          name="type"
-          value={type}
-          onChange={(e) => setType(e.target.value as "single" | "set")}
+          name="compositionType"
+          value={compositionType}
+          onChange={(e) => setCompositionType(e.target.value as "single" | "set")}
           disabled={!!initial || isPending}
         >
           <option value="single">Single</option>
           <option value="set">Set</option>
         </select>
       </Field>
-      {type === "set" ? (
+      {compositionType === "set" ? (
         <div className="sm:col-span-2">
           <p className="kicker mb-2">Set contents</p>
           {lines.map((line, index) => (
@@ -137,12 +140,12 @@ export function SubitemForm({
   onDone,
 }: {
   materialId: string;
-  initial?: MaterialSubitem;
+  initial?: InventoryItemSubitem;
   onCancel: () => void;
   onDone: () => void;
 }) {
-  const addMutation = useAddSubItem(materialId);
-  const updateMutation = useUpdateSubItem(materialId);
+  const addMutation = useAddSubitem(materialId);
+  const updateMutation = useUpdateSubitem(materialId);
   const [error, setError] = useState<string | null>(null);
 
   const isPending = addMutation.isPending || updateMutation.isPending;
@@ -152,13 +155,13 @@ export function SubitemForm({
     setError(null);
     const fd = new FormData(e.currentTarget);
     const name = String(fd.get("name") ?? "").trim();
-    const quantity = Number(fd.get("quantity") ?? 1);
+    const quantity = String(fd.get("quantity") ?? "1").trim();
 
     if (!name) return;
 
     try {
       if (initial) {
-        await updateMutation.mutateAsync({ subItemId: initial.id, payload: { name, quantity } });
+        await updateMutation.mutateAsync({ subitemId: initial.id, payload: { name, quantity } });
       } else {
         await addMutation.mutateAsync({ name, quantity });
       }

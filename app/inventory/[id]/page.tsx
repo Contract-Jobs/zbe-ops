@@ -1,15 +1,16 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
-import { PageHead, TableWrap, Stamp, FormPanel, ModalPanel } from "@/components/ui";
+import { useState } from "react";
+import { PageHead, TableWrap, Stamp, ModalPanel, Tabs } from "@/components/ui";
 import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
-import { useInventoryLocations, useInventoryLocationMaterials, useInventoryLocationEquipments } from "@/hooks/use-inventory";
-import { useMaterials } from "@/hooks/use-materials";
+import { useInventoryNode, useInventoryMaterials, useInventoryIndividualEquipment, useInventoryBulkEquipment } from "@/hooks/use-inventories";
 import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
+import { BulkEquipmentMovementForm } from "@/components/forms/bulk-equipment-movement";
 import { InventoryAdjustForm } from "@/components/forms/inventory-adjust";
-import type { InventoryBalance, Equipment, MaterialCatalog } from "@/types/api";
+import { BalanceHistoryPanel } from "@/components/BalanceHistory";
+import type { QuantityMovementType } from "@/types/api";
 
 export default function InventoryLocationPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,67 +18,55 @@ export default function InventoryLocationPage() {
   const manager = isSiteManager(store);
   const allowedSites = visibleSiteIds(store);
 
-  const { data: locationsData, isLoading: isLocLoading } = useInventoryLocations();
+  const { data: nodeData, isLoading: isLocLoading } = useInventoryNode(id);
+  const node = nodeData?.data;
+
   const [matPage, setMatPage] = useState(1);
-  const { data: materialsData, isLoading: isMatLoading } = useInventoryLocationMaterials(id, { page: matPage, limit: 10 });
+  const { data: materialsData, isLoading: isMatLoading } = useInventoryMaterials(id, { page: matPage, limit: 10 });
+
   const [eqPage, setEqPage] = useState(1);
-  const { data: equipmentsData, isLoading: isEqLoading } = useInventoryLocationEquipments(id, { page: eqPage, limit: 10 });
+  const { data: equipmentData, isLoading: isEqLoading } = useInventoryIndividualEquipment(id, { page: eqPage, limit: 10 });
+  const [bulkEqPage, setBulkEqPage] = useState(1);
+  const { data: bulkEquipmentData, isLoading: isBulkEqLoading } = useInventoryBulkEquipment(id, { page: bulkEqPage, limit: 10 });
 
-  console.log(materialsData)
-  // Resolve location info
-  const locations = locationsData?.data ?? [];
-  const locationInfo = locations.find(l => l.id === id);
-
-  let locationName = locationInfo?.name ?? "Unknown Location";
-  let locationType = locationInfo?.type ?? "unknown";
-
-  if (locationType === "unknown") {
-    const site = store.sites.find((s) => s.id === id);
-    const warehouse = store.warehouses.find((w) => w.id === id);
-    if (site) {
-      locationName = site.name;
-      locationType = "site";
-    } else if (warehouse) {
-      locationName = warehouse.name;
-      locationType = "warehouse";
-    }
-  }
+  const locationName = node?.site?.name ?? node?.warehouse?.name ?? "Unknown Location";
+  const locationType = node?.inventoryType ?? "unknown";
+  const refId = node?.site?.id ?? node?.warehouse?.id;
 
   const canMutate = manager && locationType === "warehouse"
     ? false
-    : manager && locationType === "site"
-      ? allowedSites.has(id)
+    : manager && locationType === "site" && refId
+      ? allowedSites.has(refId)
       : true; // Admin can mutate anything
 
   const [moveMaterialId, setMoveMaterialId] = useState<string | null>(null);
-  const [adjustBalance, setAdjustBalance] = useState<{ id: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
+  const [adjustBalance, setAdjustBalance] = useState<{ itemId: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<{ itemId: string; itemName: string; unit: string } | null>(null);
+  const [purchaseMaterialOpen, setPurchaseMaterialOpen] = useState(false);
+  const [purchaseEquipmentOpen, setPurchaseEquipmentOpen] = useState(false);
+  const [purchaseBulkEquipmentOpen, setPurchaseBulkEquipmentOpen] = useState(false);
+  const [tab, setTab] = useState<"materials" | "bulk" | "equipment">("materials");
 
-  const bals = useMemo(() => {
-    if (materialsData?.data) return materialsData.data;
-    return store.balances.filter(b => b.locationId === id && b.quantity > 0) as unknown as InventoryBalance[];
-  }, [materialsData, store.balances, id]);
+  const mats = materialsData?.data ?? [];
+  const eqs = equipmentData?.data ?? [];
+  const bulkEqs = bulkEquipmentData?.data ?? [];
 
-  const eqs = useMemo(() => {
-    if (equipmentsData?.data) return equipmentsData.data;
-    return store.equipment.filter(e => e.siteId === id || e.warehouseId === id) as unknown as Equipment[];
-  }, [equipmentsData, store.equipment, id]);
-
-  if ((isMatLoading || isEqLoading || isLocLoading) && (!materialsData && !equipmentsData && !locationsData)) {
+  if (isLocLoading && !nodeData) {
     return <p className="p-8 text-center text-sm text-black/50">Loading location inventory...</p>;
   }
 
-  if (locationType === "unknown") {
+  if (locationType === "unknown" || !refId) {
     return <p className="p-8 text-center text-sm text-black/50">Location not found or access restricted.</p>;
   }
 
-  const matActions = locationType === "warehouse"
-    ? (["transfer", "sold", "used_up", "missing"] as any)
-    : (["transfer", "used_up", "missing"] as any);
+  const matActions: QuantityMovementType[] = locationType === "warehouse"
+    ? ["transfer", "sale", "consume", "loss"]
+    : ["transfer", "consume", "loss"];
 
-  const eqActions = locationType === "warehouse"
-    ? (["transferred", "sold", "degraded", "appreciated", "maintenance_dispatch", "maintenance_return", "used_up", "missing"] as any)
-    : (["transferred", "degraded", "appreciated", "maintenance_dispatch", "maintenance_return", "used_up", "missing"] as any);
+  const eqActions = (locationType === "warehouse"
+    ? ["transfer", "sale", "degrade", "send_to_maintenance", "return_from_maintenance", "dispose"]
+    : ["transfer", "degrade", "send_to_maintenance", "return_from_maintenance", "dispose"]) as ("transfer" | "sale" | "degrade" | "send_to_maintenance" | "return_from_maintenance" | "dispose")[];
 
   return (
     <div>
@@ -86,9 +75,27 @@ export default function InventoryLocationPage() {
         {locationType} • {id}
       </p>
 
-      <div className="mb-8">
-        <p className="kicker mb-3">Inventory Balances</p>
-        {bals.length > 0 ? (
+      <Tabs
+        tabs={[
+          { id: "materials", label: "Materials", count: materialsData?.pagination?.total },
+          { id: "bulk", label: "Bulk Equipment", count: bulkEquipmentData?.pagination?.total },
+          { id: "equipment", label: "Equipment", count: equipmentData?.pagination?.total },
+        ]}
+        active={tab}
+        onChange={(id) => setTab(id as typeof tab)}
+      />
+
+      {tab === "materials" ? (
+      <div>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="kicker">Inventory Balances</p>
+          {canMutate && (
+            <button className="btn btn-ghost" onClick={() => setPurchaseMaterialOpen(true)}>Purchase material</button>
+          )}
+        </div>
+        {isMatLoading && !materialsData ? (
+          <div className="p-8 text-center text-sm text-black/40">Loading...</div>
+        ) : mats.length > 0 ? (
           <TableWrap pagination={materialsData?.pagination} onPageChange={setMatPage}>
             <table className="data w-full text-left">
               <thead>
@@ -99,37 +106,40 @@ export default function InventoryLocationPage() {
                 </tr>
               </thead>
               <tbody>
-                {bals.map((b) => {
-                  const materialId = b.materialId;
-                  return (
-                    <tr key={`${materialId}-${b.id ?? b.siteId}`}>
-                      <td>
-                        <p className="font-medium">{b?.material.name ?? materialId}</p>
-                      </td>
-                      <td className="font-mono text-left min-w-[120px]">
-                        {b.quantity} {b?.material.unit ?? "pcs"}
-                      </td>
-                      <td className="text-left">
-                        {canMutate && (
-                          <span className="inline-block">
-                            <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveMaterialId(materialId)}>Move</button>
-                            <button
-                              className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
-                              onClick={() => setAdjustBalance({
-                                id: (b as any).id ?? "",
-                                materialName: b?.material.name ?? materialId,
-                                unit: b?.material.unit ?? "pcs",
-                                currentQuantity: b.quantity
-                              })}
-                            >
-                              Adjust
-                            </button>
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {mats.map((m) => (
+                  <tr key={m.itemId}>
+                    <td>
+                      <p className="font-medium">{m.itemName}</p>
+                    </td>
+                    <td className="font-mono text-left min-w-[120px]">
+                      {m.quantity} {m.unit}
+                    </td>
+                    <td className="text-left">
+                      {canMutate && (
+                        <span className="inline-block">
+                          <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveMaterialId(m.itemId)}>Move</button>
+                          <button
+                            className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
+                            onClick={() => setAdjustBalance({
+                              itemId: m.itemId,
+                              materialName: m.itemName,
+                              unit: m.unit,
+                              currentQuantity: m.quantity
+                            })}
+                          >
+                            Report loss
+                          </button>
+                          <button
+                            className="ml-3 text-xs text-black/50 hover:text-black hover:underline"
+                            onClick={() => setHistoryTarget({ itemId: m.itemId, itemName: m.itemName, unit: m.unit })}
+                          >
+                            History
+                          </button>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </TableWrap>
@@ -139,46 +149,118 @@ export default function InventoryLocationPage() {
           </div>
         )}
       </div>
+      ) : null}
 
+      {tab === "bulk" ? (
       <div>
-        <p className="kicker mb-3">Parked Equipment</p>
-        {eqs.length > 0 ? (
-          <TableWrap pagination={equipmentsData?.pagination} onPageChange={setEqPage}>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="kicker">Bulk Equipment</p>
+          {canMutate && (
+            <button className="btn btn-ghost" onClick={() => setPurchaseBulkEquipmentOpen(true)}>Purchase Bulk Equipment</button>
+          )}
+        </div>
+        {isBulkEqLoading && !bulkEquipmentData ? (
+          <div className="p-8 text-center text-sm text-black/40">Loading...</div>
+        ) : bulkEqs.length > 0 ? (
+          <TableWrap pagination={bulkEquipmentData?.pagination} onPageChange={setBulkEqPage}>
             <table className="data w-full text-left">
               <thead>
                 <tr>
                   <th>Equipment</th>
-                  <th>Status</th>
-                  <th>Ownership</th>
+                  <th className="text-left">Quantity</th>
+                  <th className="text-left">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {bulkEqs.map((b) => (
+                  <tr key={b.itemId}>
+                    <td>
+                      <p className="font-medium">{b.itemName}</p>
+                    </td>
+                    <td className="font-mono text-left min-w-[120px]">
+                      {b.quantity} {b.unit}
+                    </td>
+                    <td className="text-left">
+                      {canMutate && (
+                        <span className="inline-block">
+                          <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveMaterialId(b.itemId)}>Move</button>
+                          <button
+                            className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
+                            onClick={() => setAdjustBalance({
+                              itemId: b.itemId,
+                              materialName: b.itemName,
+                              unit: b.unit,
+                              currentQuantity: b.quantity
+                            })}
+                          >
+                            Report loss
+                          </button>
+                          <button
+                            className="ml-3 text-xs text-black/50 hover:text-black hover:underline"
+                            onClick={() => setHistoryTarget({ itemId: b.itemId, itemName: b.itemName, unit: b.unit })}
+                          >
+                            History
+                          </button>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+        ) : (
+          <div className="border border-dashed border-black/20 p-8 text-center text-sm text-black/40">
+            No bulk equipment recorded at this location.
+          </div>
+        )}
+      </div>
+      ) : null}
+
+      {tab === "equipment" ? (
+      <div>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="kicker">Parked Equipment</p>
+          {canMutate && (
+            <button className="btn btn-ghost" onClick={() => setPurchaseEquipmentOpen(true)}>Purchase equipment</button>
+          )}
+        </div>
+        {isEqLoading && !equipmentData ? (
+          <div className="p-8 text-center text-sm text-black/40">Loading...</div>
+        ) : eqs.length > 0 ? (
+          <TableWrap pagination={equipmentData?.pagination} onPageChange={setEqPage}>
+            <table className="data w-full text-left">
+              <thead>
+                <tr>
+                  <th>Equipment</th>
+                  <th>Assignment</th>
+                  <th>Condition</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {eqs.map((e) => {
-                  const status = (e as any).currentStatus ?? (e as any).status;
-                  return (
-                    <tr key={e.id}>
-                      <td>
-                        <p className="font-medium">{e.name}</p>
-                        <p className="font-mono text-[0.7rem] text-black/50">{e.serialNumber ?? "No S/N"}</p>
-                      </td>
-                      <td>
-                        <Stamp
-                          value={status}
-                          tone={status === "working" || status === "available" ? "ok" : status === "repair" || status === "maintenance" ? "bad" : "ink"}
-                        />
-                      </td>
-                      <td className="text-sm capitalize items-center min-w-[140px]">
-                        {e.ownershipStatus}
-                      </td>
-                      <td>
-                        {canMutate && (
-                          <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveEquipmentId(e.id)}>Move</button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {eqs.map((e) => (
+                  <tr key={e.id}>
+                    <td>
+                      <p className="font-medium">{e.identifier}</p>
+                      <p className="font-mono text-[0.7rem] text-black/50">{e.vendorName ?? "No vendor"}</p>
+                    </td>
+                    <td>
+                      <Stamp
+                        value={e.assignmentStatus}
+                        tone={e.assignmentStatus === "idle" ? "ok" : "ink"}
+                      />
+                    </td>
+                    <td className="text-sm capitalize items-center min-w-[140px]">
+                      {e.condition}
+                    </td>
+                    <td>
+                      {canMutate && (
+                        <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveEquipmentId(e.id)}>Move</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </TableWrap>
@@ -188,13 +270,14 @@ export default function InventoryLocationPage() {
           </div>
         )}
       </div>
+      ) : null}
 
       {moveMaterialId ? (
         <ModalPanel kicker={`${locationType} Inventory`} title="Move Material" onClose={() => setMoveMaterialId(null)}>
           <MaterialMovementForm
             materialId={moveMaterialId}
             noBg
-            fixedSource={{ id, type: locationType as "site" | "warehouse", name: locationName }}
+            fixedSource={{ id: refId, type: locationType as "site" | "warehouse", name: locationName }}
             allowedActions={matActions}
             onSuccess={() => setMoveMaterialId(null)}
             onCancel={() => setMoveMaterialId(null)}
@@ -207,7 +290,6 @@ export default function InventoryLocationPage() {
           <EquipmentMovementForm
             noBg
             equipmentId={moveEquipmentId}
-            fixedSource={{ id, type: locationType as "site" | "warehouse", name: locationName }}
             allowedActions={eqActions}
             onSuccess={() => setMoveEquipmentId(null)}
             onCancel={() => setMoveEquipmentId(null)}
@@ -215,16 +297,64 @@ export default function InventoryLocationPage() {
         </ModalPanel>
       ) : null}
 
+      {purchaseMaterialOpen ? (
+        <ModalPanel kicker={`${locationType} Inventory`} title="Purchase Material" onClose={() => setPurchaseMaterialOpen(false)}>
+          <MaterialMovementForm
+            noBg
+            fixedDestination={{ id: refId, type: locationType as "site" | "warehouse", name: locationName }}
+            allowedActions={["purchase"]}
+            onSuccess={() => setPurchaseMaterialOpen(false)}
+            onCancel={() => setPurchaseMaterialOpen(false)}
+          />
+        </ModalPanel>
+      ) : null}
+
+      {purchaseBulkEquipmentOpen ? (
+        <ModalPanel kicker={`${locationType} Inventory`} title="Purchase Bulk Equipment" onClose={() => setPurchaseBulkEquipmentOpen(false)}>
+          <BulkEquipmentMovementForm
+            noBg
+            fixedDestination={{ id: refId, type: locationType as "site" | "warehouse", name: locationName }}
+            allowedActions={["purchase"]}
+            onSuccess={() => setPurchaseBulkEquipmentOpen(false)}
+            onCancel={() => setPurchaseBulkEquipmentOpen(false)}
+          />
+        </ModalPanel>
+      ) : null}
+
+      {purchaseEquipmentOpen ? (
+        <ModalPanel kicker={`${locationType} Equipment`} title="Purchase Equipment" onClose={() => setPurchaseEquipmentOpen(false)}>
+          <EquipmentMovementForm
+            noBg
+            fixedDestination={{ id: refId, type: locationType as "site" | "warehouse", name: locationName }}
+            allowedActions={["purchase"]}
+            onSuccess={() => setPurchaseEquipmentOpen(false)}
+            onCancel={() => setPurchaseEquipmentOpen(false)}
+          />
+        </ModalPanel>
+      ) : null}
+
       {adjustBalance ? (
-        <ModalPanel kicker="Inventory Detail" title="Adjust Balance" onClose={() => setAdjustBalance(null)}>
+        <ModalPanel kicker="Inventory Detail" title="Report Loss" onClose={() => setAdjustBalance(null)}>
           <InventoryAdjustForm
             noBg
-            balanceId={adjustBalance.id}
+            itemId={adjustBalance.itemId}
+            inventoryId={id ?? ""}
             materialName={adjustBalance.materialName}
             unit={adjustBalance.unit}
             currentQuantity={adjustBalance.currentQuantity}
             onSuccess={() => setAdjustBalance(null)}
             onCancel={() => setAdjustBalance(null)}
+          />
+        </ModalPanel>
+      ) : null}
+
+      {historyTarget ? (
+        <ModalPanel wide kicker="Inventory Detail" title="Movement history" onClose={() => setHistoryTarget(null)}>
+          <BalanceHistoryPanel
+            itemId={historyTarget.itemId}
+            inventoryId={id ?? ""}
+            itemName={historyTarget.itemName}
+            unit={historyTarget.unit}
           />
         </ModalPanel>
       ) : null}

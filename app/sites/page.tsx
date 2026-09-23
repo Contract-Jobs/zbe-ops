@@ -16,8 +16,9 @@ import {
 } from "@/components/ui";
 import { etb } from "@/lib/format";
 import { isSiteManager, useStore, visibleSites } from "@/lib/store";
-import { useSites, useDeleteSite } from "@/hooks/use-sites";
+import { useSites, useDeleteSite, useRestoreSite } from "@/hooks/use-sites";
 import { useLicenses } from "@/hooks/use-licenses";
+import { useBudgetHealth } from "@/hooks/use-analytics";
 import type { Site } from "@/types/api";
 
 export default function SitesPage() {
@@ -30,10 +31,13 @@ export default function SitesPage() {
 
   const { data: sitesData, isLoading } = useSites({ page, limit: 10 });
   const { data: licensesData } = useLicenses();
+  const { data: budgetHealthData } = useBudgetHealth();
   const deleteMutation = useDeleteSite();
+  const restoreMutation = useRestoreSite();
 
-  const sites = sitesData ? sitesData.data : (store.sites);
+  const sites = sitesData ? sitesData.data : (store.sites as unknown as Site[]);
   const licensesList = licensesData ? licensesData.data : store.licenses;
+  const spendBySite = new Map((budgetHealthData?.data ?? []).map((b) => [b.siteId, b]));
 
   // Site manager scoping: filter client-side against visible sites from the store
   const visibleIds = useMemo(() => visibleSites(store).map((s) => s.id), [store]);
@@ -46,6 +50,14 @@ export default function SitesPage() {
       } catch {
         // Handled
       }
+    }
+  }
+
+  async function handleRestore(id: string) {
+    try {
+      await restoreMutation.mutateAsync(id);
+    } catch {
+      // Handled
     }
   }
 
@@ -107,6 +119,7 @@ export default function SitesPage() {
             <tbody>
               {sites.map((site) => {
                 const license = licensesList.find((l) => l.id === site.licenseId);
+                const spend = spendBySite.get(site.id);
                 return (
                   <tr key={site.id}>
                     <td>
@@ -115,15 +128,15 @@ export default function SitesPage() {
                       </Link>
                       <p className="text-sm text-black/50">{site.name}</p>
                       <p className="mt-1 font-mono text-[0.7rem] text-black/45 sm:hidden">
-                        Labor {etb(site.laborSpent || "0.00")} · Mat {etb(site.materialSpent || "0.00")}
+                        Labor {etb(spend?.laborSpent ?? "0.00")} · Mat {etb(spend?.materialSpent ?? "0.00")}
                       </p>
                     </td>
                     <td className="hidden md:table-cell">{license?.name}</td>
                     <td className="hidden font-mono text-sm sm:table-cell">
-                      {etb(site.laborSpent || "0.00")} / {site.laborBudget ? etb(Number(site.laborBudget)) : "—"}
+                      {etb(spend?.laborSpent ?? "0.00")} / {site.laborBudget ? etb(Number(site.laborBudget)) : "—"}
                     </td>
                     <td className="hidden font-mono text-sm sm:table-cell">
-                      {etb(site.materialSpent) || "0.00"} / {site.materialBudget ? etb(Number(site.materialBudget)) : "—"}
+                      {etb(spend?.materialSpent ?? "0.00")} / {site.materialBudget ? etb(Number(site.materialBudget)) : "—"}
                     </td>
                     <td>
                       <Stamp value={site.status} tone={statusTone(site.status)} />
@@ -131,8 +144,10 @@ export default function SitesPage() {
                     {canMutate ? (
                       <td>
                         <RecordActions
-                          onEdit={() => setMode({ kind: "edit", record: site })}
+                          onEdit={!site.deletedAt ? () => setMode({ kind: "edit", record: site }) : undefined}
                           onDelete={!site.deletedAt ? () => setMode({ kind: "delete", record: site, label: site.name }) : undefined}
+                          onRestore={site.deletedAt ? () => handleRestore(site.id) : undefined}
+                          restoreDisabled={restoreMutation.isPending}
                         />
                       </td>
                     ) : null}

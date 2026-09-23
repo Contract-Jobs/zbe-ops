@@ -4,20 +4,27 @@ import { useState } from "react";
 import { LocationSelect } from "@/components/LocationSelect";
 import { isSiteManager, useStore } from "@/lib/store";
 import {
-  usePurchaseMaterial,
-  useTransferMaterial,
-  useSellMaterial,
-  useConsumeMaterial,
-  useReportMissingMaterial,
-} from "@/hooks/use-materials";
-import { useMaterials } from "@/hooks/use-materials";
+  usePurchaseInventoryItem,
+  useTransferInventoryItem,
+  useSellInventoryItem,
+  useConsumeInventoryItem,
+  useLogInventoryLoss,
+} from "@/hooks/use-inventory-movements";
+import { useInventoryItems } from "@/hooks/use-inventory-items";
+import { useInventoryNodeId } from "@/hooks/use-inventories";
 import { useLicenses } from "@/hooks/use-licenses";
-import { useCategories } from "@/hooks/use-categories";
 import type { LocationKind } from "@/lib/types";
 import { SearchableSelect } from "@/components/ui";
-import type { MaterialLogAction } from "@/types/api";
+import type { QuantityMovementType } from "@/types/api";
 
-type ActionType = MaterialLogAction["action"];
+// movementType labels shown to users — internal wire names never rendered raw.
+const ACTION_LABELS: Record<QuantityMovementType, string> = {
+  purchase: "Purchase",
+  transfer: "Transfer",
+  sale: "Sell (warehouse only)",
+  consume: "Consume",
+  loss: "Report loss",
+};
 
 export interface MaterialMovementFormProps {
   materialId?: string | "new";
@@ -25,7 +32,7 @@ export interface MaterialMovementFormProps {
   defaultDestination?: { id: string; type: LocationKind };
   fixedSource?: { id: string; type: LocationKind; name: string };
   fixedDestination?: { id: string; type: LocationKind; name: string };
-  allowedActions?: ActionType[];
+  allowedActions?: QuantityMovementType[];
   title?: string;
   noBg?: boolean,
   onSuccess?: () => void;
@@ -49,17 +56,17 @@ export function MaterialMovementForm({
 
   const { data: licensesData } = useLicenses();
   const licenses = licensesData?.data ?? store.licenses;
-  const { data: categoriesData } = useCategories();
-  const categories = categoriesData?.data ?? store.categories;
-  const { data: materialsData } = useMaterials();
-  const materials = materialsData?.data ?? store.materials;
+  // Full catalog pull, not the endpoint's default page size of 10 —
+  // SearchableSelect below filters client-side, no server search wired.
+  const { data: itemsData } = useInventoryItems({ category: "material", limit: 50, tracking: "quantity" });
+  const materials = itemsData?.data ?? store.materials;
 
-  const allActions: Array<{ type: ActionType; label: string; disabled?: boolean }> = [
-    { type: "purchase", label: "Purchase" },
-    { type: "transfer", label: "Transfer" },
-    { type: "sold", label: "Sell (warehouse only)", disabled: manager },
-    { type: "used_up", label: "Consume" },
-    { type: "missing", label: "Report missing" },
+  const allActions: Array<{ type: QuantityMovementType; label: string; disabled?: boolean }> = [
+    { type: "purchase", label: ACTION_LABELS.purchase },
+    { type: "transfer", label: ACTION_LABELS.transfer },
+    { type: "sale", label: ACTION_LABELS.sale, disabled: manager },
+    { type: "consume", label: ACTION_LABELS.consume },
+    { type: "loss", label: ACTION_LABELS.loss },
   ];
   const actions = allActions.filter(a => !allowedActions || allowedActions.includes(a.type));
 
@@ -67,105 +74,106 @@ export function MaterialMovementForm({
   const mId = materialId || selectedMaterialId;
   const isCreating = mId === "new";
 
-  const [type, setType] = useState<ActionType>(isCreating ? "purchase" : (allowedActions?.[0] ?? "transfer"));
+  const [type, setType] = useState<QuantityMovementType>(isCreating ? "purchase" : (allowedActions?.[0] ?? "transfer"));
 
   // New Material fields
   const [matName, setMatName] = useState("");
   const [matUnit, setMatUnit] = useState("pcs");
-  const [matType, setMatType] = useState<"single" | "set">("single");
 
   // Core fields
   const [quantity, setQuantity] = useState("1");
-  const [unitPrice, setUnitPrice] = useState("");
-  const [buyerName, setBuyerName] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [unitCost, setUnitCost] = useState("");
+  const [clientName, setClientName] = useState("");
   const [licenseId, setLicenseId] = useState("");
-  const [notes, setNotes] = useState("");
+  const [reason, setReason] = useState("");
 
-  // Location fields
+  // Location fields — these carry the site's/warehouse's own id; resolved to
+  // an inventory node id below before building the payload (docs/migration.md §2.3).
   const [fromKind, setFromKind] = useState<LocationKind | "">(defaultSource?.type ?? "");
   const [fromId, setFromId] = useState(defaultSource?.id ?? "");
   const [toKind, setToKind] = useState<LocationKind | "">(defaultDestination?.type ?? "");
   const [toId, setToId] = useState(defaultDestination?.id ?? "");
 
+  const sourceKind = fixedSource?.type ?? fromKind;
+  const sourceRefId = fixedSource?.id ?? fromId;
+  const destKind = fixedDestination?.type ?? toKind;
+  const destRefId = fixedDestination?.id ?? toId;
+
+  const { nodeId: sourceNodeId } = useInventoryNodeId(sourceKind, sourceRefId || undefined);
+  const { nodeId: destNodeId } = useInventoryNodeId(destKind, destRefId || undefined);
+
   const [msg, setMsg] = useState<string | null>(null);
 
-  const purchaseMutation = usePurchaseMaterial();
-  const transferMutation = useTransferMaterial();
-  const sellMutation = useSellMaterial();
-  const consumeMutation = useConsumeMaterial();
-  const missingMutation = useReportMissingMaterial();
+  const purchaseMutation = usePurchaseInventoryItem();
+  const transferMutation = useTransferInventoryItem();
+  const sellMutation = useSellInventoryItem();
+  const consumeMutation = useConsumeInventoryItem();
+  const lossMutation = useLogInventoryLoss();
 
   const isPending =
     purchaseMutation.isPending ||
     transferMutation.isPending ||
     sellMutation.isPending ||
     consumeMutation.isPending ||
-    missingMutation.isPending;
+    lossMutation.isPending;
 
   const submit = async () => {
     setMsg(null);
     try {
       const qn = Number(quantity);
       if (!qn || qn <= 0) throw new Error("Quantity required");
-
-      const source = fixedSource ? { id: fixedSource.id, type: fixedSource.type as "site" | "warehouse" } : (fromKind && fromId ? { id: fromId, type: fromKind as "site" | "warehouse" } : undefined);
-      const destination = fixedDestination ? { id: fixedDestination.id, type: fixedDestination.type as "site" | "warehouse" } : (toKind && toId ? { id: toId, type: toKind as "site" | "warehouse" } : undefined);
-
       if (!mId) throw new Error("Please select a material");
 
       if (type === "purchase") {
-        if (!unitPrice) throw new Error("Unit Price is required");
-        if (!destination) throw new Error("Destination is required");
+        if (!unitCost) throw new Error("Unit cost is required");
+        if (!licenseId) throw new Error("License is required");
+        if (!destNodeId) throw new Error("Destination is required");
         await purchaseMutation.mutateAsync({
-          materialId: mId,
+          itemId: mId === "new" ? undefined : mId,
           quantity: qn,
-          purchaseCost: unitPrice,
-          destination,
-          categoryId: categoryId || undefined,
-          licenseId: licenseId || undefined,
-          notes: notes || undefined,
-          newMaterial: mId === "new" ? { name: matName, unit: matUnit || "pcs", type: matType } : undefined,
+          destinationInventoryId: destNodeId,
+          unitCost,
+          clientName: clientName || undefined,
+          licenseId,
+          autoCreateItem: mId === "new" ? { name: matName, unit: matUnit || "pcs", category: "material" } : undefined,
         });
       } else if (type === "transfer") {
-        if (!source || !destination) throw new Error("Source and Destination are required for transfer");
+        if (!sourceNodeId || !destNodeId) throw new Error("Source and destination are required for transfer");
         await transferMutation.mutateAsync({
-          materialId: mId,
+          itemId: mId,
           quantity: qn,
-          source,
-          destination,
-          notes: notes || undefined,
+          sourceInventoryId: sourceNodeId,
+          destinationInventoryId: destNodeId,
         });
-      } else if (type === "sold") {
-        if (!unitPrice) throw new Error("Unit Price is required");
-        if (!source || source.type !== "warehouse") throw new Error("Source must be a warehouse for sales");
+      } else if (type === "sale") {
+        if (!unitCost) throw new Error("Unit cost is required");
+        if (!licenseId) throw new Error("License is required");
+        if (sourceKind !== "warehouse" || !sourceNodeId) throw new Error("Source must be a warehouse for sales");
         if (manager) throw new Error("Site managers cannot sell");
 
         await sellMutation.mutateAsync({
-          materialId: mId,
+          itemId: mId,
           quantity: qn,
-          sellingPrice: unitPrice,
-          source: { id: source.id, type: "warehouse" },
-          buyerName: buyerName || undefined,
-          categoryId: categoryId || undefined,
-          licenseId: licenseId || undefined,
-          notes: notes || undefined,
+          sourceInventoryId: sourceNodeId,
+          unitCost,
+          clientName: clientName || undefined,
+          licenseId,
         });
-      } else if (type === "used_up") {
-        if (!source) throw new Error("Source is required");
+      } else if (type === "consume") {
+        if (!sourceNodeId) throw new Error("Source is required");
         await consumeMutation.mutateAsync({
-          materialId: mId,
+          itemId: mId,
           quantity: qn,
-          source,
-          notes: notes || undefined,
+          sourceInventoryId: sourceNodeId,
         });
-      } else if (type === "missing") {
-        if (!source) throw new Error("Source is required");
-        await missingMutation.mutateAsync({
-          materialId: mId,
+      } else if (type === "loss") {
+        if (!sourceNodeId) throw new Error("Source is required");
+        if (!reason.trim()) throw new Error("Reason is required");
+        await lossMutation.mutateAsync({
+          itemId: mId,
           quantity: qn,
-          source,
-          notes: notes || undefined,
+          sourceInventoryId: sourceNodeId,
+          metadata: { reason: reason.trim() },
         });
       }
 
@@ -177,7 +185,7 @@ export function MaterialMovementForm({
   };
 
   return (
-    <div className={isCreating || noBg ? "" : "border border-black/10 bg-paper/40 p-5"}>
+    <div className={isCreating || noBg ? "" : "border border-black/10 bg-paper/40 p-5 h-max"}>
       {!isCreating && <p className="kicker mb-3">{title || "Raise a movement"}</p>}
 
       {!materialId && (
@@ -205,7 +213,7 @@ export function MaterialMovementForm({
       {!isCreating && actions.length > 1 && (
         <label className="mb-3 block text-sm">
           Action
-          <select className="field mt-1" value={type} onChange={(e) => setType(e.target.value as ActionType)}>
+          <select className="field mt-1" value={type} onChange={(e) => setType(e.target.value as QuantityMovementType)}>
             {actions.map((a) => (
               <option key={a.type} value={a.type} disabled={a.disabled}>
                 {a.label}
@@ -221,19 +229,10 @@ export function MaterialMovementForm({
             Material Name
             <input className="field mt-1" value={matName} onChange={(e) => setMatName(e.target.value)} />
           </label>
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <label className="block text-sm">
-              Unit
-              <input className="field mt-1" value={matUnit} onChange={(e) => setMatUnit(e.target.value)} />
-            </label>
-            <label className="block text-sm">
-              Type
-              <select className="field mt-1" value={matType} onChange={(e) => setMatType(e.target.value as "single" | "set")}>
-                <option value="single">Single</option>
-                <option value="set">Set</option>
-              </select>
-            </label>
-          </div>
+          <label className="mb-3 block text-sm">
+            Unit
+            <input className="field mt-1" value={matUnit} onChange={(e) => setMatUnit(e.target.value)} />
+          </label>
         </>
       )}
 
@@ -242,48 +241,35 @@ export function MaterialMovementForm({
         <input className="field mt-1" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
       </label>
 
-      {["purchase", "sold"].includes(type) && (
+      {["purchase", "sale"].includes(type) && (
         <label className="mb-3 block text-sm">
-          Unit Price (ETB)
-          <input className="field mt-1" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} />
+          Unit Cost (ETB)
+          <input className="field mt-1" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
         </label>
       )}
 
-      {type === "sold" && (
+      {type === "sale" && (
         <label className="mb-3 block text-sm">
           Buyer
-          <input className="field mt-1" value={buyerName} onChange={(e) => setBuyerName(e.target.value)} />
+          <input className="field mt-1" value={clientName} onChange={(e) => setClientName(e.target.value)} />
         </label>
       )}
 
-      {["purchase", "sold"].includes(type) && (
-        <>
-          <label className="mb-3 block text-sm">
-            Category
-            <select className="field mt-1" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-              <option value="">Select category</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="mb-3 block text-sm">
-            License
-            <select className="field mt-1" value={licenseId} onChange={(e) => setLicenseId(e.target.value)}>
-              <option value="">Select license</option>
-              {licenses.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        </>
+      {["purchase", "sale"].includes(type) && (
+        <label className="mb-3 block text-sm">
+          License
+          <select className="field mt-1" value={licenseId} onChange={(e) => setLicenseId(e.target.value)}>
+            <option value="">Select license</option>
+            {licenses.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </label>
       )}
 
-      {["transfer", "sold", "used_up", "missing"].includes(type) && (
+      {["transfer", "sale", "consume", "loss"].includes(type) && (
         <div className="mb-3">
           <p className="mb-1 text-sm">Source</p>
           {fixedSource ? (
@@ -296,7 +282,7 @@ export function MaterialMovementForm({
               id={fromId}
               onKind={setFromKind}
               onId={setFromId}
-              allowSite={type !== "sold"} // Only warehouses can sell
+              allowSite={type !== "sale"} // Only warehouses can sell
             />
           )}
         </div>
@@ -315,10 +301,12 @@ export function MaterialMovementForm({
         </div>
       )}
 
-      <label className="mb-3 block text-sm">
-        Notes
-        <input className="field mt-1" value={notes} onChange={(e) => setNotes(e.target.value)} />
-      </label>
+      {type === "loss" ? (
+        <label className="mb-3 block text-sm">
+          Reason
+          <input className="field mt-1" value={reason} onChange={(e) => setReason(e.target.value)} required />
+        </label>
+      ) : null}
 
       <div className="flex gap-2 mt-4">
         {onCancel && (

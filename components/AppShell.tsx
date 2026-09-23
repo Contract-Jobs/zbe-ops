@@ -20,6 +20,7 @@ const nav = [
   { href: "/", label: "Board" },
   { href: "/approvals", label: "Approvals" },
   { href: "/sites", label: "Sites" },
+  { href: "/tasks", label: "Tasks" },
   { href: "/materials", label: "Materials" },
   { href: "/inventory", label: "Inventory" },
   { href: "/equipment", label: "Equipment" },
@@ -152,6 +153,17 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
+          {!manager ? (
+            <Link
+              href="/company"
+              className={`mb-0.5 flex items-center justify-between px-3 py-2.5 text-[0.95rem] ${pathname.startsWith("/company")
+                ? "bg-yellow text-white"
+                : "text-white/80 hover:bg-raised hover:text-white"
+                }`}
+            >
+              <span>Company</span>
+            </Link>
+          ) : null}
           {!manager ? (
             <Link
               href="/users"

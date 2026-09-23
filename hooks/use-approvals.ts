@@ -1,12 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import * as approvalsApi from "@/lib/api/approvals"
-import * as materialsApi from "@/lib/api/materials"
-import * as equipmentApi from "@/lib/api/equipment"
 import type { ApprovalListParams } from "@/lib/api/approvals"
 import { queryKeys } from "@/lib/query/keys"
 import { onApprovalProcessed } from "@/lib/query/approval-invalidation"
-import { isAdmin, isSiteManager, canApproveType, type Role } from "@/lib/auth/permissions"
-import { useSites } from "./use-sites"
+import { isAdmin, canApproveType, type Role } from "@/lib/auth/permissions"
 import type { Approval } from "@/types/api"
 
 export function useApprovals(params: ApprovalListParams = {}) {
@@ -49,54 +46,29 @@ export function useRejectApproval() {
         mutationFn: ({ id, notes }: { id: string; notes?: string }) =>
             approvalsApi.processApproval(id, { status: "rejected", notes }),
         onSuccess: () => {
-            // rejection returns {data: Approval}, but nothing downstream changed
-            // — only the approval row itself — so a flat invalidate is enough
             queryClient.invalidateQueries({ queryKey: queryKeys.approvals.all })
+            // Usually only the approval row itself changed, EXCEPT: rejecting a
+            // pending transaction-reversal un-flags the original transaction's
+            // isReversed server-side (new_api.md §5) — cheap enough to always
+            // invalidate transactions rather than thread approvalType through
+            // here just for that one case.
+            queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all })
         },
     })
 }
 
-// Whether the current user can act on a specific approval — combines the
-// cheap type check above with the record-level toSiteId check the backend
-// actually enforces for Site Managers. Admins short-circuit immediately;
-// Site Managers require fetching the underlying record plus their own
-// site list (which the backend already scopes to "sites I manage" for a
-// Site Manager's own GET /api/sites call — no extra filtering needed here).
-export function useCanActOnApproval(
-    approval: Approval | undefined,
-    role: Role | null | undefined
-) {
-    const typeAllowed = approval ? canApproveType(role, approval.approvalType) : false
-    const needsRecordCheck = typeAllowed && isSiteManager(role) && !!approval
-
-    const recordQuery = useQuery({
-        queryKey: ["approval-target-site", approval?.approvalType, approval?.recordId],
-        queryFn: async () => {
-            if (approval!.approvalType === "material_movement") {
-                const { data } = await materialsApi.getMaterialLog(approval!.recordId)
-                return data.toSiteId
-            }
-            if (approval!.approvalType === "equipment_movement") {
-                const { data } = await equipmentApi.getEquipmentLog(approval!.recordId)
-                return data.toSiteId
-            }
-            // Only material_movement and equipment_movement are in
-            // SITE_MANAGER_APPROVABLE_TYPES, so needsRecordCheck is false for
-            // any other type — this branch should never be reached.
-            throw new Error(`Unexpected approvalType in site-manager record check: ${approval!.approvalType}`)
-        },
-        enabled: needsRecordCheck,
-    })
-
-    const managedSites = useSites({})
-
+// Whether the current user can act on a specific approval. v2 has no
+// single-record GET for inventory-movements/equipment-movements/rental-events
+// (only list + create + reverse — see docs/new_api.md), so unlike the legacy
+// API this can no longer pre-check "does the destination site match one the
+// site_manager manages" client-side. That record-level check is enforced
+// authoritatively server-side (ApprovalService.assertCanResolve) regardless —
+// a site_manager who isn't actually allowed gets a 403 (surfaced via the
+// apiClient's toast) when they try. So this now only gates on the type-level
+// grant, which is enough to decide whether to *show* the controls at all;
+// the server remains the real authority on whether the action succeeds.
+export function useCanActOnApproval(approval: Approval | undefined, role: Role | null | undefined) {
     if (!approval) return { canAct: false, isLoading: false }
     if (isAdmin(role)) return { canAct: true, isLoading: false }
-    if (!typeAllowed) return { canAct: false, isLoading: false }
-
-    const isLoading = recordQuery.isLoading || managedSites.isLoading
-    const targetSiteId = recordQuery.data
-    const canAct = !!targetSiteId && !!managedSites.data?.data.some((s) => s.id === targetSiteId)
-
-    return { canAct, isLoading }
+    return { canAct: canApproveType(role, approval.approvalType), isLoading: false }
 }

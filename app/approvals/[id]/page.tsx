@@ -4,14 +4,10 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { ConfirmDialog, PageHead, Stamp, statusTone, Username } from "@/components/ui";
 import { day } from "@/lib/format";
-import { approveApproval, locationName, rejectApproval, useStore, userName } from "@/lib/store";
-import { useApproval, useApproveApproval, useRejectApproval } from "@/hooks/use-approvals";
-import { useMaterialLog } from "@/hooks/use-materials";
-import { useEquipmentLog } from "@/hooks/use-equipment";
+import { approveApproval, currentUser, rejectApproval, useStore } from "@/lib/store";
+import { useApproval, useApproveApproval, useRejectApproval, useCanActOnApproval } from "@/hooks/use-approvals";
 import { useTransaction } from "@/hooks/use-transactions";
-import { useSites } from "@/hooks/use-sites";
-import { useWarehouses } from "@/hooks/use-warehouses";
-import type { LocationKind } from "@/lib/types";
+import { useTask } from "@/hooks/use-tasks";
 import type { Approval } from "@/types/api";
 
 export default function ApprovalDetailPage() {
@@ -25,13 +21,14 @@ export default function ApprovalDetailPage() {
 
   const storeItem = store.approvals.find((a) => a.id === id);
   const item: Approval | undefined = approvalData?.data ?? (storeItem as unknown as Approval);
+  const { canAct } = useCanActOnApproval(item, currentUser(store).role);
 
-  const matLog = useMaterialLog(item?.approvalType === "material_movement" ? item.recordId : undefined);
-  const eqLog = useEquipmentLog(item?.approvalType === "equipment_movement" ? item.recordId : undefined);
+  // v2 has no single-record GET for inventory-movements/equipment-movements/
+  // rental-events (only list + create + reverse) — so unlike transaction/
+  // progress_log, those types can't be enriched with quantity/price/location
+  // detail here. See docs/api-v2-migration-plan.md §3.7.
   const tx = useTransaction(item?.approvalType === "transaction" ? item.recordId : undefined);
-
-  const { data: sitesData } = useSites();
-  const { data: warehousesData } = useWarehouses();
+  const task = useTask(item?.approvalType === "progress_log" ? item.recordId : undefined);
 
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<"approve" | "reject" | null>(null);
@@ -42,33 +39,9 @@ export default function ApprovalDetailPage() {
 
   if (!item) return <p>Approval not found.</p>;
 
-  const resolveLocation = (kind: "site" | "warehouse" | undefined, locId: string | undefined) => {
-    if (!kind || !locId) return null;
-    if (kind === "site") {
-      const s = sitesData?.data.find((site) => site.id === locId);
-      return s ? s.name : locationName("site", locId, store);
-    }
-    const w = warehousesData?.data.find((wh) => wh.id === locId);
-    return w ? w.name : locationName("warehouse", locId, store);
-  };
+  const isRecordDetailUnavailable = item.approvalType === "inventory_movement" || item.approvalType === "equipment_movement" || item.approvalType === "rental_event";
 
-  const p = (item as unknown as { payload?: Record<string, unknown> }).payload ?? {
-    quantity: matLog.data?.data.quantity,
-    unitPrice: matLog.data?.data.unitPrice,
-    price: eqLog.data?.data.price ?? tx.data?.data.amount,
-    fromId: matLog.data?.data.fromSiteId ?? matLog.data?.data.fromWarehouseId ?? eqLog.data?.data.fromSiteId ?? eqLog.data?.data.fromWarehouseId,
-    fromKind: (matLog.data?.data.fromSiteId || eqLog.data?.data.fromSiteId) ? "site" : "warehouse",
-    toId: matLog.data?.data.toSiteId ?? matLog.data?.data.toWarehouseId ?? eqLog.data?.data.toSiteId ?? eqLog.data?.data.toWarehouseId,
-    toKind: (matLog.data?.data.toSiteId || eqLog.data?.data.toSiteId) ? "site" : "warehouse",
-    buyerName: matLog.data?.data.buyerName ?? eqLog.data?.data.buyerName,
-    vendorName: eqLog.data?.data.vendorName,
-    note: matLog.data?.data.notes ?? eqLog.data?.data.notes ?? tx.data?.data.description ?? item.notes,
-  };
-
-  const summary = (item as unknown as { summary?: string }).summary ??
-    (item.notes || `${item.approvalType.replaceAll("_", " ")} #${item.recordId?.slice(0, 8) ?? item.id.slice(0, 8)}`);
-  const createdBy = (item as unknown as { createdBy?: string }).createdBy ?? item.submittedBy;
-  const decidedBy = (item as unknown as { decidedBy?: string }).decidedBy ?? item.approvedBy;
+  const summary = item.notes || `${item.approvalType.replaceAll("_", " ")} #${item.recordId?.slice(0, 8) ?? item.id.slice(0, 8)}`;
 
   const handleApprove = async () => {
     setError(null);
@@ -118,20 +91,30 @@ export default function ApprovalDetailPage() {
         </span>
       </div>
       <dl className="grid grid-cols-1 gap-x-8 gap-y-4 border border-black/10 p-4 text-sm sm:grid-cols-2 sm:p-5">
-        <Row label="Raised by" value={<Username userId={createdBy} />} />
+        <Row label="Raised by" value={<Username userId={item.submittedBy} />} />
         <Row label="Raised" value={day(item.createdAt)} />
-        {p.quantity != null ? <Row label="Quantity" value={String(p.quantity)} /> : null}
-        {p.unitPrice != null ? <Row label="Unit price" value={String(p.unitPrice)} /> : null}
-        {p.price != null ? <Row label="Amount" value={String(p.price)} /> : null}
-        {p.fromId ? <Row label="From" value={resolveLocation(p.fromKind as LocationKind, String(p.fromId)) ?? String(p.fromId)} /> : null}
-        {p.toId ? <Row label="To" value={resolveLocation(p.toKind as LocationKind, String(p.toId)) ?? String(p.toId)} /> : null}
-        {p.buyerName ? <Row label="Buyer" value={String(p.buyerName)} /> : null}
-        {p.vendorName ? <Row label="Vendor" value={String(p.vendorName)} /> : null}
-        {p.note ? <Row label="Note" value={String(p.note)} /> : null}
-        {decidedBy ? <Row label="Decided by" value={<Username userId={decidedBy} />} /> : null}
+        {item.approvalType === "transaction" && tx.data?.data ? (
+          <>
+            <Row label="Amount" value={String(tx.data.data.amount)} />
+            <Row label="Note" value={tx.data.data.description ?? "—"} />
+          </>
+        ) : null}
+        {item.approvalType === "progress_log" && task.data?.data ? (
+          <>
+            <Row label="Task" value={task.data.data.title} />
+            {task.data.data.notes ? <Row label="Note" value={task.data.data.notes} /> : null}
+          </>
+        ) : null}
+        {item.notes ? <Row label="Note" value={item.notes} /> : null}
+        {item.approvedBy ? <Row label="Decided by" value={<Username userId={item.approvedBy} />} /> : null}
       </dl>
+      {isRecordDetailUnavailable ? (
+        <p className="mt-4 text-sm text-black/50">
+          Movement detail (quantity, price, location) isn't available from this screen — the API only exposes it via the movements list, not a single-record lookup. Cross-check the underlying movement/rental list if you need it before deciding.
+        </p>
+      ) : null}
       {error ? <p className="mt-4 text-sm text-bad">{error}</p> : null}
-      {item.status === "pending" ? (
+      {item.status === "pending" && canAct ? (
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <button
             type="button"
@@ -150,6 +133,8 @@ export default function ApprovalDetailPage() {
             {rejectMutation.isPending ? "Rejecting..." : "Reject"}
           </button>
         </div>
+      ) : item.status === "pending" ? (
+        <p className="mt-6 text-sm text-black/50">You don't have permission to resolve this approval.</p>
       ) : null}
       <ConfirmDialog
         open={confirm === "approve"}
@@ -182,4 +167,3 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
     </div>
   );
 }
-

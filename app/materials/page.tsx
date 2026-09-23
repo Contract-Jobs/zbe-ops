@@ -5,36 +5,33 @@ import { useMemo, useState } from "react";
 import { MaterialForm } from "@/components/forms/material";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
 import { closedMode, DeleteConfirm, FormPanel, ModalPanel, PageHead, RecordActions, Stamp, TableWrap, type RecordMode } from "@/components/ui";
-import { qty } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
-import { useMaterials, useDeleteMaterial } from "@/hooks/use-materials";
-import type { MaterialCatalog } from "@/types/api";
+import { useInventoryItems, useDeleteInventoryItem, useRestoreInventoryItem } from "@/hooks/use-inventory-items";
+import type { InventoryItem } from "@/types/api";
 
 export default function MaterialsPage() {
   const store = useStore();
   const canMutate = !isSiteManager(store);
   const [q, setQ] = useState("");
-  const [mode, setMode] = useState<RecordMode<MaterialCatalog>>(closedMode);
+  const [mode, setMode] = useState<RecordMode<InventoryItem>>(closedMode);
   const [purchaseNew, setPurchaseNew] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
   const [page, setPage] = useState(1);
 
-  const { data: materialsData, isLoading } = useMaterials({ page, limit: 10, search: q || undefined });
-  const deleteMutation = useDeleteMaterial();
+  const { data: itemsData, isLoading } = useInventoryItems({ category: "material", page, limit: 10, search: q || undefined });
+  const deleteMutation = useDeleteInventoryItem();
+  const restoreMutation = useRestoreInventoryItem();
 
-  const materialsList = materialsData ? materialsData.data : (store.materials as unknown as MaterialCatalog[]);
+  const materialsList = itemsData ? itemsData.data : (store.materials as unknown as InventoryItem[]);
 
+  // Catalog only — balances/trace for one item live on /materials/[id],
+  // not fetched here.
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
     return materialsList
       .filter((m) => showDeleted || !m.deletedAt)
-      .filter((m) => (term ? m.name.toLowerCase().includes(term) : true))
-      .map((m) => ({
-        ...m,
-        // Quantity from store balances until inventory is wired on this page
-        total: store.balances.filter((b) => b.materialId === m.id).reduce((s, b) => s + b.quantity, 0),
-      }));
-  }, [q, store.balances, materialsList, showDeleted]);
+      .filter((m) => (term ? m.name.toLowerCase().includes(term) : true));
+  }, [q, materialsList, showDeleted]);
 
   async function handleDelete() {
     if (mode.kind === "delete" && mode.record) {
@@ -47,27 +44,42 @@ export default function MaterialsPage() {
     }
   }
 
+  async function handleRestore(id: string) {
+    try {
+      await restoreMutation.mutateAsync(id);
+    } catch {
+      // Handle silently
+    }
+  }
+
   return (
     <div>
       <PageHead
         kicker="Catalog"
         title="Materials"
-        action={canMutate ? (
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-sm text-black/70">
-              <input
-                type="checkbox"
-                checked={showDeleted}
-                onChange={(e) => setShowDeleted(e.target.checked)}
-              />
-              Show deleted
-            </label>
-            <div className="flex gap-2">
-              <RecordActions newLabel="New material" onNew={() => setMode({ kind: "create" })} />
-              <button className="btn" onClick={() => setPurchaseNew(true)}>Purchase New</button>
-            </div>
+        action={
+          <div className="flex flex-wrap items-center gap-4">
+            <Link href="/materials/movements" className="btn btn-ghost">
+              All movements
+            </Link>
+            {canMutate ? (
+              <>
+                <label className="flex items-center gap-2 text-sm text-black/70">
+                  <input
+                    type="checkbox"
+                    checked={showDeleted}
+                    onChange={(e) => setShowDeleted(e.target.checked)}
+                  />
+                  Show deleted
+                </label>
+                <div className="flex gap-2">
+                  <RecordActions newLabel="New material" onNew={() => setMode({ kind: "create" })} />
+                  <button className="btn" onClick={() => setPurchaseNew(true)}>Purchase New</button>
+                </div>
+              </>
+            ) : null}
           </div>
-        ) : undefined}
+        }
       />
       {mode.kind === "create" ? (
         <FormPanel kicker="Catalog" title="New material" onClose={() => setMode(closedMode())}>
@@ -90,15 +102,15 @@ export default function MaterialsPage() {
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
-      {isLoading && !materialsData ? (
+      {isLoading && !itemsData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading materials...</div>
       ) : (
-        <TableWrap pagination={materialsData?.pagination} onPageChange={setPage}>
+        <TableWrap pagination={itemsData?.pagination} onPageChange={setPage}>
           <table className="data">
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Unit</th>
+                <th>Total</th>
                 <th className="hidden sm:table-cell">Type</th>
                 {canMutate ? <th></th> : null}
               </tr>
@@ -111,15 +123,17 @@ export default function MaterialsPage() {
                       {m.name}
                     </Link>
                   </td>
-                  <td className="font-mono text-sm">{m.unit}</td>
+                  <td className="font-mono text-sm">{m.totalQuantity} {m.unit}</td>
                   <td className="hidden sm:table-cell">
-                    <Stamp value={m.type} />
+                    <Stamp value={m.compositionType} />
                   </td>
                   {canMutate ? (
                     <td>
                       <RecordActions
-                        onEdit={() => setMode({ kind: "edit", record: m })}
+                        onEdit={!m.deletedAt ? () => setMode({ kind: "edit", record: m }) : undefined}
                         onDelete={!m.deletedAt ? () => setMode({ kind: "delete", record: m, label: m.name }) : undefined}
+                        onRestore={m.deletedAt ? () => handleRestore(m.id) : undefined}
+                        restoreDisabled={restoreMutation.isPending}
                       />
                     </td>
                   ) : null}

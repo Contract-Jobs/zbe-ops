@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import * as rentalsApi from "@/lib/api/rentals"
-import type { RentalListParams } from "@/lib/api/rentals"
+import type { RentalListParams, RentalEventListParams } from "@/lib/api/rentals"
 import { queryKeys } from "@/lib/query/keys"
 import { onApprovalProcessed } from "@/lib/query/approval-invalidation"
 import type { RentalCreatePayload, RentalAdjustPayload, RentalReturnPayload } from "@/types/api"
@@ -26,6 +26,15 @@ export function useRentalEvents(id: string | undefined, params: ListParams = {})
         queryKey: [...queryKeys.rentals.detail(id ?? ""), "events", params],
         queryFn: () => rentalsApi.getRentalEvents(id as string, params),
         enabled: !!id,
+    })
+}
+
+// Flat listing across every agreement — for an all-events view, not scoped
+// to one rental's detail page.
+export function useAllRentalEvents(params: RentalEventListParams = {}) {
+    return useQuery({
+        queryKey: queryKeys.rentals.allEvents(params),
+        queryFn: () => rentalsApi.listAllRentalEvents(params),
     })
 }
 

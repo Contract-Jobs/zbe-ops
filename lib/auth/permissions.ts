@@ -61,16 +61,19 @@ export function canCompleteTask(role: Role | null | undefined): boolean {
 }
 
 
-// Confirmed by backend dev: site managers may approve only these two
-// types, and only when the record's toSiteId matches a site they manage.
-// "inventory_movement" is legacy and never actually emitted, so not
-// modeled here even though the backend defensively checks for it too.
-const SITE_MANAGER_APPROVABLE_TYPES: ApprovalType[] = ["material_movement", "equipment_movement"]
+// Per docs/new_api.md's site-manager approval fallback: a site_manager may
+// resolve a pending inventory_movement, equipment_movement, or rental_event
+// approval if they manage the site the record's destination inventory (or
+// rental agreement) resolves to. A warehouse-anchored record has no
+// site-manager fallback at all — admin/superadmin only. transaction/
+// progress_log approvals are never resolvable by a site_manager this way.
+const SITE_MANAGER_APPROVABLE_TYPES: ApprovalType[] = ["inventory_movement", "equipment_movement", "rental_event"]
 
 // Necessary-but-not-sufficient: confirms the TYPE is approvable by this
-// role. For Site Managers, the record's toSiteId must ALSO match one of
-// their managed sites — see useCanActOnApproval in use-approvals.ts for
-// the full check, since that requires fetching the record itself.
+// role. The record-level "do they manage the destination site" check is
+// enforced authoritatively server-side (ApprovalService.assertCanResolve) —
+// v2 has no single-record GET for movements/rental events to precompute it
+// client-side, so useCanActOnApproval no longer tries; see that hook.
 export function canApproveType(role: Role | null | undefined, approvalType: ApprovalType): boolean {
   if (isAdmin(role)) return true
   if (isSiteManager(role)) return SITE_MANAGER_APPROVABLE_TYPES.includes(approvalType)

@@ -29,7 +29,10 @@ export function useSetUserRole() {
       }
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.users.lists() }),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.lists() });
+      queryClient.invalidateQueries({ queryKey: ["user", variables.userId] });
+    },
   });
 }
 
@@ -47,7 +50,10 @@ export function useBanUser() {
       }
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.users.lists() }),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.lists() });
+      queryClient.invalidateQueries({ queryKey: ["user", variables.userId] });
+    },
   });
 }
 
@@ -65,7 +71,10 @@ export function useUnbanUser() {
       }
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.users.lists() }),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.lists() });
+      queryClient.invalidateQueries({ queryKey: ["user", variables.userId] });
+    },
   });
 }
 
@@ -79,7 +88,10 @@ export function useRemoveUser() {
       }
       return data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.users.lists() }),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.lists() });
+      queryClient.invalidateQueries({ queryKey: ["user", variables.userId] });
+    },
   });
 }
 
@@ -144,6 +156,13 @@ export function useUpdateUser() {
       }
       return result;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.users.lists() }),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.lists() });
+      // <Username> (BalanceHistory, lifecycle logs, transactions, equipment
+      // history — everywhere a `loggedBy` renders) reads useUser(userId),
+      // keyed as ["user", userId] — a different top-level key this never
+      // touched, so a rename stayed stale for its 5-minute staleTime.
+      queryClient.invalidateQueries({ queryKey: ["user", variables.userId] });
+    },
   });
 }

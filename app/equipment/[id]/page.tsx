@@ -3,7 +3,6 @@
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { EquipmentForm } from "@/components/forms/equipment";
-import { LocationSelect } from "@/components/LocationSelect";
 import {
   closedMode,
   DeleteConfirm,
@@ -16,25 +15,12 @@ import {
   type RecordMode,
 } from "@/components/ui";
 import { day, etb } from "@/lib/format";
-import { isSiteManager, locationName, submitApproval, useStore } from "@/lib/store";
-import {
-  useEquipment,
-  useDeleteEquipment,
-  useEquipmentLogs,
-  useTransferEquipment,
-  useSellEquipment,
-  useConsumeEquipment,
-  useReportMissingEquipment,
-  useMaintenanceDispatch,
-  useMaintenanceReturn,
-  useDegradeEquipment,
-  useAppreciateEquipment,
-} from "@/hooks/use-equipment";
-import { useLicenses } from "@/hooks/use-licenses";
-import { useSites } from "@/hooks/use-sites";
-import { useWarehouses } from "@/hooks/use-warehouses";
-import type { ApprovalType, LocationKind } from "@/lib/types";
-import type { Equipment, EquipmentLog, License } from "@/types/api";
+import { isSiteManager, useStore } from "@/lib/store";
+import { useEquipment, useDeleteEquipment, useEquipmentTrace, useVerifyEquipmentState } from "@/hooks/use-equipment";
+import { useReverseEquipmentMovement } from "@/hooks/use-equipment-movements";
+import { useInventoryItem } from "@/hooks/use-inventory-items";
+import { EQUIPMENT_MOVEMENT_LABELS } from "@/lib/movement-labels";
+import type { IndividualEquipmentItem } from "@/types/api";
 
 import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
 
@@ -44,21 +30,19 @@ export default function EquipmentDetailPage() {
   const store = useStore();
 
   const { data: equipData, isLoading: isEquipLoading } = useEquipment(id);
-  const [page, setPage] = useState(1);
-  const { data: logsData } = useEquipmentLogs({ equipmentId: id, page, limit: 10 });
-  const { data: licensesData } = useLicenses();
-  const { data: sitesData } = useSites();
-  const { data: warehousesData } = useWarehouses();
+  const { data: traceData } = useEquipmentTrace(id);
+  const { data: verifyData, isLoading: isVerifyLoading } = useVerifyEquipmentState(id);
 
   const deleteEquipmentMutation = useDeleteEquipment();
+  const reverseMutation = useReverseEquipmentMovement();
 
-
-  const item = equipData?.data ?? (store.equipment.find((e) => e.id === id) as unknown as Equipment | undefined);
+  const item = equipData?.data;
+  const { data: catalogItemData } = useInventoryItem(item?.itemId);
   const canMutate = !isSiteManager(store);
 
-
-  const [mode, setMode] = useState<RecordMode<Equipment>>(closedMode);
+  const [mode, setMode] = useState<RecordMode<IndividualEquipmentItem>>(closedMode);
   const [msg, setMsg] = useState<string | null>(null);
+  const [reversingId, setReversingId] = useState<string | null>(null);
 
   if (isEquipLoading && !item) {
     return <p className="p-8 text-center text-sm text-black/50">Loading equipment...</p>;
@@ -66,30 +50,32 @@ export default function EquipmentDetailPage() {
 
   if (!item) return <p>Equipment not found.</p>;
 
-  const logs: EquipmentLog[] = logsData?.data ??
-    (store.equipmentLogs.filter((l) => l.equipmentId === item.id) as unknown as EquipmentLog[]);
-  const licenses: License[] = licensesData?.data ?? (store.licenses as unknown as License[]);
+  const trace = traceData?.data;
+  const displayName = catalogItemData?.data.name ?? item.identifier;
+  const here = trace?.currentLocation?.location ?? "Off books";
+  // Newest first — same convention as BalanceHistoryPanel. Only the top row
+  // is offered for reversal: reversing an older one out of order would
+  // misrepresent what happened to the equipment in between.
+  const history = [...(trace?.history ?? [])].sort(
+    (a, b) => new Date(b.movement.movementDate).getTime() - new Date(a.movement.movementDate).getTime()
+  );
 
-  const here = item.siteId
-    ? (sitesData?.data.find((s) => s.id === item.siteId)?.name ?? locationName("site", item.siteId, store))
-    : item.warehouseId
-      ? (warehousesData?.data.find((w) => w.id === item.warehouseId)?.name ?? locationName("warehouse", item.warehouseId, store))
-      : "Off books";
-
-  const status = item.currentStatus ?? (item as unknown as { status: string }).status;
-  const ownership = item.ownershipStatus;
-  const value = item.value ?? item.originalValue;
-  const rentRate = item.rentRate;
-  const isOnLoan = (item as unknown as { isOnLoan?: boolean }).isOnLoan;
-
-
+  const handleReverse = async (movementId: string) => {
+    setMsg(null);
+    setReversingId(movementId);
+    try {
+      await reverseMutation.mutateAsync({ id: movementId });
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Failed to reverse movement");
+    } finally {
+      setReversingId(null);
+    }
+  };
 
   const handleDeleteEquipment = async () => {
     if (mode.kind === "delete" && mode.record) {
       try {
-        if (equipData) {
-          await deleteEquipmentMutation.mutateAsync(mode.record.id);
-        }
+        await deleteEquipmentMutation.mutateAsync(mode.record.id);
         setMode(closedMode());
         router.push("/equipment");
       } catch (e) {
@@ -102,12 +88,12 @@ export default function EquipmentDetailPage() {
     <div>
       <PageHead
         kicker="Asset"
-        title={item.name}
+        title={displayName}
         action={
           canMutate ? (
             <RecordActions
               onEdit={() => setMode({ kind: "edit", record: item })}
-              onDelete={() => setMode({ kind: "delete", record: item, label: item.name })}
+              onDelete={() => setMode({ kind: "delete", record: item, label: item.identifier })}
             />
           ) : undefined
         }
@@ -115,8 +101,7 @@ export default function EquipmentDetailPage() {
       {mode.kind === "edit" ? (
         <FormPanel kicker="Asset" title="Edit equipment" onClose={() => setMode(closedMode())}>
           <EquipmentForm
-            initial={mode.kind === "edit" ? mode.record : undefined}
-            licenses={licenses}
+            initial={mode.record}
             onCancel={() => setMode(closedMode())}
             onDone={() => setMode(closedMode())}
           />
@@ -125,63 +110,98 @@ export default function EquipmentDetailPage() {
       <div className="flex flex-col-reverse gap-8 lg:grid lg:grid-cols-[1fr_25rem] lg:gap-10">
         <div>
           <div className="mb-8 flex flex-wrap gap-2">
-            <Stamp value={status} tone={statusTone(status)} />
-            <Stamp value={ownership} />
-            {isOnLoan ? <Stamp value="on loan" tone="yellow" /> : null}
+            <Stamp value={item.assignmentStatus} tone={statusTone(item.assignmentStatus)} />
+            <Stamp value={item.lifecycleStatus} />
+            <Stamp value={item.condition} />
+            {!isVerifyLoading && verifyData ? (
+              <Stamp
+                value={verifyData.data.consistent ? "state consistent" : "state drifted"}
+                tone={verifyData.data.consistent ? "ok" : "bad"}
+              />
+            ) : null}
           </div>
           <dl className="mb-10 grid grid-cols-2 gap-4 text-sm">
             <div>
-              <dt className="kicker">Serial</dt>
-              <dd className="mt-1 font-mono">{item.serialNumber ?? "—"}</dd>
+              <dt className="kicker">Identifier</dt>
+              <dd className="mt-1 font-mono">{item.identifier}</dd>
             </div>
             <div>
               <dt className="kicker">Book value</dt>
-              <dd className="mt-1 font-mono">{etb(Number(value) || 0)}</dd>
+              <dd className="mt-1 font-mono">{etb(Number(item.bookValue ?? item.originalValue) || 0)}</dd>
             </div>
             <div>
               <dt className="kicker">Location</dt>
               <dd className="mt-1">{here}</dd>
             </div>
             <div>
-              <dt className="kicker">Rent rate</dt>
-              <dd className="mt-1 font-mono">{rentRate ? `${etb(Number(rentRate) || 0)} / day` : "—"}</dd>
+              <dt className="kicker">Vendor</dt>
+              <dd className="mt-1">{item.vendorName ?? "—"}</dd>
             </div>
           </dl>
-          <p className="kicker mb-2">Event log</p>
-          <TableWrap pagination={logsData?.pagination} onPageChange={setPage}>
+          <p className="kicker mb-2">Movement history</p>
+          <TableWrap data={history}>
+            {(pageRows) => (
             <table className="data">
               <thead>
                 <tr>
                   <th>When</th>
                   <th>Event</th>
+                  <th className="hidden sm:table-cell">From / To</th>
                   <th>Amount</th>
+                  <th>Status</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                {logs.map((l) => (
-                  <tr key={l.id}>
-                    <td>{day(l.timestamp ?? l.createdAt)}</td>
-                    <td>
-                      <Stamp value={l.logType} />
-                    </td>
-                    <td className="font-mono text-sm">{l.price ? etb(Number(l.price) || 0) : "—"}</td>
-                  </tr>
-                ))}
-                {logs.length === 0 ? (
+                {pageRows.map((h) => {
+                  const canReverse = h.movement.id === history[0]?.movement.id && !h.movement.isReversed && !h.movement.isReversal;
+                  return (
+                    <tr key={h.movement.id}>
+                      <td>{day(h.movement.movementDate)}</td>
+                      <td>
+                        <Stamp value={EQUIPMENT_MOVEMENT_LABELS[h.movement.movementType]} />
+                      </td>
+                      <td className="hidden text-sm sm:table-cell">
+                        {h.fromLabel || "—"} → {h.toLabel || "—"}
+                      </td>
+                      <td className="font-mono text-sm">{h.movement.movementCost ? etb(Number(h.movement.movementCost) || 0) : "—"}</td>
+                      <td>
+                        {h.movement.isReversed ? (
+                          <Stamp value="reversed" tone="bad" />
+                        ) : h.movement.isReversal ? (
+                          <Stamp value="reversal" tone="yellow" />
+                        ) : (
+                          <Stamp value="posted" tone="ok" />
+                        )}
+                      </td>
+                      <td>
+                        {canReverse && canMutate ? (
+                          <button
+                            type="button"
+                            className="text-xs text-bad hover:underline disabled:opacity-50"
+                            disabled={reversingId === h.movement.id}
+                            onClick={() => handleReverse(h.movement.id)}
+                          >
+                            {reversingId === h.movement.id ? "Reversing..." : "Reverse"}
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {history.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="py-4 text-center text-sm text-black/45">
-                      No event log entries found.
+                    <td colSpan={6} className="py-4 text-center text-sm text-black/45">
+                      No movement history found.
                     </td>
                   </tr>
                 ) : null}
               </tbody>
             </table>
+            )}
           </TableWrap>
         </div>
-        <EquipmentMovementForm
-          equipmentId={item.id}
-          fixedSource={item.siteId ? { id: item.siteId, type: "site", name: here } : item.warehouseId ? { id: item.warehouseId, type: "warehouse", name: here } : undefined}
-        />
+        <EquipmentMovementForm equipmentId={item.id} />
       </div>
       <DeleteConfirm
         mode={mode}
@@ -190,7 +210,7 @@ export default function EquipmentDetailPage() {
         onClose={() => setMode(closedMode())}
         onConfirm={handleDeleteEquipment}
       />
+      {msg ? <p className="mt-3 text-sm text-black/70">{msg}</p> : null}
     </div>
   );
 }
-

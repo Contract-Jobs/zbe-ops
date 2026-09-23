@@ -5,8 +5,8 @@ import type {
     InventoryAnalytics,
     BudgetHealthEntry,
     LicenseAnalytics,
-    CostBreakdown,
     SalesAnalytics,
+    CompanyFinancialSummary,
 } from "@/types/api"
 
 interface DateRangeParams {
@@ -34,7 +34,9 @@ export function getBudgetOverview(params: { siteId?: string } = {}) {
     return apiClient.get<BudgetOverview>("/api/analytics/budget", toSearchParams(params))
 }
 
-export function getInventoryAnalytics(params: { siteId?: string; warehouseId?: string; materialId?: string } = {}) {
+export function getInventoryAnalytics(
+    params: { siteId?: string; warehouseId?: string; materialId?: string; licenseId?: string } & DateRangeParams = {}
+) {
     return apiClient.get<InventoryAnalytics>("/api/analytics/inventory", toSearchParams(params))
 }
 
@@ -46,10 +48,13 @@ export function getLicenseAnalytics(params: DateRangeParams = {}) {
     return apiClient.get<LicenseAnalytics[]>("/api/analytics/licenses", toSearchParams(params))
 }
 
-export function getCostBreakdown(params: { siteId: string } & DateRangeParams) {
-    return apiClient.get<CostBreakdown>("/api/analytics/cost-breakdown", toSearchParams(params))
+// Cost breakdown moved to /api/ledgers/cost-breakdown in v2 — see lib/api/ledgers.ts.
+
+export function getSalesAnalytics(params: { warehouseId?: string; licenseId?: string } & DateRangeParams = {}) {
+    return apiClient.get<SalesAnalytics>("/api/analytics/sales", toSearchParams(params))
 }
 
-export function getSalesAnalytics(params: { warehouseId?: string } & DateRangeParams = {}) {
-    return apiClient.get<SalesAnalytics>("/api/analytics/sales", toSearchParams(params))
+// New in v2, admin/superadmin only — no legacy equivalent.
+export function getCompanyFinancials(params: { licenseId?: string } & DateRangeParams = {}) {
+    return apiClient.get<CompanyFinancialSummary>("/api/analytics/company", toSearchParams(params))
 }

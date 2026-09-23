@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Field, FormActions } from "@/components/ui";
 import { LocationSelect } from "@/components/LocationSelect";
 import { useCreateRental, useAdjustRental, useReturnRental } from "@/hooks/use-rentals";
-import type { Equipment, License } from "@/types/api";
+import { useInventoryItems } from "@/hooks/use-inventory-items";
+import type { IndividualEquipmentItem, License, RentalCreatePayload } from "@/types/api";
 import type { LocationKind } from "@/lib/types";
 
 export function RentalForm({
@@ -13,16 +14,22 @@ export function RentalForm({
   onCancel,
   onDone,
 }: {
-  equipmentList: Equipment[];
+  equipmentList: IndividualEquipmentItem[];
   licenses: License[];
   onCancel: () => void;
   onDone: () => void;
 }) {
   const createMutation = useCreateRental();
+  // Full catalog pull, not the endpoint's default page size of 10 — this
+  // feeds a plain <select>, not a server-searched picker.
+  const { data: eqItemsData } = useInventoryItems({ category: "equipment", limit: 50 });
+  const equipmentItems = eqItemsData?.data ?? [];
   const [error, setError] = useState<string | null>(null);
-  
+
   const [type, setType] = useState<"rent_in" | "rent_out">("rent_in");
   const [eqId, setEqId] = useState<string>("new");
+  const [catalogItemId, setCatalogItemId] = useState("");
+  const [newCatalogName, setNewCatalogName] = useState("");
   const [locKind, setLocKind] = useState<LocationKind | "">("");
   const [locId, setLocId] = useState("");
 
@@ -32,7 +39,7 @@ export function RentalForm({
     e.preventDefault();
     setError(null);
     const fd = new FormData(e.currentTarget);
-    
+
     const dailyRate = String(fd.get("dailyRate") ?? "").trim();
     const upfrontFee = String(fd.get("upfrontFee") ?? "").trim();
     const rentStartDate = String(fd.get("rentStartDate") ?? "").trim();
@@ -41,37 +48,33 @@ export function RentalForm({
     const notes = String(fd.get("notes") ?? "").trim();
 
     try {
-      const basePayload: any = {
+      if (!dailyRate) throw new Error("Daily rate is required");
+
+      const payload: RentalCreatePayload = {
         type,
         equipmentId: eqId,
-        dailyRate: dailyRate || undefined,
-        upfrontFee: upfrontFee || undefined,
+        dailyRate: Number(dailyRate),
+        upfrontFee: upfrontFee ? Number(upfrontFee) : undefined,
         rentStartDate,
-        expectedReturnDate,
+        expectedReturnDate: expectedReturnDate || undefined,
         licenseId: licenseId || undefined,
         notes: notes || undefined,
+        siteId: locKind === "site" && locId ? locId : undefined,
+        warehouseId: locKind === "warehouse" && locId ? locId : undefined,
+        vendorName: type === "rent_in" ? String(fd.get("vendorName") ?? "").trim() || undefined : undefined,
+        buyerName: type === "rent_out" ? String(fd.get("buyerName") ?? "").trim() || undefined : undefined,
       };
 
       if (eqId === "new") {
-        basePayload.newEquipment = {
-          name: String(fd.get("newEqName") ?? "").trim(),
-          serialNumber: String(fd.get("newEqSerial") ?? "").trim() || undefined,
-          originalValue: String(fd.get("newEqValue") ?? "").trim() || undefined,
-          licenseId: licenseId || undefined,
+        payload.autoCreateEquipment = {
+          itemId: catalogItemId || undefined,
+          autoCreateItem: catalogItemId ? undefined : { name: newCatalogName, category: "equipment" },
+          identifier: String(fd.get("newEqIdentifier") ?? "").trim(),
+          originalValue: String(fd.get("newEqValue") ?? "").trim(),
         };
       }
 
-      if (type === "rent_in") {
-        basePayload.vendorName = String(fd.get("vendorName") ?? "").trim() || undefined;
-        basePayload.toSiteId = locKind === "site" && locId ? locId : undefined;
-        basePayload.toWarehouseId = locKind === "warehouse" && locId ? locId : undefined;
-      } else {
-        basePayload.buyerName = String(fd.get("buyerName") ?? "").trim() || undefined;
-        basePayload.fromSiteId = locKind === "site" && locId ? locId : undefined;
-        basePayload.fromWarehouseId = locKind === "warehouse" && locId ? locId : undefined;
-      }
-
-      await createMutation.mutateAsync(basePayload);
+      await createMutation.mutateAsync(payload);
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create rental");
@@ -85,9 +88,9 @@ export function RentalForm({
           {error}
         </p>
       ) : null}
-      
+
       <Field label="Type">
-        <select className="field" name="type" value={type} onChange={(e) => setType(e.target.value as any)} disabled={isPending}>
+        <select className="field" name="type" value={type} onChange={(e) => setType(e.target.value as "rent_in" | "rent_out")} disabled={isPending}>
           <option value="rent_in">Rent In (from Vendor)</option>
           <option value="rent_out">Rent Out (to Customer)</option>
         </select>
@@ -97,21 +100,31 @@ export function RentalForm({
         <select className="field" name="equipmentId" value={eqId} onChange={(e) => setEqId(e.target.value)} disabled={isPending}>
           <option value="new">-- Create New Equipment --</option>
           {equipmentList.map((e) => (
-            <option key={e.id} value={e.id}>{e.name} {e.serialNumber ? `(${e.serialNumber})` : ""}</option>
+            <option key={e.id} value={e.id}>{e.identifier}{e.vendorName ? ` (${e.vendorName})` : ""}</option>
           ))}
         </select>
       </Field>
 
       {eqId === "new" ? (
         <>
-          <Field label="Equipment Name">
-            <input className="field" name="newEqName" required disabled={isPending} />
+          <Field label="Catalog item">
+            <select className="field" value={catalogItemId} onChange={(e) => setCatalogItemId(e.target.value)} disabled={isPending}>
+              <option value="">+ New catalog item</option>
+              {equipmentItems.map((it) => (
+                <option key={it.id} value={it.id}>{it.name}</option>
+              ))}
+            </select>
           </Field>
-          <Field label="Serial (optional)">
-            <input className="field" name="newEqSerial" disabled={isPending} />
+          {!catalogItemId ? (
+            <Field label="New catalog item name">
+              <input className="field" value={newCatalogName} onChange={(e) => setNewCatalogName(e.target.value)} disabled={isPending} />
+            </Field>
+          ) : null}
+          <Field label="Identifier">
+            <input className="field" name="newEqIdentifier" required disabled={isPending} />
           </Field>
           <Field label="Original Value (ETB)">
-            <input className="field" name="newEqValue" type="number" step="0.01" disabled={isPending} />
+            <input className="field" name="newEqValue" type="number" step="0.01" required disabled={isPending} />
           </Field>
         </>
       ) : null}
@@ -124,9 +137,9 @@ export function RentalForm({
       </Field>
 
       <Field label="Daily Rate (ETB)">
-        <input className="field" name="dailyRate" type="number" step="0.01" disabled={isPending} />
+        <input className="field" name="dailyRate" type="number" step="0.01" required disabled={isPending} />
       </Field>
-      
+
       <Field label="Upfront Fee (ETB)">
         <input className="field" name="upfrontFee" type="number" step="0.01" disabled={isPending} />
       </Field>
@@ -136,7 +149,7 @@ export function RentalForm({
       </Field>
 
       <Field label="Expected Return">
-        <input className="field" name="expectedReturnDate" type="date" required disabled={isPending} />
+        <input className="field" name="expectedReturnDate" type="date" disabled={isPending} />
       </Field>
 
       {type === "rent_in" ? (
@@ -193,10 +206,11 @@ export function RentalAdjustForm({
     const notes = String(fd.get("notes") ?? "").trim();
 
     try {
+      if (!notes) throw new Error("Notes are required");
       await mutation.mutateAsync({
-        dailyRate: dailyRate || undefined,
-        lumpSumFee: lumpSumFee || undefined,
-        notes: notes || undefined,
+        dailyRate: dailyRate ? Number(dailyRate) : undefined,
+        lumpSumFee: lumpSumFee ? Number(lumpSumFee) : undefined,
+        notes,
       });
       onDone();
     } catch (err) {
@@ -207,11 +221,11 @@ export function RentalAdjustForm({
   return (
     <form className="grid gap-3" onSubmit={handleSubmit}>
       {error && <p className="border border-[var(--bad)] bg-[var(--white)] p-2 text-sm text-[var(--bad)]">{error}</p>}
-      
+
       <Field label="New Daily Rate (ETB)">
         <input className="field" name="dailyRate" type="number" step="0.01" disabled={mutation.isPending} placeholder="Leave blank for no change" />
       </Field>
-      
+
       <Field label="One-off Lump Sum Fee (ETB)">
         <input className="field" name="lumpSumFee" type="number" step="0.01" disabled={mutation.isPending} />
       </Field>
@@ -227,7 +241,6 @@ export function RentalAdjustForm({
 
 export function RentalReturnForm({
   rentalId,
-  isRentIn,
   onCancel,
   onDone,
 }: {
@@ -238,7 +251,7 @@ export function RentalReturnForm({
 }) {
   const mutation = useReturnRental(rentalId);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [locKind, setLocKind] = useState<LocationKind | "">("");
   const [locId, setLocId] = useState("");
 
@@ -253,21 +266,13 @@ export function RentalReturnForm({
     const notes = String(fd.get("notes") ?? "").trim();
 
     try {
-      const payload: any = {
+      await mutation.mutateAsync({
         actualReturnDate,
-        finalCostOverride: finalCostOverride || undefined,
+        finalCostOverride: finalCostOverride ? Number(finalCostOverride) : undefined,
         notes: notes || undefined,
-      };
-
-      if (isRentIn) {
-        payload.fromSiteId = locKind === "site" && locId ? locId : undefined;
-        payload.fromWarehouseId = locKind === "warehouse" && locId ? locId : undefined;
-      } else {
-        payload.toSiteId = locKind === "site" && locId ? locId : undefined;
-        payload.toWarehouseId = locKind === "warehouse" && locId ? locId : undefined;
-      }
-
-      await mutation.mutateAsync(payload);
+        returnSiteId: locKind === "site" && locId ? locId : undefined,
+        returnWarehouseId: locKind === "warehouse" && locId ? locId : undefined,
+      });
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to return rental");
@@ -277,17 +282,17 @@ export function RentalReturnForm({
   return (
     <form className="grid gap-3" onSubmit={handleSubmit}>
       {error && <p className="border border-[var(--bad)] bg-[var(--white)] p-2 text-sm text-[var(--bad)]">{error}</p>}
-      
+
       <Field label="Actual Return Date">
         <input className="field" name="actualReturnDate" type="date" required defaultValue={nowString} disabled={mutation.isPending} />
       </Field>
-      
+
       <Field label="Final Cost Override (ETB)">
         <input className="field" name="finalCostOverride" type="number" step="0.01" disabled={mutation.isPending} placeholder="Leave blank for auto-calc" />
       </Field>
 
       <div>
-        <p className="mb-1 text-sm font-medium">{isRentIn ? "Dispatch From (Our location)" : "Receive At (Our location)"}</p>
+        <p className="mb-1 text-sm font-medium">Return location</p>
         <LocationSelect kind={locKind} id={locId} onKind={setLocKind} onId={setLocId} />
       </div>
 

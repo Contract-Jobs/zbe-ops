@@ -3,17 +3,17 @@
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
-import { PageHead, TableWrap, Stamp, FormPanel, ModalPanel } from "@/components/ui";
+import { PageHead, TableWrap, Stamp, ModalPanel, Tabs } from "@/components/ui";
 import { useStore } from "@/lib/store";
-import { useWarehouse } from "@/hooks/use-warehouses";
-import { useEquipmentList } from "@/hooks/use-equipment";
-import { useInventoryBalances } from "@/hooks/use-inventory";
-import { useMaterials } from "@/hooks/use-materials";
+import { useWarehouse, useWarehouseMaterials, useWarehouseBulkEquipment, useWarehouseIndividualEquipment } from "@/hooks/use-warehouses";
+import { useInventoryNodeId } from "@/hooks/use-inventories";
 import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
+import { BulkEquipmentMovementForm } from "@/components/forms/bulk-equipment-movement";
 import { InventoryAdjustForm } from "@/components/forms/inventory-adjust";
+import { BalanceHistoryPanel } from "@/components/BalanceHistory";
 import { isSiteManager } from "@/lib/store";
-import type { Warehouse, Equipment, InventoryBalance, MaterialCatalog } from "@/types/api";
+import type { Warehouse } from "@/types/api";
 import { useInventoryAnalytics } from "@/hooks/use-analytics";
 import { etb } from "@/lib/format";
 
@@ -22,20 +22,28 @@ export default function WarehouseDetailPage() {
   const store = useStore();
 
   const { data: warehouseData, isLoading: isWarehouseLoading } = useWarehouse(id);
+  // Still needed for InventoryAdjustForm's "loss" movement, which requires
+  // a real node id — getWarehouseMaterials/getWarehouseEquipments below
+  // resolve the node internally and never expose it.
+  const { nodeId } = useInventoryNodeId("warehouse", id);
+  const [bulkEquipPage, setBulkEquipPage] = useState(1);
   const [equipPage, setEquipPage] = useState(1);
-  const { data: equipData } = useEquipmentList({ warehouseId: id ? [id] : undefined, page: equipPage, limit: 10 });
+  const { data: bulkEquipData } = useWarehouseBulkEquipment(id, { page: bulkEquipPage, limit: 10, });
+  const { data: equipData } = useWarehouseIndividualEquipment(id, { page: equipPage, limit: 10 });
   const { data: inventoryAnalytics } = useInventoryAnalytics({ warehouseId: id });
   const [balPage, setBalPage] = useState(1);
-  const { data: balancesData } = useInventoryBalances({ warehouseId: id ? [id] : undefined, page: balPage, limit: 10 });
-  // const { data: materialsData } = useMaterials({ limit: 300 });
+  const { data: materialsData } = useWarehouseMaterials(id, { page: balPage, limit: 10 });
 
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
 
   const [moveMaterialId, setMoveMaterialId] = useState<string | null>(null);
-  const [adjustBalance, setAdjustBalance] = useState<{ id: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
+  const [adjustBalance, setAdjustBalance] = useState<{ itemId: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
   const [purchaseMaterialOpen, setPurchaseMaterialOpen] = useState(false);
   const [purchaseEquipmentOpen, setPurchaseEquipmentOpen] = useState(false);
+  const [purchaseBulkEquipmentOpen, setPurchaseBulkEquipmentOpen] = useState(false);
+  const [historyTarget, setHistoryTarget] = useState<{ itemId: string; itemName: string; unit: string } | null>(null);
+  const [tab, setTab] = useState<"materials" | "bulk" | "equipment">("materials");
 
   const canMutate = !isSiteManager(store);
 
@@ -47,11 +55,9 @@ export default function WarehouseDetailPage() {
     return <p className="p-8 text-center text-sm text-black/50">Warehouse not found</p>;
   }
 
-  const equipment = equipData?.data ?? store.equipment.filter((e) => e.warehouseId === id && !e.deletedAt);
-  const balances = balancesData?.data ?? store.balances.filter(
-    (b) => b.locationKind === "warehouse" && b.locationId === id && b.quantity > 0
-  );
-  const materials = balancesData?.data.map(d => (d as any).material as unknown as MaterialCatalog)
+  const equipment = equipData?.data ?? [];
+  const bulkEquipment = bulkEquipData?.data ?? [];
+  const materials = materialsData?.data ?? [];
 
   return (
     <div>
@@ -88,16 +94,28 @@ export default function WarehouseDetailPage() {
         </div>
         <div className="bg-white p-5">
           <p className="kicker">Total Equipment Value</p>
-          <p className="mt-2 break-words text-2xl tracking-tight">{etb(inventoryAnalytics.data.totalEquipmentValue)}</p>
+          <p className="mt-2 break-words text-2xl tracking-tight">{etb(inventoryAnalytics.data.equipmentValue)}</p>
         </div>
       </div>}
+
+      <Tabs
+        tabs={[
+          { id: "materials", label: "Materials", count: materialsData?.pagination?.total },
+          { id: "bulk", label: "Bulk Equipment", count: bulkEquipData?.pagination?.total },
+          { id: "equipment", label: "Equipment", count: equipData?.pagination?.total },
+        ]}
+        active={tab}
+        onChange={(id) => setTab(id as typeof tab)}
+      />
+
+      {tab === "materials" ? (
       <div className="mb-8">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="font-mono text-[0.8rem] uppercase tracking-wider text-black/50">Inventory Balances</h2>
           <button className="btn btn-ghost" onClick={() => setPurchaseMaterialOpen(true)}>Purchase material</button>
         </div>
-        {balances.length > 0 ? (
-          <TableWrap pagination={balancesData?.pagination} onPageChange={setBalPage}>
+        {materials.length > 0 ? (
+          <TableWrap pagination={materialsData?.pagination} onPageChange={setBalPage}>
             <table className="data w-full text-left">
               <thead>
                 <tr>
@@ -108,44 +126,45 @@ export default function WarehouseDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {balances.map((b) => {
-                  const m = materials?.find((mat) => mat.id === (b as any).materialId);
-                  const key = (b as any).id ?? m?.id;
-                  if (!m || !key) return null
-                  return (
-                    <tr key={key}>
-                      <td>
-                        <p className="font-medium">{m?.name ?? "Unknown material"}</p>
-                      </td>
-                      <td className="font-mono text-left min-w-[120px]">
-                        {b.quantity} {m?.unit ?? ""}
-                      </td>
+                {materials.map((m) => (
+                  <tr key={m.itemId}>
+                    <td>
+                      <p className="font-medium">{m.itemName}</p>
+                    </td>
+                    <td className="font-mono text-left min-w-[120px]">
+                      {m.quantity} {m.unit}
+                    </td>
 
-                      <td className="font-mono text-left min-w-[120px]">
-                        {etb((b as any).avgUnitPrice) ?? ""}
-                      </td>
+                    <td className="font-mono text-left min-w-[120px]">
+                      {m.averageUnitValue ? etb(m.averageUnitValue) : "—"}
+                    </td>
 
-                      <td>
-                        {canMutate && (
-                          <span className="inline-block text-left">
-                            <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId(m?.id)}>Move</button>
-                            <button
-                              className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
-                              onClick={() => setAdjustBalance({
-                                id: (b as any).id ?? "",
-                                materialName: m.name,
-                                unit: m.unit,
-                                currentQuantity: b.quantity
-                              })}
-                            >
-                              Adjust
-                            </button>
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                    <td>
+                      {canMutate && (
+                        <span className="inline-block text-left">
+                          <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId(m.itemId)}>Move</button>
+                          <button
+                            className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
+                            onClick={() => setAdjustBalance({
+                              itemId: m.itemId,
+                              materialName: m.itemName,
+                              unit: m.unit,
+                              currentQuantity: m.quantity
+                            })}
+                          >
+                            Report loss
+                          </button>
+                          <button
+                            className="ml-3 text-xs text-black/50 hover:text-black hover:underline"
+                            onClick={() => setHistoryTarget({ itemId: m.itemId, itemName: m.itemName, unit: m.unit })}
+                          >
+                            History
+                          </button>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </TableWrap>
@@ -155,7 +174,71 @@ export default function WarehouseDetailPage() {
           </div>
         )}
       </div>
+      ) : null}
 
+      {tab === "bulk" ? (
+      <div className="mb-8">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="font-mono text-[0.8rem] uppercase tracking-wider text-black/50">Bulk Equipment</h2>
+          <button className="btn btn-ghost" onClick={() => setPurchaseBulkEquipmentOpen(true)}>Purchase Bulk Equipment</button>
+        </div>
+        {bulkEquipment.length > 0 ? (
+          <TableWrap pagination={bulkEquipData?.pagination} onPageChange={setBulkEquipPage}>
+            <table className="data w-full text-left">
+              <thead>
+                <tr>
+                  <th>Equipment</th>
+                  <th className="text-left">Quantity</th>
+                  {canMutate && <th className="text-left">Action</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {bulkEquipment.map((b) => (
+                  <tr key={b.itemId}>
+                    <td>
+                      <p className="font-medium">{b.itemName || "-"}</p>
+                    </td>
+                    <td className="font-mono text-left min-w-[120px]">
+                      {b.quantity} {b.unit}
+                    </td>
+                    <td>
+                      {canMutate && (
+                        <span className="inline-block text-left">
+                          <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId(b.itemId)}>Move</button>
+                          <button
+                            className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
+                            onClick={() => setAdjustBalance({
+                              itemId: b.itemId,
+                              materialName: b.itemName,
+                              unit: b.unit,
+                              currentQuantity: b.quantity
+                            })}
+                          >
+                            Report loss
+                          </button>
+                          <button
+                            className="ml-3 text-xs text-black/50 hover:text-black hover:underline"
+                            onClick={() => setHistoryTarget({ itemId: b.itemId, itemName: b.itemName, unit: b.unit })}
+                          >
+                            History
+                          </button>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+        ) : (
+          <div className="border border-dashed border-black/20 p-8 text-center text-sm text-black/40">
+            No bulk equipment recorded at this warehouse.
+          </div>
+        )}
+      </div>
+      ) : null}
+
+      {tab === "equipment" ? (
       <div className="mb-8">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="font-mono text-[0.8rem] uppercase tracking-wider text-black/50">Parked Equipment</h2>
@@ -167,34 +250,35 @@ export default function WarehouseDetailPage() {
               <thead>
                 <tr>
                   <th>Equipment</th>
-                  <th>Status</th>
-                  <th>Ownership</th>
+                  <th>Assignment</th>
+                  <th>Condition</th>
+                  {canMutate && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
-                {equipment.map((e) => {
-                  const status = (e as any).currentStatus ?? (e as any).status;
-                  return (
-                    <tr key={e.id}>
-                      <td>
-                        <p className="font-medium">{e.name}</p>
-                        <p className="font-mono text-[0.7rem] text-black/50">{e.serialNumber ?? "No S/N"}</p>
-                      </td>
-                      <td>
-                        <Stamp
-                          value={status}
-                          tone={status === "working" || status === "available" ? "ok" : status === "repair" || status === "maintenance" ? "bad" : "ink"}
-                        />
-                      </td>
-                      <td className="text-sm capitalize flex items-center justify-between gap-3">
-                        {e.ownershipStatus}
-                        {canMutate && (
-                          <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveEquipmentId(e.id)}>Move</button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {equipment.map((e) => (
+                  <tr key={e.id}>
+                    <td>
+                      <p className="font-medium">{e.identifier}</p>
+                      <p className="font-mono text-[0.7rem] text-black/50">{e.vendorName ?? "No vendor"}</p>
+                    </td>
+                    <td>
+                      <Stamp
+                        value={e.assignmentStatus}
+                        tone={e.assignmentStatus === "idle" ? "ok" : "ink"}
+                      />
+                    </td>
+                    <td className="text-sm capitalize gap-3">
+                      {e.condition}
+                    </td>
+                    <td>
+
+                      {canMutate && (
+                        <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveEquipmentId(e.id)}>Move</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </TableWrap>
@@ -204,6 +288,7 @@ export default function WarehouseDetailPage() {
           </div>
         )}
       </div>
+      ) : null}
 
       {moveMaterialId ? (
         <ModalPanel kicker="Warehouse Inventory" title="Move Material" onClose={() => setMoveMaterialId(null)}>
@@ -211,7 +296,7 @@ export default function WarehouseDetailPage() {
             noBg
             materialId={moveMaterialId}
             fixedSource={{ id: warehouse.id, type: "warehouse", name: warehouse.name }}
-            allowedActions={["transfer", "sold", "used_up", "missing"]}
+            allowedActions={["transfer", "sale", "consume", "loss"]}
             onSuccess={() => setMoveMaterialId(null)}
             onCancel={() => setMoveMaterialId(null)}
           />
@@ -223,8 +308,7 @@ export default function WarehouseDetailPage() {
           <EquipmentMovementForm
             noBg
             equipmentId={moveEquipmentId}
-            fixedSource={{ id: warehouse.id, type: "warehouse", name: warehouse.name }}
-            allowedActions={["transferred", "sold", "degraded", "appreciated", "maintenance_dispatch", "maintenance_return", "used_up", "missing"]}
+            allowedActions={["transfer", "sale", "degrade", "send_to_maintenance", "return_from_maintenance", "dispose"]}
             onSuccess={() => setMoveEquipmentId(null)}
             onCancel={() => setMoveEquipmentId(null)}
           />
@@ -248,23 +332,47 @@ export default function WarehouseDetailPage() {
           <EquipmentMovementForm
             noBg
             fixedDestination={{ id: warehouse.id, type: "warehouse", name: warehouse.name }}
-            allowedActions={["purchased"]}
+            allowedActions={["purchase"]}
             onSuccess={() => setPurchaseEquipmentOpen(false)}
             onCancel={() => setPurchaseEquipmentOpen(false)}
           />
         </ModalPanel>
       ) : null}
 
+      {purchaseBulkEquipmentOpen ? (
+        <ModalPanel kicker="Warehouse Inventory" title="Purchase Bulk Equipment" onClose={() => setPurchaseBulkEquipmentOpen(false)}>
+          <BulkEquipmentMovementForm
+            noBg
+            fixedDestination={{ id: warehouse.id, type: "warehouse", name: warehouse.name }}
+            allowedActions={["purchase"]}
+            onSuccess={() => setPurchaseBulkEquipmentOpen(false)}
+            onCancel={() => setPurchaseBulkEquipmentOpen(false)}
+          />
+        </ModalPanel>
+      ) : null}
+
       {adjustBalance ? (
-        <ModalPanel kicker="Warehouse Inventory" title="Adjust Balance" onClose={() => setAdjustBalance(null)}>
+        <ModalPanel kicker="Warehouse Inventory" title="Report Loss" onClose={() => setAdjustBalance(null)}>
           <InventoryAdjustForm
             noBg
-            balanceId={adjustBalance.id}
+            itemId={adjustBalance.itemId}
+            inventoryId={nodeId ?? ""}
             materialName={adjustBalance.materialName}
             unit={adjustBalance.unit}
             currentQuantity={adjustBalance.currentQuantity}
             onSuccess={() => setAdjustBalance(null)}
             onCancel={() => setAdjustBalance(null)}
+          />
+        </ModalPanel>
+      ) : null}
+
+      {historyTarget ? (
+        <ModalPanel wide kicker="Warehouse Inventory" title="Movement history" onClose={() => setHistoryTarget(null)}>
+          <BalanceHistoryPanel
+            itemId={historyTarget.itemId}
+            inventoryId={nodeId ?? ""}
+            itemName={historyTarget.itemName}
+            unit={historyTarget.unit}
           />
         </ModalPanel>
       ) : null}

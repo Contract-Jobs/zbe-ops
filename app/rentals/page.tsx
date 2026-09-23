@@ -19,7 +19,7 @@ import { isSiteManager, useStore } from "@/lib/store";
 import { useRentals } from "@/hooks/use-rentals";
 import { useEquipmentList } from "@/hooks/use-equipment";
 import { useLicenses } from "@/hooks/use-licenses";
-import type { RentalAgreement, Equipment, License } from "@/types/api";
+import type { RentalAgreement, IndividualEquipmentItem, License } from "@/types/api";
 
 export default function RentalsPage() {
   const store = useStore();
@@ -31,11 +31,14 @@ export default function RentalsPage() {
   const [page, setPage] = useState(1);
 
   const { data: rentalsData, isLoading } = useRentals({ page, limit: 10 });
-  const { data: equipmentData } = useEquipmentList({ limit: 1000 });
+  // Only for RentalForm's "pick existing equipment to rent out" selector —
+  // row labels below use the rental's own enriched `equipment` field, not
+  // this list.
+  const { data: equipmentData } = useEquipmentList({ limit: 50 });
   const { data: licensesData } = useLicenses();
 
   const rentalsList = (rentalsData ? rentalsData.data : store.rentals) as unknown as RentalAgreement[];
-  const equipmentList = (equipmentData ? equipmentData.data : store.equipment) as unknown as Equipment[];
+  const equipmentList = (equipmentData ? equipmentData.data : []) as IndividualEquipmentItem[];
   const licensesList = (licensesData ? licensesData.data : store.licenses) as unknown as License[];
 
   const rows = useMemo(() => {
@@ -54,9 +57,14 @@ export default function RentalsPage() {
         kicker="Operations"
         title="Rentals"
         action={
-          canMutate ? (
-            <RecordActions newLabel="New rental" onNew={() => setMode({ kind: "create" })} />
-          ) : undefined
+          <div className="flex items-center gap-3">
+            <Link href="/rentals/events" className="btn btn-ghost">
+              All events
+            </Link>
+            {canMutate ? (
+              <RecordActions newLabel="New rental" onNew={() => setMode({ kind: "create" })} />
+            ) : null}
+          </div>
         }
       />
 
@@ -105,7 +113,7 @@ export default function RentalsPage() {
                     <Stamp value={r.type} tone={r.type === "rent_in" ? "yellow" : "ok"} />
                   </td>
                   <td>
-                    {equipmentList.find(e => e.id === r.equipmentId)?.name || r.equipmentId}
+                    {r.equipment?.itemName ?? r.equipment?.identifier ?? r.equipmentId}
                   </td>
                   <td>
                     {r.type === "rent_in" ? r.vendorName : r.buyerName}

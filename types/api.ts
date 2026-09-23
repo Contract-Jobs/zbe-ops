@@ -1,102 +1,345 @@
-export interface MaterialCatalog {
+// v2 API types — mirrors docs/new_api.md "Base Data Models" and payload
+// tables. See docs/api-v2-migration-plan.md for the migration this replaces.
+
+export type Role = "superadmin" | "admin" | "site_manager";
+
+export interface User {
   id: string;
   name: string;
+  email: string;
+  role: Role;
+  createdAt: string;
+  updatedAt: string;
+  banned: boolean;
+}
+
+// ---- 1. Inventory Catalog & Nodes ----
+
+export interface Inventory {
+  id: string;
+  inventoryType: "site" | "warehouse";
+  siteId: string | null;
+  warehouseId: string | null;
+  site?: { id: string; name: string } | null;
+  warehouse?: { id: string; name: string } | null;
+  materialItemCount?: number;
+  bulkEquipmentItemCount?: number;
+  individualEquipmentCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type InventoryItemCategory = "equipment" | "material";
+export type InventoryItemTracking = "quantity" | "individual";
+export type InventoryItemCompositionType = "single" | "set";
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  slug: string;
+  category: InventoryItemCategory;
+  tracking: InventoryItemTracking;
+  compositionType: InventoryItemCompositionType;
   unit: string;
-  type: "single" | "set";
+  // Sum of this item's balance across every inventory node, computed
+  // server-side. 0/"0" for individually-tracked items (no balances).
+  totalQuantity: number;
+  totalValue: string;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
-  totalQuantity?: number;
-  subitems?: MaterialSubitem[];
 }
 
-export interface MaterialSubitem {
+export interface InventoryItemSubitem {
   id: string;
-  materialId: string;
+  parentItemId: string;
   name: string;
-  quantity: number;
-  unit: string;
+  quantity: string;
+  unit: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
 }
 
-export interface MaterialLog {
-  id: string;
-  materialId: string;
-  logType: string;
+// GET /api/inventory-items/[id]/balances — row shape
+export interface ItemBalanceRow {
+  location: string;
+  locationId: string;
   quantity: number;
-  unitPrice: string | number;
-  fromSiteId: string | null;
-  fromWarehouseId: string | null;
-  toSiteId: string | null;
-  toWarehouseId: string | null;
-  licenseId: string | null;
-  transactionId: string | null;
-  categoryId: string | null;
-  buyerName: string | null;
-  notes: string | null;
-  isReversal: boolean;
-  reversalOfId: string | null;
-  approvalStatus: ApprovalStatus;
-  isApproved?: boolean;
-  loggedBy?: string;
-  createdAt?: string;
-  timestamp?: string;
+  totalValue: string;
+  averageUnitValue: string | null;
 }
+
+// GET /api/inventory-items/[id]/history — row shape
+export interface ItemHistoryRow {
+  movement: InventoryMovement;
+  fromLabel: string | null;
+  toLabel: string | null;
+}
+
+// ---- 2. Quantity-Tracked Inventory (Materials & Bulk Equipment) ----
 
 export interface InventoryBalance {
   id: string;
-  materialId: string;
-  siteId?: string | null;
-  material: MaterialCatalog;
-  warehouseId?: string | null;
+  inventoryId: string;
+  itemId: string;
+  item?: InventoryItem;
   quantity: number;
-  avgUnitPrice: string;
+  totalValue: string;
+  averageUnitValue: string | null;
+  createdAt: string;
   updatedAt: string;
 }
 
-export interface Equipment {
+// Row shape for GET /api/inventories|sites|warehouses/[id]/materials — and
+// the "bulk" half of .../equipments. Pre-joined (itemName/itemSlug/unit
+// already resolved), unlike a raw InventoryBalance row.
+export interface MaterialAtInventory {
+  itemId: string;
+  itemName: string;
+  itemSlug: string;
+  unit: string;
+  quantity: number;
+  totalValue: string;
+  averageUnitValue: string | null;
+}
+
+export type BulkEquipmentAtInventory = MaterialAtInventory;
+
+export type QuantityMovementType = "purchase" | "sale" | "transfer" | "consume" | "loss";
+
+export interface InventoryMovement {
   id: string;
-  name: string;
-  serialNumber: string | null;
-  siteId: string | null;
-  warehouseId: string | null;
+  itemId: string;
+  item?: InventoryItem;
+  movementType: QuantityMovementType;
+  quantity: number;
+  unitCost: string;
+  totalCost: string;
+  sourceInventoryId: string | null;
+  destinationInventoryId: string | null;
+  clientName: string | null;
+  movementDate: string;
+  metadata: Record<string, unknown> | null;
+  isApproved: boolean;
+  isReversed: boolean;
+  isReversal: boolean;
+  reversalOfId: string | null;
   licenseId: string | null;
-  originalValue: string | null;
-  value: string | null;
-  rentRate: string | null;
+  transactionId: string | null;
+  ledgerId: string | null;
+  loggedBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VerifyBalanceResult {
+  consistent: boolean;
+  expectedQuantity: number;
+  storedQuantity: number;
+  expectedValue: string;
+  storedValue: string;
+}
+
+export interface RebuildResult {
+  rebuilt: number;
+  errors: string[];
+}
+
+export type InventoryMovementCreatePayload =
+  | {
+      movementType: "purchase";
+      itemId?: string;
+      quantity: number;
+      destinationInventoryId: string;
+      unitCost: string;
+      clientName?: string;
+      licenseId: string;
+      autoCreateItem?: { name: string; slug?: string; category: "material"; unit?: string };
+    }
+  | {
+      movementType: "sale";
+      itemId: string;
+      quantity: number;
+      sourceInventoryId: string;
+      unitCost: string;
+      clientName?: string;
+      licenseId: string;
+    }
+  | {
+      movementType: "transfer";
+      itemId: string;
+      quantity: number;
+      sourceInventoryId: string;
+      destinationInventoryId: string;
+    }
+  | {
+      movementType: "consume";
+      itemId: string;
+      quantity: number;
+      sourceInventoryId: string;
+    }
+  | {
+      movementType: "loss";
+      itemId: string;
+      quantity: number;
+      sourceInventoryId: string;
+      metadata: { reason: string };
+    };
+
+// ---- 3. Individually-Tracked Equipment ----
+
+export type EquipmentAssignmentStatus = "idle" | "deployed_to_site" | "rented_to_client" | "rented_from_client";
+export type EquipmentLifecycleStatus = "active" | "sold" | "disposed";
+export type EquipmentCondition = "ok" | "under_maintenance" | "out_of_commission";
+
+export interface IndividualEquipmentItem {
+  id: string;
+  itemId: string;
+  item?: InventoryItem;
+  identifier: string;
   vendorName: string | null;
-  currentStatus: string;
-  ownershipStatus: string;
+  originalValue: string;
+  bookValue: string | null;
+  assignmentStatus: EquipmentAssignmentStatus;
+  lifecycleStatus: EquipmentLifecycleStatus;
+  condition: EquipmentCondition;
+  currentInventoryId: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
 }
 
-export interface EquipmentLog {
+// NOTE: `transfer_between_warehouses` is real and supported server-side —
+// docs/new_api.md's base-model enum omits it, confirmed wrong (see
+// docs/api-v2-migration-plan.md). `rent_to_client`/`return_from_client`/
+// `rent_from_client`/`return_to_client` are valid values but only reachable
+// via /rentals, never POST /equipment-movements directly.
+export type EquipmentMovementType =
+  | "purchase"
+  | "sale"
+  | "dispose"
+  | "deploy_to_site"
+  | "transfer_between_sites"
+  | "transfer_between_warehouses"
+  | "return_to_warehouse"
+  | "rent_to_client"
+  | "return_from_client"
+  | "rent_from_client"
+  | "return_to_client"
+  | "send_to_maintenance"
+  | "return_from_maintenance"
+  | "degrade";
+
+export interface IndividualEquipmentMovement {
   id: string;
-  equipmentId: string;
-  logType: string;
-  fromSiteId: string | null;
-  fromWarehouseId: string | null;
-  toSiteId: string | null;
-  toWarehouseId: string | null;
-  price: string | null;
-  rentStartDate: string | null;
-  rentReturnDate: string | null;
-  buyerName: string | null;
-  vendorName: string | null;
-  notes: string | null;
+  individualItemId: string;
+  equipment?: IndividualEquipmentItem;
+  movementType: EquipmentMovementType;
+  sourceInventoryId: string | null;
+  destinationInventoryId: string | null;
+  clientName: string | null;
+  movementDate: string;
+  metadata: Record<string, unknown> | null;
+  movementCost: string | null;
+  isApproved: boolean;
+  isReversed: boolean;
   isReversal: boolean;
   reversalOfId: string | null;
-  approvalStatus: ApprovalStatus;
-  isApproved?: boolean;
-  loggedBy?: string;
-  affectedFields?: Record<string, unknown>;
-  createdAt?: string;
-  timestamp?: string;
+  licenseId: string | null;
+  transactionId: string | null;
+  ledgerId: string | null;
+  loggedBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
+
+export interface EquipmentTraceResponse {
+  equipmentId: string;
+  identifier: string;
+  currentLocation: { location: string; locationId: string; status: string } | null;
+  history: {
+    movement: IndividualEquipmentMovement;
+    fromLabel: string | null;
+    toLabel: string | null;
+  }[];
+}
+
+export interface VerifyEquipmentStateResult {
+  consistent: boolean;
+  expectedState: Partial<IndividualEquipmentItem>;
+  storedState: Partial<IndividualEquipmentItem>;
+}
+
+interface AutoCreateEquipmentPayload {
+  itemId?: string;
+  autoCreateItem?: { name: string; slug?: string; category: "equipment"; compositionType?: InventoryItemCompositionType };
+  identifier?: string;
+  vendorName?: string;
+  originalValue: string;
+  bookValue?: string;
+}
+
+export type EquipmentMovementCreatePayload =
+  | {
+      movementType: "purchase";
+      individualItemId?: string;
+      destinationInventoryId: string;
+      movementCost?: string;
+      clientName?: string;
+      licenseId: string;
+      autoCreateEquipment?: AutoCreateEquipmentPayload;
+    }
+  | {
+      movementType: "deploy_to_site";
+      individualItemId: string;
+      destinationInventoryId: string;
+    }
+  | {
+      movementType: "return_to_warehouse";
+      individualItemId: string;
+      destinationInventoryId: string;
+    }
+  | {
+      movementType: "transfer_between_sites";
+      individualItemId: string;
+      destinationInventoryId: string;
+    }
+  | {
+      movementType: "transfer_between_warehouses";
+      individualItemId: string;
+      destinationInventoryId: string;
+    }
+  | {
+      movementType: "send_to_maintenance";
+      individualItemId: string;
+      clientName?: string;
+    }
+  | {
+      movementType: "return_from_maintenance";
+      individualItemId: string;
+      destinationInventoryId: string;
+      movementCost?: string;
+      licenseId?: string;
+    }
+  | {
+      movementType: "sale";
+      individualItemId: string;
+      movementCost?: string;
+      clientName?: string;
+      licenseId: string;
+    }
+  | {
+      movementType: "dispose";
+      individualItemId: string;
+    }
+  | {
+      movementType: "degrade";
+      individualItemId: string;
+      movementCost: string;
+    };
+
+// ---- 4. Rentals ----
 
 export interface RentalAgreement {
   id: string;
@@ -104,12 +347,29 @@ export interface RentalAgreement {
   type: "rent_in" | "rent_out";
   status: "active" | "completed" | "cancelled";
   siteId: string | null;
+  warehouseId: string | null;
   licenseId: string | null;
   vendorName: string | null;
   buyerName: string | null;
   rentStartDate: string;
   expectedReturnDate: string | null;
   actualReturnDate: string | null;
+  returnSiteId: string | null;
+  returnWarehouseId: string | null;
+  currentDailyRate?: string | null;
+  // Enriched server-side via a batched join (one query per page, not
+  // N+1) — use this instead of fetching the equipment list separately
+  // to label a rental row.
+  equipment?: {
+    id: string;
+    identifier: string;
+    itemId: string;
+    itemName: string;
+    vendorName: string | null;
+    condition: EquipmentCondition;
+    assignmentStatus: EquipmentAssignmentStatus;
+    lifecycleStatus: EquipmentLifecycleStatus;
+  } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -118,40 +378,76 @@ export interface RentalEvent {
   id: string;
   agreementId: string;
   eventType: "initiation" | "rate_change" | "upfront_payment" | "penalty" | "settlement";
-  timestamp: string; // Serialized Date
   dailyRate: string | null;
   lumpSumAmount: string | null;
-  notes: string | null;
   transactionId: string | null;
+  equipmentMovementId: string | null;
+  notes: string | null;
   loggedBy: string;
+  timestamp: string;
+  createdAt: string;
+  updatedAt: string;
 }
+
+export interface RentalCreatePayload {
+  equipmentId: string | "new";
+  type: "rent_in" | "rent_out";
+  siteId?: string;
+  warehouseId?: string;
+  licenseId?: string;
+  vendorName?: string;
+  buyerName?: string;
+  rentStartDate: string;
+  expectedReturnDate?: string;
+  dailyRate: number;
+  upfrontFee?: number;
+  notes?: string;
+  autoCreateEquipment?: AutoCreateEquipmentPayload;
+}
+
+export interface RentalAdjustPayload {
+  dailyRate?: number;
+  lumpSumFee?: number;
+  notes: string;
+}
+
+export interface RentalReturnPayload {
+  actualReturnDate: string;
+  returnSiteId?: string;
+  returnWarehouseId?: string;
+  finalCostOverride?: number;
+  notes?: string;
+}
+
+// ---- 5. Sites, Tasks & Lifecycle ----
 
 export interface Site {
   id: string;
   name: string;
+  slug: string;
   location: string | null;
-  status: "active" | "closed" | string;
+  status: "active" | "closed";
   laborBudget: string | null;
   materialBudget: string | null;
+  otherBudget: string | null;
   tenderId: string | null;
   managerId: string | null;
   licenseId: string;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
-  materialSpent?: string;
-  laborSpent?: string;
 }
 
 export interface SiteLifecycleLog {
   id: string;
   siteId: string;
-  event: string;
+  event: "site_created" | "site_updated" | "site_closed";
   description: string;
-  affectedFields: Record<string, unknown>;
+  affectedFields: Record<string, unknown> | null;
   loggedBy: string;
   timestamp: string;
 }
+
 export interface SiteTask {
   id: string;
   siteId: string;
@@ -159,12 +455,12 @@ export interface SiteTask {
   targetDate: string | null;
   isCompleted: boolean;
   completionClaimBy: string | null;
+  completedBy: string | null;
   notes: string | null;
   completedDate: string | null;
   review: string | null;
   createdAt: string;
   updatedAt: string;
-  deletedAt: string | null;
 }
 
 export interface SiteSummary {
@@ -176,35 +472,37 @@ export interface SiteSummary {
   };
   budget: {
     laborBudget: string;
+    laborSpent: string;
     materialBudget: string;
-    totalAllocated: string;
-    spent: string;
+    materialSpent: string;
+    otherBudget: string;
+    otherSpent: string;
+    equipmentSpent: string;
+    equipmentValue: string;
+    totalBudget: string;
+    totalSpent: string;
     remaining: string;
   };
   inventory: {
-    materialId: string;
-    assetName: string;
+    itemId: string;
+    itemName: string;
     quantity: number;
-    avgUnitPrice: string;
+    averageUnitValue: string | null;
   }[];
   pendingApprovals: number;
-  recentTasks: {
-    id: string;
-    title: string;
-    isCompleted: boolean;
-    notes: string;
-    review: string;
-  }[];
+  recentTasks: SiteTask[];
 }
+
+// ---- 6. Master Data (Tenders, Licenses, Warehouses) ----
 
 export interface Tender {
   id: string;
-  name: string;
   licenseId: string;
+  name: string;
   location: string | null;
   estimatedBudget: string | null;
+  status: "pending" | "won" | "lost";
   submissionDate: string | null;
-  status: string;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -214,40 +512,17 @@ export interface License {
   id: string;
   name: string;
   createdAt: string;
+  updatedAt: string;
   deletedAt: string | null;
 }
 
 export interface Warehouse {
   id: string;
   name: string;
+  slug: string;
   location: string | null;
-  createdAt: string;
-  deletedAt: string | null;
-}
-
-export interface Transaction {
-  id: string;
-  licenseId: string;
-  siteId: string | null;
-  warehouseId: string | null;
-  equipmentId: string | null;
-  categoryId: string | null;
-  materialId: string | null;
-  type: "money_in" | "money_out";
-  amount: string;
-  description: string | null;
-  transactionDate: string;
-  isReversal: boolean;
-  reversalOfId: string | null;
-  approvalStatus: ApprovalStatus;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt: string | null;
-}
-
-export interface TransactionCategory {
-  id: string;
-  name: string;
+  totalMaterials?: number;
+  totalEquipment?: number;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -262,25 +537,86 @@ export interface SoldItemsOverview {
   totalRevenue: string;
 }
 
+// ---- 7. Financial Transactions & Ledger ----
+
+export interface Transaction {
+  id: string;
+  licenseId: string;
+  siteId: string | null;
+  warehouseId: string | null;
+  equipmentId: string | null;
+  categoryId: string | null;
+  itemId: string | null;
+  type: "money_in" | "money_out";
+  amount: string;
+  description: string | null;
+  transactionDate: string | null;
+  isApproved: boolean;
+  isReversed: boolean;
+  isReversal: boolean;
+  reversalOfId: string | null;
+  isSystemGenerated: boolean;
+  ledgerId: string | null;
+  loggedBy: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+export interface TransactionCategory {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
 export interface ProjectLedger {
   id: string;
-  siteId: string | null;
+  siteId: string;
   licenseId: string;
   amount: string;
   description: string | null;
-  sourceRefType: string;
+  sourceRefType: "transaction" | "material" | "equipment";
   sourceRefId: string;
+  isReversed: boolean;
   isReversal: boolean;
   reversalOfId: string | null;
   timestamp: string;
   loggedBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
+
+export interface CostBreakdown {
+  siteId: string;
+  dateFrom?: string;
+  dateTo?: string;
+  totalSpend: string;
+  byCategory: {
+    categoryId: string | null;
+    categoryName: string;
+    total: string;
+    count: number;
+  }[];
+}
+
+export interface VerifyLedgerResult {
+  consistent: boolean;
+  storedTotal: string;
+  expectedTotal: string;
+}
+
+// ---- 8. Approvals ----
 
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 
-export type ApprovalType = "material_movement" | "equipment_movement" | "transaction" | "progress_log" | "rental_event";
-
-export type Role = "superadmin" | "admin" | "site_manager";
+export type ApprovalType =
+  | "inventory_movement"
+  | "equipment_movement"
+  | "transaction"
+  | "progress_log"
+  | "rental_event";
 
 export interface Approval {
   id: string;
@@ -295,216 +631,33 @@ export interface Approval {
   deletedAt: string | null;
 }
 
-export interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: Role;
-  createdAt: string;
-  updatedAt: string;
-  banned: boolean;
-}
-
-interface LocationRef {
-  id: string;
-  type: "site" | "warehouse";
-}
-
-export type MaterialLogAction =
-  | {
-      action: "purchase";
-      materialId: string | "new";
-      quantity: number;
-      purchaseCost: string;
-      destination: LocationRef;
-      categoryId?: string;
-      licenseId?: string;
-      notes?: string;
-      newMaterial?: {
-        name: string;
-        unit?: string;
-        type?: "single" | "set";
-        subitems?: { name: string; quantity: number; unit?: string }[];
-      };
-    }
-  | {
-      action: "transfer";
-      materialId: string;
-      quantity: number;
-      source?: LocationRef;
-      destination?: LocationRef;
-      notes?: string;
-    }
-  | {
-      action: "sold";
-      materialId: string;
-      quantity: number;
-      sellingPrice: string;
-      source?: LocationRef;
-      categoryId?: string;
-      licenseId?: string;
-      buyerName?: string;
-      notes?: string;
-    }
-  | {
-      action: "used_up";
-      materialId: string;
-      quantity: number;
-      source?: LocationRef;
-      notes?: string;
-    }
-  | {
-      action: "missing";
-      materialId: string;
-      quantity: number;
-      source?: LocationRef;
-      notes?: string;
-    };
-
-export interface InventoryBalanceAdjustPayload {
-  quantity: number;
-  newUnitPrice?: string;
-  notes?: string;
-}
-
-export type EquipmentLogAction =
-  | {
-      action: "purchased";
-      equipmentId: string | "new";
-      purchaseCost: string;
-      destination?: LocationRef;
-      vendorName?: string;
-      licenseId?: string;
-      notes?: string;
-      newEquipment?: {
-        name: string;
-        serialNumber?: string;
-        originalValue?: string;
-        vendorName?: string;
-      };
-    }
-  | {
-      action: "transferred";
-      equipmentId: string;
-      source?: LocationRef;
-      destination?: LocationRef;
-      notes?: string;
-    }
-  | {
-      action: "sold";
-      equipmentId: string;
-      sellingPrice: string;
-      source?: LocationRef;
-      buyerName?: string;
-      licenseId?: string;
-      notes?: string;
-    }
-  | {
-      action: "used_up";
-      equipmentId: string;
-      source?: LocationRef;
-      price?: string;
-      notes?: string;
-    }
-  | {
-      action: "missing";
-      equipmentId: string;
-      source?: LocationRef;
-      notes?: string;
-    }
-  | {
-      action: "maintenance_dispatch";
-      equipmentId: string;
-      source?: LocationRef;
-      vendorName?: string;
-      notes?: string;
-    }
-  | {
-      action: "maintenance_return";
-      equipmentId: string;
-      destination?: LocationRef;
-      repairCost?: string;
-      notes?: string;
-    }
-  | {
-      action: "degraded";
-      equipmentId: string;
-      valueAdjustment?: string;
-      notes?: string;
-    }
-  | {
-      action: "appreciated";
-      equipmentId: string;
-      valueAdjustment?: string;
-      notes?: string;
-    };
-
-// NOTE: the correct RentalAdjustPayload and RentalReturnPayload are declared
-// below (lines ~464). These placeholder declarations were wrong and removed.
-
-export type RentalCreatePayload =
-  | {
-      type: "rent_in";
-      equipmentId: string | "new";
-      dailyRate: string;
-      upfrontFee?: string;
-      rentStartDate: string;
-      expectedReturnDate?: string;
-      licenseId?: string;
-      notes?: string;
-      vendorName?: string;
-      toSiteId?: string;
-      toWarehouseId?: string;
-      newEquipment?: { name: string; serialNumber?: string; originalValue?: string; vendorName?: string };
-    }
-  | {
-      type: "rent_out";
-      equipmentId: string;
-      dailyRate: string;
-      upfrontFee?: string;
-      rentStartDate: string;
-      expectedReturnDate?: string;
-      licenseId?: string;
-      notes?: string;
-      buyerName?: string;
-      fromSiteId?: string;
-      fromWarehouseId?: string;
-    };
-
-export interface RentalAdjustPayload {
-  dailyRate?: string;
-  lumpSumFee?: string;
-  notes?: string;
-}
-
-export interface RentalReturnPayload {
-  actualReturnDate: string;
-  finalCostOverride?: string;
-  fromSiteId?: string;
-  fromWarehouseId?: string;
-  toSiteId?: string;
-  toWarehouseId?: string;
-  notes?: string;
-}
-export interface CostBreakdown {
-  siteId: string;
-  dateFrom?: string;
-  dateTo?: string;
-  totalSpend: string;
-  byCategory: {
-    categoryId: string | null;
-    categoryName: string;
-    total: string;
-    count: number;
-  }[];
-}
+// ---- 9. Analytics ----
 
 export interface SpendAnalytics {
   materialSpend: string;
   laborSpend: string;
   otherSpend: string;
-  totalEquipmentValue: string;
+  equipmentValue: string;
+  equipmentLoss: string;
   totalSpend: string;
+}
+
+export interface LicenseAnalytics {
+  licenseId: string;
+  licenseName: string;
+  totalSpent: string;
+  totalReceived: string;
+  netCashFlow: string;
+}
+
+export interface InventoryAnalytics {
+  totalMaterials: number;
+  totalMaterialValue: string;
+  totalEquipment: number;
+  equipmentValue: string;
+  bySite: { siteId: string; siteName: string; materialCount: number; totalQuantity: number }[];
+  byWarehouse: { warehouseId: string; warehouseName: string; materialCount: number; totalQuantity: number }[];
+  movementVolume: { movementType: string; count: number; totalQuantity: number }[];
 }
 
 export interface BudgetHealthEntry {
@@ -515,18 +668,11 @@ export interface BudgetHealthEntry {
   totalBudget: string;
   materialSpent: string;
   laborSpent: string;
+  equipmentLoss: string;
   otherSpent: string;
   totalSpent: string;
   variance: string;
   isOverBudget: boolean;
-}
-
-export interface LicenseAnalytics {
-  licenseId: string;
-  licenseName: string;
-  totalSpent: string;
-  totalReceived: string;
-  netCashFlow: string;
 }
 
 export interface TaskSummaryRow {
@@ -540,7 +686,7 @@ export interface LedgerCostRow {
   amount: string;
   description: string | null;
   timestamp: string;
-  sourceRefType: "transaction" | "material_log" | "equipment_log";
+  sourceRefType: "transaction" | "material" | "equipment";
   isReversal: boolean;
 }
 
@@ -548,40 +694,37 @@ export interface BudgetOverview {
   siteId: string;
   laborBudget: string | null;
   materialBudget: string | null;
+  otherBudget: string | null;
   materialSpend: string;
   laborSpend: string;
-  otherSpend: string;
   equipmentCapital: string;
   totalBudgeted: string;
+  otherSpend: string;
   totalSpent: string;
   variance: string;
   tasks: TaskSummaryRow[];
   costs: LedgerCostRow[];
 }
 
-export interface InventoryAnalytics {
-  totalMaterials: number;
-  totalEquipment: number;
-  totalMaterialValue: string;
-  totalEquipmentValue: string;
-  bySite: { siteId: string; siteName: string; materialCount: number; totalQuantity: number }[];
-  byWarehouse: { warehouseId: string; warehouseName: string; materialCount: number; totalQuantity: number }[];
-  movementVolume: { movementType: string; count: number; totalQuantity: number }[];
+export interface SalesAnalytics {
+  totalMaterialRevenue: string;
+  totalEquipmentRevenue: string;
+  totalRevenue: string;
+  materialSaleCount: number;
+  equipmentSaleCount: number;
 }
 
-export interface SalesAnalytics {
-  soldEquipmentCount: number;
-  soldEquipmentTotal: string;
-  soldMaterialCount: number;
-  soldMaterialTotal: string;
-  totalCount: number;
-  totalRevenue: string;
-}
-export interface InventoryLocationSummary {
-  id: string;
-  name: string;
-  type: "site" | "warehouse";
-  materialTypesCount: number;
-  materialQuantityTotal: number;
-  equipmentCount: number;
+export interface CompanyFinancialSummary {
+  expense: {
+    siteAttributed: { material: string; labor: string; equipment: string; other: string; total: string };
+    nonSite: { warehouseAnchored: string; corporate: string; total: string };
+    total: string;
+  };
+  income: {
+    materialSaleRevenue: string;
+    equipmentSaleRevenue: string;
+    other: string;
+    total: string;
+  };
+  netCashFlow: string;
 }
