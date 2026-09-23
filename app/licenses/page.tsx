@@ -106,11 +106,14 @@ export default function LicensesPage() {
                   </div>
                   <div>
                     <dt className="kicker">In</dt>
-                    <dd className="mt-1 break-words">{etb(licenseAnalytics?.data.filter(lic => lic.licenseId === l.id)?.[0].totalReceived)}</dd>
+                    {/* A brand-new (or otherwise transaction-less) license has
+                        no row in licenseAnalytics at all — find() rather than
+                        filter()[0], and etb() already treats undefined as 0. */}
+                    <dd className="mt-1 break-words">{etb(licenseAnalytics?.data.find(lic => lic.licenseId === l.id)?.totalReceived)}</dd>
                   </div>
                   <div>
                     <dt className="kicker">Out</dt>
-                    <dd className="mt-1 break-words">{etb(licenseAnalytics?.data.filter(lic => lic.licenseId === l.id)?.[0].totalSpent)}</dd>
+                    <dd className="mt-1 break-words">{etb(licenseAnalytics?.data.find(lic => lic.licenseId === l.id)?.totalSpent)}</dd>
                   </div>
                 </dl>
               </article>
