@@ -20,7 +20,7 @@ const nav = [
   { href: "/", label: "Board" },
   { href: "/approvals", label: "Approvals" },
   { href: "/sites", label: "Sites" },
-  { href: "/tasks", label: "Tasks" },
+  // { href: "/tasks", label: "Tasks" },
   { href: "/materials", label: "Materials" },
   { href: "/inventory", label: "Inventory" },
   { href: "/equipment", label: "Equipment" },
