@@ -32,6 +32,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
 
@@ -91,14 +92,26 @@ export default function LoginPage() {
             </Field>
             
             <Field label="Password">
-              <input 
-                type="password" 
-                name="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="field" 
-                required 
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="field pr-16"
+                  required
+                  autoComplete="current-password"
+                />
+                <button
+                  type="button"
+                  className="absolute top-1/2 right-2 -translate-y-1/2 font-mono text-[0.65rem] uppercase tracking-wider text-black/50 hover:text-black"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  aria-pressed={showPassword}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
             </Field>
 
             {error && (
