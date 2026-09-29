@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { PageHead, TableWrap } from "@/components/ui";
 import { etb } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
 import { useCompanyFinancials } from "@/hooks/use-analytics";
-import { useLicenses } from "@/hooks/use-licenses";
 
 // Admin/superadmin only — the whole-company income/expense decomposition
 // new_api.md/migration.md both call out as having no legacy equivalent:
@@ -17,14 +17,11 @@ export default function CompanyFinancialsPage() {
   const store = useStore();
   const manager = isSiteManager(store);
 
-  const [licenseId, setLicenseId] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const { data: licensesData } = useLicenses();
+  const [filters, setFilters] = useState<QueryFilterValues>({});
   const { data, isLoading } = useCompanyFinancials({
-    licenseId: licenseId || undefined,
-    dateFrom: dateFrom || undefined,
-    dateTo: dateTo || undefined,
+    licenseId: filters.licenseId || undefined,
+    dateFrom: filters.dateFrom || undefined,
+    dateTo: filters.dateTo || undefined,
   });
 
   if (manager) {
@@ -46,25 +43,7 @@ export default function CompanyFinancialsPage() {
         and any spend that never touched a site's ledger (warehouse-anchored or corporate).
       </p>
 
-      <div className="mb-8 flex flex-wrap items-end gap-3">
-        <label className="block text-sm">
-          License
-          <select className="field mt-1" value={licenseId} onChange={(e) => setLicenseId(e.target.value)}>
-            <option value="">All licenses</option>
-            {(licensesData?.data ?? []).map((l) => (
-              <option key={l.id} value={l.id}>{l.name}</option>
-            ))}
-          </select>
-        </label>
-        <label className="block text-sm">
-          From
-          <input type="date" className="field mt-1" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-        </label>
-        <label className="block text-sm">
-          To
-          <input type="date" className="field mt-1" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-        </label>
-      </div>
+      <QueryFilters fields={["licenseId", "dateFrom", "dateTo"]} values={filters} onChange={setFilters} />
 
       {isLoading && !data ? (
         <div className="p-8 text-center text-sm text-black/50">Loading company financials...</div>

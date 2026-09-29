@@ -23,21 +23,41 @@ export const warehousesApi = createSimpleCrudApi<Warehouse, CreateWarehousePaylo
     "/api/warehouses"
 )
 
-export async function getWarehouseSoldOverview(id: string) {
-    return apiClient.get<SoldItemsOverview>(`/api/warehouses/${id}/sold-items`)
+export type SoldItemsDateParams = {
+    dateFrom?: string
+    dateTo?: string
+    licenseId?: string
 }
 
-export async function getWarehouseSoldEquipment(id: string, params?: ListParams) {
-    const qs = params ? buildListParams(params) : ""
+export async function getWarehouseSoldOverview(id: string, params: SoldItemsDateParams = {}) {
+    return apiClient.get<SoldItemsOverview>(`/api/warehouses/${id}/sold-items`, buildListParams(params))
+}
+
+export type SoldEquipmentParams = ListParams<SoldItemsDateParams & {
+    equipmentId?: string
+    licenseId?: string
+    buyerName?: string
+    isReversal?: string
+}>
+
+export async function getWarehouseSoldEquipment(id: string, params: SoldEquipmentParams = {}) {
     return apiClient.get<(IndividualEquipmentMovement & { equipment: IndividualEquipmentItem | null })[]>(
-        `/api/warehouses/${id}/sold-items/equipment${qs ? `?${qs}` : ""}`
+        `/api/warehouses/${id}/sold-items/equipment`,
+        buildListParams(params)
     )
 }
 
-export async function getWarehouseSoldMaterials(id: string, params?: ListParams) {
-    const qs = params ? buildListParams(params) : ""
+export type SoldMaterialsParams = ListParams<SoldItemsDateParams & {
+    materialId?: string
+    licenseId?: string
+    buyerName?: string
+    isReversal?: string
+}>
+
+export async function getWarehouseSoldMaterials(id: string, params: SoldMaterialsParams = {}) {
     return apiClient.get<(InventoryMovement & { item: InventoryItem | null })[]>(
-        `/api/warehouses/${id}/sold-items/materials${qs ? `?${qs}` : ""}`
+        `/api/warehouses/${id}/sold-items/materials`,
+        buildListParams(params)
     )
 }
 

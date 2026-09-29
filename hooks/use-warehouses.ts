@@ -10,9 +10,8 @@ import {
     getWarehouseIndividualEquipment,
     getWarehouseBulkEquipment,
 } from "@/lib/api/warehouses"
-import type { MaterialsAtWarehouseParams } from "@/lib/api/warehouses"
+import type { MaterialsAtWarehouseParams, SoldEquipmentParams, SoldItemsDateParams, SoldMaterialsParams } from "@/lib/api/warehouses"
 import { queryKeys } from "@/lib/query/keys"
-import type { ListParams } from "@/lib/api/list-params"
 
 const {
     useList,
@@ -25,21 +24,21 @@ const {
 
 export const useWarehouses = useList
 
-export function useWarehouseSoldOverview(id: string) {
+export function useWarehouseSoldOverview(id: string, params: SoldItemsDateParams = {}) {
     return useQuery({
-        queryKey: queryKeys.warehouses.soldItems(id),
-        queryFn: () => getWarehouseSoldOverview(id).then((res: any) => res.data),
+        queryKey: queryKeys.warehouses.soldItems(id, params),
+        queryFn: () => getWarehouseSoldOverview(id, params),
     })
 }
 
-export function useWarehouseSoldEquipment(id: string, params?: ListParams) {
+export function useWarehouseSoldEquipment(id: string, params: SoldEquipmentParams = {}) {
     return useQuery({
         queryKey: queryKeys.warehouses.soldEquipment(id, params),
         queryFn: () => getWarehouseSoldEquipment(id, params),
     })
 }
 
-export function useWarehouseSoldMaterials(id: string, params?: ListParams) {
+export function useWarehouseSoldMaterials(id: string, params: SoldMaterialsParams = {}) {
     return useQuery({
         queryKey: queryKeys.warehouses.soldMaterials(id, params),
         queryFn: () => getWarehouseSoldMaterials(id, params),

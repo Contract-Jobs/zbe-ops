@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useState } from "react";
+import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { PageHead, TableWrap, Stamp, ModalPanel, Tabs } from "@/components/ui";
 import { useStore } from "@/lib/store";
 import { useWarehouse, useWarehouseMaterials, useWarehouseBulkEquipment, useWarehouseIndividualEquipment } from "@/hooks/use-warehouses";
@@ -31,8 +32,13 @@ export default function WarehouseDetailPage() {
   const { data: bulkEquipData } = useWarehouseBulkEquipment(id, { page: bulkEquipPage, limit: 10, });
   const { data: equipData } = useWarehouseIndividualEquipment(id, { page: equipPage, limit: 10 });
   const { data: inventoryAnalytics } = useInventoryAnalytics({ warehouseId: id });
+  const [materialFilters, setMaterialFilters] = useState<QueryFilterValues>({});
   const [balPage, setBalPage] = useState(1);
-  const { data: materialsData } = useWarehouseMaterials(id, { page: balPage, limit: 10 });
+  const { data: materialsData } = useWarehouseMaterials(id, {
+    page: balPage,
+    limit: 10,
+    search: materialFilters.search || undefined,
+  });
 
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
 
@@ -79,7 +85,7 @@ export default function WarehouseDetailPage() {
         <p className="text-black/70">Location: {warehouse.location ?? "—"}</p>
       </div>
 
-      {inventoryAnalytics?.data && <div className="grid gap-px bg-black/10 sm:grid-cols-4">
+      {inventoryAnalytics?.data && <div className="mb-8 grid gap-px bg-black/10 sm:grid-cols-4">
         <div className="bg-white p-5">
           <p className="kicker">Total Materials</p>
           <p className="mt-2 break-words text-2xl tracking-tight">{inventoryAnalytics.data.totalMaterials}</p>
@@ -114,6 +120,15 @@ export default function WarehouseDetailPage() {
           <h2 className="font-mono text-[0.8rem] uppercase tracking-wider text-black/50">Inventory Balances</h2>
           <button className="btn btn-ghost" onClick={() => setPurchaseMaterialOpen(true)}>Purchase material</button>
         </div>
+        <QueryFilters
+          fields={["search"]}
+          searchPlaceholder="Search material"
+          values={materialFilters}
+          onChange={(next) => {
+            setMaterialFilters(next);
+            setBalPage(1);
+          }}
+        />
         {materials.length > 0 ? (
           <TableWrap pagination={materialsData?.pagination} onPageChange={setBalPage}>
             <table className="data w-full text-left">

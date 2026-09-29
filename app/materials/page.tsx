@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { MaterialForm } from "@/components/forms/material";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
+import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { closedMode, DeleteConfirm, FormPanel, ModalPanel, PageHead, RecordActions, Stamp, TableWrap, type RecordMode } from "@/components/ui";
+import type { InventoryItemCategory, InventoryItemTracking } from "@/types/api";
 import { isSiteManager, useStore } from "@/lib/store";
 import { useInventoryItems, useDeleteInventoryItem, useRestoreInventoryItem } from "@/hooks/use-inventory-items";
 import type { InventoryItem } from "@/types/api";
@@ -12,13 +14,23 @@ import type { InventoryItem } from "@/types/api";
 export default function MaterialsPage() {
   const store = useStore();
   const canMutate = !isSiteManager(store);
-  const [q, setQ] = useState("");
+  const [filters, setFilters] = useState<QueryFilterValues>({ category: "material" });
   const [mode, setMode] = useState<RecordMode<InventoryItem>>(closedMode);
   const [purchaseNew, setPurchaseNew] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
   const [page, setPage] = useState(1);
 
-  const { data: itemsData, isLoading } = useInventoryItems({ category: "material", page, limit: 10, search: q || undefined });
+  const category: InventoryItemCategory | undefined =
+    filters.category === "material" || filters.category === "equipment" ? filters.category : undefined;
+  const tracking: InventoryItemTracking | undefined =
+    filters.tracking === "quantity" || filters.tracking === "individual" ? filters.tracking : undefined;
+  const { data: itemsData, isLoading } = useInventoryItems({
+    category,
+    tracking,
+    page,
+    limit: 10,
+    search: filters.search || undefined,
+  });
   const deleteMutation = useDeleteInventoryItem();
   const restoreMutation = useRestoreInventoryItem();
 
@@ -27,11 +39,8 @@ export default function MaterialsPage() {
   // Catalog only — balances/trace for one item live on /materials/[id],
   // not fetched here.
   const rows = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    return materialsList
-      .filter((m) => showDeleted || !m.deletedAt)
-      .filter((m) => (term ? m.name.toLowerCase().includes(term) : true));
-  }, [q, materialsList, showDeleted]);
+    return materialsList.filter((m) => showDeleted || !m.deletedAt);
+  }, [materialsList, showDeleted]);
 
   async function handleDelete() {
     if (mode.kind === "delete" && mode.record) {
@@ -96,11 +105,14 @@ export default function MaterialsPage() {
           <MaterialForm initial={mode.record} onCancel={() => setMode(closedMode())} onDone={() => setMode(closedMode())} />
         </FormPanel>
       ) : null}
-      <input
-        className="field mb-5 w-full max-w-sm"
-        placeholder="Search catalog"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
+      <QueryFilters
+        fields={["search", "category", "tracking"]}
+        values={filters}
+        searchPlaceholder="Search catalog"
+        onChange={(next) => {
+          setFilters(Object.keys(next).length === 0 ? { category: "material" } : next);
+          setPage(1);
+        }}
       />
       {isLoading && !itemsData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading materials...</div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { LicenseForm } from "@/components/forms/master";
+import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { closedMode, DeleteConfirm, FormPanel, PageHead, RecordActions, type RecordMode } from "@/components/ui";
 import { etb } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
@@ -15,9 +16,13 @@ export default function LicensesPage() {
   const canMutate = !isSiteManager(store);
   const [mode, setMode] = useState<RecordMode<License>>(closedMode);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [filters, setFilters] = useState<QueryFilterValues>({});
 
   const { data: licensesData, isLoading } = useLicenses();
-  const { data: licenseAnalytics } = useLicenseAnalytics();
+  const { data: licenseAnalytics } = useLicenseAnalytics({
+    dateFrom: filters.dateFrom || undefined,
+    dateTo: filters.dateTo || undefined,
+  });
   const { data: sites } = useSites();
   const deleteMutation = useDeleteLicense();
   const restoreMutation = useRestoreLicense();
@@ -68,6 +73,7 @@ export default function LicensesPage() {
       <p className="mb-6 max-w-xl text-black/65">
         Licenses are the top of the money tree. Sites, plant, and ledger lines hang off one of these.
       </p>
+      <QueryFilters fields={["dateFrom", "dateTo"]} values={filters} onChange={setFilters} />
       {mode.kind === "create" ? (
         <FormPanel kicker="Entities" title="New license" onClose={() => setMode(closedMode())}>
           <LicenseForm onCancel={() => setMode(closedMode())} onDone={() => setMode(closedMode())} />

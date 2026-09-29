@@ -26,7 +26,9 @@ function toSearchParams<T extends object>(params: T): URLSearchParams {
 
 // Site Managers are restricted to their own site server-side regardless of
 // what's passed here — siteId only meaningfully narrows results for Admins.
-export function getSpendAnalytics(params: { siteId?: string } & DateRangeParams = {}) {
+export function getSpendAnalytics(
+    params: { siteId?: string; warehouseId?: string; licenseId?: string } & DateRangeParams = {}
+) {
     return apiClient.get<SpendAnalytics>("/api/analytics/spend", toSearchParams(params))
 }
 

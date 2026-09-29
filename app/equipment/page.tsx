@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { EquipmentForm } from "@/components/forms/equipment";
 import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
+import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import {
   closedMode,
   ConfirmDialog,
@@ -23,14 +24,19 @@ import { useEquipmentList, useDeleteEquipment, useRestoreEquipment, useRebuildEq
 import { useInventoryItems } from "@/hooks/use-inventory-items";
 import { useInventoryNodeMap } from "@/hooks/use-inventories";
 import { BulkEquipmentMovementForm } from "@/components/forms/bulk-equipment-movement";
-import type { IndividualEquipmentItem } from "@/types/api";
+import type {
+  EquipmentAssignmentStatus,
+  EquipmentCondition,
+  EquipmentLifecycleStatus,
+  IndividualEquipmentItem,
+} from "@/types/api";
 
 export default function EquipmentPage() {
   const store = useStore();
   const manager = isSiteManager(store);
   const canMutate = !manager;
   const isSuperadmin = currentUser(store).role === "superadmin";
-  const [q, setQ] = useState("");
+  const [filters, setFilters] = useState<QueryFilterValues>({});
   const { byId: nodeById } = useInventoryNodeMap();
   // No itemId→name join on the equipment list response, and no
   // batch-by-ids lookup — pull the whole equipment catalog once instead of
@@ -48,7 +54,16 @@ export default function EquipmentPage() {
   const [showDeleted, setShowDeleted] = useState(false);
   const [page, setPage] = useState(1);
 
-  const { data: equipmentData, isLoading } = useEquipmentList({ page, limit: 10, search: q || undefined });
+  const { data: equipmentData, isLoading } = useEquipmentList({
+    page,
+    limit: 10,
+    search: filters.search || undefined,
+    itemId: filters.itemId ? [filters.itemId] : undefined,
+    inventoryId: filters.inventoryId ? [filters.inventoryId] : undefined,
+    lifecycleStatus: filters.lifecycleStatus ? [filters.lifecycleStatus as EquipmentLifecycleStatus] : undefined,
+    assignmentStatus: filters.assignmentStatus ? [filters.assignmentStatus as EquipmentAssignmentStatus] : undefined,
+    condition: filters.condition ? [filters.condition as EquipmentCondition] : undefined,
+  });
   const deleteMutation = useDeleteEquipment();
   const restoreMutation = useRestoreEquipment();
   const rebuildStatesMutation = useRebuildEquipmentStates();
@@ -148,11 +163,14 @@ export default function EquipmentPage() {
           />
         </FormPanel>
       ) : null}
-      <input
-        className="field mb-5 w-full max-w-sm"
-        placeholder="Search name or serial"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
+      <QueryFilters
+        fields={["search", "itemId", "inventoryId", "lifecycleStatus", "assignmentStatus", "condition"]}
+        values={filters}
+        searchPlaceholder="Search name or serial"
+        onChange={(next) => {
+          setFilters(next);
+          setPage(1);
+        }}
       />
       {isLoading && !equipmentData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading equipment...</div>

@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
+import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { PageHead, TableWrap, Username } from "@/components/ui";
 import { useStore } from "@/lib/store";
 import {
@@ -21,11 +22,17 @@ export default function WarehouseSoldItemsPage() {
 
   const [equipPage, setEquipPage] = useState(1);
   const [matPage, setMatPage] = useState(1);
+  const [filters, setFilters] = useState<QueryFilterValues>({});
+  const soldParams = {
+    licenseId: filters.licenseId || undefined,
+    dateFrom: filters.dateFrom || undefined,
+    dateTo: filters.dateTo || undefined,
+  };
 
   const { data: warehouseData, isLoading: isWhLoading } = useWarehouse(id);
-  const { data: overviewData } = useWarehouseSoldOverview(id);
-  const { data: equipmentData } = useWarehouseSoldEquipment(id, { page: equipPage, limit: 10 });
-  const { data: materialsData } = useWarehouseSoldMaterials(id, { page: matPage, limit: 10 });
+  const { data: overviewData } = useWarehouseSoldOverview(id, soldParams);
+  const { data: equipmentData } = useWarehouseSoldEquipment(id, { page: equipPage, limit: 10, ...soldParams });
+  const { data: materialsData } = useWarehouseSoldMaterials(id, { page: matPage, limit: 10, ...soldParams });
 
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
 
@@ -60,6 +67,16 @@ export default function WarehouseSoldItemsPage() {
             Back to Warehouse
           </button>
         }
+      />
+
+      <QueryFilters
+        fields={["licenseId", "dateFrom", "dateTo"]}
+        values={filters}
+        onChange={(next) => {
+          setFilters(next);
+          setEquipPage(1);
+          setMatPage(1);
+        }}
       />
 
       <div className="mb-8 grid gap-px bg-black/10 sm:grid-cols-3">

@@ -119,7 +119,7 @@ export const queryKeys = {
   licenses: simpleCrudKeys("licenses"),
   warehouses: {
     ...simpleCrudKeys("warehouses"),
-    soldItems: (id: string) => ["warehouses", "detail", id, "sold-items"] as const,
+    soldItems: (id: string, params?: unknown) => ["warehouses", "detail", id, "sold-items", params] as const,
     soldEquipment: (id: string, params?: unknown) => ["warehouses", "detail", id, "sold-equipment", params] as const,
     soldMaterials: (id: string, params?: unknown) => ["warehouses", "detail", id, "sold-materials", params] as const,
     materials: (id: string, params?: unknown) => ["warehouses", "detail", id, "materials", params] as const,

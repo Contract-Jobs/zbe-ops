@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
 import { etb } from "@/lib/format";
 import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
@@ -22,10 +23,23 @@ export default function BoardPage() {
   // the fleet grew past that.
   const { data: equipmentData } = useEquipmentList({ limit: 50 });
   const [sitePage, setSitePage] = useState(1);
+  const [spendFilters, setSpendFilters] = useState<QueryFilterValues>({});
+  const [salesFilters, setSalesFilters] = useState<QueryFilterValues>({});
   const { data: sitesData } = useSites({ page: sitePage, limit: 50 });
-  const { data: spendData } = useSpendAnalytics();
+  const { data: spendData } = useSpendAnalytics({
+    siteId: spendFilters.siteId || undefined,
+    warehouseId: spendFilters.warehouseId || undefined,
+    licenseId: spendFilters.licenseId || undefined,
+    dateFrom: spendFilters.dateFrom || undefined,
+    dateTo: spendFilters.dateTo || undefined,
+  });
   const { data: budgetHealthData } = useBudgetHealth();
-  const { data: salesAnalyticsData } = useSalesAnalytics();
+  const { data: salesAnalyticsData } = useSalesAnalytics({
+    warehouseId: salesFilters.warehouseId || undefined,
+    licenseId: salesFilters.licenseId || undefined,
+    dateFrom: salesFilters.dateFrom || undefined,
+    dateTo: salesFilters.dateTo || undefined,
+  });
 
   const sites = useMemo(() => {
     const list = sitesData?.data ?? (store.sites as unknown as Site[]);
@@ -65,14 +79,22 @@ export default function BoardPage() {
     <div>
       <PageHead kicker="Today" title="Warehouse and site board" />
 
-      <div className="grid gap-px bg-black/10 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-px bg-black/10 sm:grid-cols-2">
         <Stat label="Pending approvals" value={String(pending.length)} href="/approvals" />
-        <Stat label="Total Spent" value={etb(totalSpendDisplay)} href="/ledger" />
         <Stat label="Plant on loan" value={String(onLoan.length)} href="/equipment" />
       </div>
 
+      <QueryFilters
+        className="mt-8 mb-3"
+        title="Spend"
+        fields={["siteId", "warehouseId", "licenseId", "dateFrom", "dateTo"]}
+        values={spendFilters}
+        onChange={setSpendFilters}
+      />
+
       {spendData?.data && (
-        <div className="mt-px grid gap-px bg-black/10 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-px bg-black/10 sm:grid-cols-2 lg:grid-cols-5">
+          <Stat label="Total Spent" value={etb(totalSpendDisplay)} href="/ledger" />
           <Stat label="Material Spend" value={etb(Number(spendData.data.materialSpend))} href="/ledger" />
           <Stat label="Labour Spend" value={etb(Number(spendData.data.laborSpend))} href="/ledger" />
           <Stat label="Other Spend" value={etb(Number(spendData.data.otherSpend))} href="/ledger" />
@@ -157,9 +179,14 @@ export default function BoardPage() {
         </section>
 
         <section className="flex flex-col gap-10">
-          {salesAnalytics && (
-            <div>
-              <p className="kicker mb-3">Sales Overview</p>
+          <div>
+            <p className="kicker mb-3">Sales Overview</p>
+            <QueryFilters
+              fields={["warehouseId", "licenseId", "dateFrom", "dateTo"]}
+              values={salesFilters}
+              onChange={setSalesFilters}
+            />
+            {salesAnalytics ? (
               <div className="grid gap-px bg-black/10">
                 <div className="bg-white p-4">
                   <p className="text-sm font-medium text-black/60">Total Revenue</p>
@@ -174,8 +201,10 @@ export default function BoardPage() {
                   <p className="mt-1 font-mono text-xl">{salesAnalytics.materialSaleCount} <span className="text-sm text-black/50">batches</span></p>
                 </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="text-sm text-black/45">No sales in this range.</p>
+            )}
+          </div>
 
           <div>
             <p className="kicker mb-3">Waiting on you</p>
