@@ -45,7 +45,7 @@ export default function WarehouseSoldItemsPage() {
     totalRevenue: "0",
   };
 
-  const overview = overviewData ?? fallbackOverview;
+  const overview = overviewData?.data ?? fallbackOverview;
   const soldEquip = equipmentData?.data ?? [];
   const soldMats = materialsData?.data ?? [];
 
