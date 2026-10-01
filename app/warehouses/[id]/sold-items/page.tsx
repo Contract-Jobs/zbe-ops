@@ -14,6 +14,7 @@ import {
 import { etb } from "@/lib/format";
 import { day } from "@/lib/format";
 import type { SoldItemsOverview, Warehouse } from "@/types/api";
+import { useReverseInventoryMovement } from "@/hooks/use-inventory-movements";
 
 export default function WarehouseSoldItemsPage() {
   const { id } = useParams<{ id: string }>();
@@ -30,9 +31,12 @@ export default function WarehouseSoldItemsPage() {
   };
 
   const { data: warehouseData, isLoading: isWhLoading } = useWarehouse(id);
-  const { data: overviewData } = useWarehouseSoldOverview(id, soldParams);
-  const { data: equipmentData } = useWarehouseSoldEquipment(id, { page: equipPage, limit: 10, ...soldParams });
-  const { data: materialsData } = useWarehouseSoldMaterials(id, { page: matPage, limit: 10, ...soldParams });
+  const { data: overviewData } = useWarehouseSoldOverview(id);
+  const { data: equipmentData } = useWarehouseSoldEquipment(id, { page: equipPage, limit: 10 });
+  const { data: materialsData } = useWarehouseSoldMaterials(id, { page: matPage, limit: 10 });
+  const reverseMutation = useReverseInventoryMovement();
+  const [reversingId, setReversingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
 
@@ -56,6 +60,18 @@ export default function WarehouseSoldItemsPage() {
   if (!warehouse) {
     return <p className="p-8 text-center text-sm text-black/50">Warehouse not found</p>;
   }
+
+  const handleReverse = async (movementId: string) => {
+    setError(null);
+    setReversingId(movementId);
+    try {
+      await reverseMutation.mutateAsync({ id: movementId });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to reverse movement");
+    } finally {
+      setReversingId(null);
+    }
+  };
 
   return (
     <div>
@@ -143,6 +159,7 @@ export default function WarehouseSoldItemsPage() {
                   <th>Buyer</th>
                   <th>Price</th>
                   <th>Logged By</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -156,6 +173,16 @@ export default function WarehouseSoldItemsPage() {
                     <td>{l.clientName ?? "—"}</td>
                     <td className="font-mono">{etb(l.unitCost)}</td>
                     <td><Username userId={l.loggedBy ?? ""} /></td>
+                    <td>{
+                      <button
+                        type="button"
+                        className="text-xs text-bad hover:underline disabled:opacity-50"
+                        disabled={reversingId === l.id}
+                        onClick={() => handleReverse(l.id)}
+                      >
+                        {reversingId === l.id ? "Reversing..." : "Reverse"}
+                      </button>
+                    }</td>
                   </tr>
                 ))}
               </tbody>
