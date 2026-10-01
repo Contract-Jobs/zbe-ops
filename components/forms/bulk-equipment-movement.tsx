@@ -164,7 +164,6 @@ export function BulkEquipmentMovementForm({
         });
       } else if (type === "sale") {
         if (!unitCost) throw new Error("Unit cost is required");
-        if (!licenseId) throw new Error("License is required");
         if (sourceKind !== "warehouse" || !sourceNodeId) throw new Error("Source must be a warehouse for sales");
         if (manager) throw new Error("Site managers cannot sell");
 
@@ -174,7 +173,10 @@ export function BulkEquipmentMovementForm({
           sourceInventoryId: sourceNodeId,
           unitCost,
           clientName: clientName || undefined,
-          licenseId,
+          // Only sent when the source holds this item under more than one
+          // license — otherwise the server auto-resolves the lot. An empty
+          // string here would fail validation, so omit instead.
+          licenseId: licenseId || undefined,
         });
       } else if (type === "consume") {
         if (!sourceNodeId) throw new Error("Source is required");
@@ -274,9 +276,9 @@ export function BulkEquipmentMovementForm({
 
       {["purchase", "sale"].includes(type) && (
         <label className="mb-3 block text-sm">
-          License
+          License{type === "sale" ? " (only if this location holds more than one)" : ""}
           <select className="field mt-1" value={licenseId} onChange={(e) => setLicenseId(e.target.value)}>
-            <option value="">Select license</option>
+            <option value="">{type === "sale" ? "Auto-resolve" : "Select license"}</option>
             {licenses.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.name}

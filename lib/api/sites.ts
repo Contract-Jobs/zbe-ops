@@ -114,7 +114,7 @@ export type SiteTaskListParams = ListParams<{
 // ---- Inventory at this site (resolves the site's node internally; 404s if
 // the site has none) — pre-joined, no separate node-id lookup needed. ----
 
-export type MaterialsAtSiteParams = ListParams<{ includeZeroQuantity?: "true" }>;
+export type MaterialsAtSiteParams = ListParams<{ includeZeroQuantity?: "true"; licenseId?: string }>;
 
 export function getSiteMaterials(siteId: string, params: MaterialsAtSiteParams = {}) {
   return apiClient.get<MaterialAtInventory[]>(`/api/sites/${siteId}/materials`, buildListParams(params));

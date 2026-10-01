@@ -16,6 +16,7 @@ import { BalanceHistoryPanel } from "@/components/BalanceHistory";
 import { isSiteManager } from "@/lib/store";
 import type { Warehouse } from "@/types/api";
 import { useInventoryAnalytics } from "@/hooks/use-analytics";
+import { useLicenses } from "@/hooks/use-licenses";
 import { etb } from "@/lib/format";
 
 export default function WarehouseDetailPage() {
@@ -27,20 +28,31 @@ export default function WarehouseDetailPage() {
   // a real node id — getWarehouseMaterials/getWarehouseEquipments below
   // resolve the node internally and never expose it.
   const { nodeId } = useInventoryNodeId("warehouse", id);
+
+  // Page-level license filter — balances are scoped per (item, location,
+  // license), so every list call out of this page takes it, not just the
+  // materials table.
+  const [licenseFilter, setLicenseFilter] = useState<QueryFilterValues>({});
+  const licenseId = licenseFilter.licenseId || undefined;
+
   const [bulkEquipPage, setBulkEquipPage] = useState(1);
   const [equipPage, setEquipPage] = useState(1);
-  const { data: bulkEquipData } = useWarehouseBulkEquipment(id, { page: bulkEquipPage, limit: 10, });
-  const { data: equipData } = useWarehouseIndividualEquipment(id, { page: equipPage, limit: 10 });
-  const { data: inventoryAnalytics } = useInventoryAnalytics({ warehouseId: id });
+  const { data: bulkEquipData } = useWarehouseBulkEquipment(id, { page: bulkEquipPage, limit: 10, licenseId });
+  const { data: equipData } = useWarehouseIndividualEquipment(id, { page: equipPage, limit: 10, licenseId });
+  const { data: inventoryAnalytics } = useInventoryAnalytics({ warehouseId: id, licenseId });
   const [materialFilters, setMaterialFilters] = useState<QueryFilterValues>({});
   const [balPage, setBalPage] = useState(1);
   const { data: materialsData } = useWarehouseMaterials(id, {
     page: balPage,
     limit: 10,
     search: materialFilters.search || undefined,
+    licenseId,
   });
 
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
+
+  const { data: licensesData } = useLicenses({ limit: 50 });
+  const licenseNameById = new Map((licensesData?.data ?? []).map((l) => [l.id, l.name]));
 
   const [moveMaterialId, setMoveMaterialId] = useState<string | null>(null);
   const [adjustBalance, setAdjustBalance] = useState<{ itemId: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
@@ -104,6 +116,18 @@ export default function WarehouseDetailPage() {
         </div>
       </div>}
 
+      <QueryFilters
+        fields={["licenseId"]}
+        values={licenseFilter}
+        onChange={(next) => {
+          setLicenseFilter(next);
+          setBalPage(1);
+          setBulkEquipPage(1);
+          setEquipPage(1);
+        }}
+        className="mb-4"
+      />
+
       <Tabs
         tabs={[
           { id: "materials", label: "Materials", count: materialsData?.pagination?.total },
@@ -135,17 +159,21 @@ export default function WarehouseDetailPage() {
               <thead>
                 <tr>
                   <th>Material</th>
+                  <th>License</th>
                   <th className="text-left">Quantity</th>
                   <th className="text-left">Average Unit Price</th>
                   {canMutate && <th className="text-left">Action</th>}
                 </tr>
               </thead>
               <tbody>
+                {/* Scoped per (item, license) — same item repeats once per
+                    license holding stock here. */}
                 {materials.map((m) => (
-                  <tr key={m.itemId}>
+                  <tr key={`${m.itemId}-${m.licenseId}`}>
                     <td>
                       <p className="font-medium">{m.itemName}</p>
                     </td>
+                    <td className="text-sm text-black/60">{m.licenseName}</td>
                     <td className="font-mono text-left min-w-[120px]">
                       {m.quantity} {m.unit}
                     </td>
@@ -203,16 +231,20 @@ export default function WarehouseDetailPage() {
               <thead>
                 <tr>
                   <th>Equipment</th>
+                  <th>License</th>
                   <th className="text-left">Quantity</th>
                   {canMutate && <th className="text-left">Action</th>}
                 </tr>
               </thead>
               <tbody>
+                {/* Scoped per (item, license) — same item repeats once per
+                    license holding stock here. */}
                 {bulkEquipment.map((b) => (
-                  <tr key={b.itemId}>
+                  <tr key={`${b.itemId}-${b.licenseId}`}>
                     <td>
                       <p className="font-medium">{b.itemName || "-"}</p>
                     </td>
+                    <td className="text-sm text-black/60">{b.licenseName}</td>
                     <td className="font-mono text-left min-w-[120px]">
                       {b.quantity} {b.unit}
                     </td>
@@ -265,6 +297,7 @@ export default function WarehouseDetailPage() {
               <thead>
                 <tr>
                   <th>Equipment</th>
+                  <th>License</th>
                   <th>Assignment</th>
                   <th>Condition</th>
                   {canMutate && <th>Actions</th>}
@@ -277,6 +310,7 @@ export default function WarehouseDetailPage() {
                       <p className="font-medium">{e.identifier}</p>
                       <p className="font-mono text-[0.7rem] text-black/50">{e.vendorName ?? "No vendor"}</p>
                     </td>
+                    <td className="text-sm text-black/60">{e.licenseId ? licenseNameById.get(e.licenseId) ?? "—" : "—"}</td>
                     <td>
                       <Stamp
                         value={e.assignmentStatus}

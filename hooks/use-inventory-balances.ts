@@ -21,11 +21,16 @@ export function useBalanceMovements(params: { itemId: string; inventoryId: strin
     })
 }
 
-export function useVerifyInventoryBalance(itemId: string | undefined, inventoryId: string | undefined) {
+export function useVerifyInventoryBalance(itemId: string | undefined, inventoryId: string | undefined, licenseId: string | undefined) {
     return useQuery({
-        queryKey: queryKeys.inventoryBalances.verify(itemId ?? "", inventoryId ?? ""),
-        queryFn: () => balancesApi.verifyInventoryBalance({ itemId: itemId as string, inventoryId: inventoryId as string }),
-        enabled: !!itemId && !!inventoryId,
+        queryKey: queryKeys.inventoryBalances.verify(itemId ?? "", inventoryId ?? "", licenseId ?? ""),
+        queryFn: () =>
+            balancesApi.verifyInventoryBalance({
+                itemId: itemId as string,
+                inventoryId: inventoryId as string,
+                licenseId: licenseId as string,
+            }),
+        enabled: !!itemId && !!inventoryId && !!licenseId,
     })
 }
 

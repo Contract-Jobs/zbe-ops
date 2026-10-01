@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { PageHead, TableWrap, Stamp, ModalPanel, Tabs } from "@/components/ui";
+import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
 import { useInventoryNode, useInventoryMaterials, useInventoryIndividualEquipment, useInventoryBulkEquipment } from "@/hooks/use-inventories";
 import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
@@ -10,6 +11,9 @@ import { MaterialMovementForm } from "@/components/forms/material-movement";
 import { BulkEquipmentMovementForm } from "@/components/forms/bulk-equipment-movement";
 import { InventoryAdjustForm } from "@/components/forms/inventory-adjust";
 import { BalanceHistoryPanel } from "@/components/BalanceHistory";
+import { useInventoryAnalytics } from "@/hooks/use-analytics";
+import { useLicenses } from "@/hooks/use-licenses";
+import { etb } from "@/lib/format";
 import type { QuantityMovementType } from "@/types/api";
 
 export default function InventoryLocationPage() {
@@ -21,17 +25,32 @@ export default function InventoryLocationPage() {
   const { data: nodeData, isLoading: isLocLoading } = useInventoryNode(id);
   const node = nodeData?.data;
 
+  // Page-level license filter — balances are scoped per (item, location,
+  // license), so every list call out of this page takes it, not just the
+  // materials table.
+  const [licenseFilter, setLicenseFilter] = useState<QueryFilterValues>({});
+  const licenseId = licenseFilter.licenseId || undefined;
+
   const [matPage, setMatPage] = useState(1);
-  const { data: materialsData, isLoading: isMatLoading } = useInventoryMaterials(id, { page: matPage, limit: 10 });
+  const { data: materialsData, isLoading: isMatLoading } = useInventoryMaterials(id, { page: matPage, limit: 10, licenseId });
 
   const [eqPage, setEqPage] = useState(1);
-  const { data: equipmentData, isLoading: isEqLoading } = useInventoryIndividualEquipment(id, { page: eqPage, limit: 10 });
+  const { data: equipmentData, isLoading: isEqLoading } = useInventoryIndividualEquipment(id, { page: eqPage, limit: 10, licenseId });
   const [bulkEqPage, setBulkEqPage] = useState(1);
-  const { data: bulkEquipmentData, isLoading: isBulkEqLoading } = useInventoryBulkEquipment(id, { page: bulkEqPage, limit: 10 });
+  const { data: bulkEquipmentData, isLoading: isBulkEqLoading } = useInventoryBulkEquipment(id, { page: bulkEqPage, limit: 10, licenseId });
 
   const locationName = node?.site?.name ?? node?.warehouse?.name ?? "Unknown Location";
   const locationType = node?.inventoryType ?? "unknown";
   const refId = node?.site?.id ?? node?.warehouse?.id;
+
+  const { data: inventoryAnalytics } = useInventoryAnalytics(
+    {
+      siteId: locationType === "site" ? refId : undefined,
+      warehouseId: locationType === "warehouse" ? refId : undefined,
+      licenseId,
+    },
+    { enabled: !!refId },
+  );
 
   const canMutate = manager && locationType === "warehouse"
     ? false
@@ -47,6 +66,9 @@ export default function InventoryLocationPage() {
   const [purchaseEquipmentOpen, setPurchaseEquipmentOpen] = useState(false);
   const [purchaseBulkEquipmentOpen, setPurchaseBulkEquipmentOpen] = useState(false);
   const [tab, setTab] = useState<"materials" | "bulk" | "equipment">("materials");
+
+  const { data: licensesData } = useLicenses({ limit: 50 });
+  const licenseNameById = new Map((licensesData?.data ?? []).map((l) => [l.id, l.name]));
 
   const mats = materialsData?.data ?? [];
   const eqs = equipmentData?.data ?? [];
@@ -75,6 +97,39 @@ export default function InventoryLocationPage() {
         {locationType} • {id}
       </p>
 
+      {inventoryAnalytics?.data && (
+        <div className="mb-8 grid gap-px bg-black/10 sm:grid-cols-4">
+          <div className="bg-white p-5">
+            <p className="kicker">Total Materials</p>
+            <p className="mt-2 break-words text-2xl tracking-tight">{inventoryAnalytics.data.totalMaterials}</p>
+          </div>
+          <div className="bg-white p-5">
+            <p className="kicker">Total Equipment</p>
+            <p className="mt-2 break-words text-2xl tracking-tight">{inventoryAnalytics.data.totalEquipment}</p>
+          </div>
+          <div className="bg-white p-5">
+            <p className="kicker">Total Material Value</p>
+            <p className="mt-2 break-words text-2xl tracking-tight">{etb(inventoryAnalytics.data.totalMaterialValue)}</p>
+          </div>
+          <div className="bg-white p-5">
+            <p className="kicker">Total Equipment Value</p>
+            <p className="mt-2 break-words text-2xl tracking-tight">{etb(inventoryAnalytics.data.equipmentValue)}</p>
+          </div>
+        </div>
+      )}
+
+      <QueryFilters
+        fields={["licenseId"]}
+        values={licenseFilter}
+        onChange={(next) => {
+          setLicenseFilter(next);
+          setMatPage(1);
+          setBulkEqPage(1);
+          setEqPage(1);
+        }}
+        className="mb-4"
+      />
+
       <Tabs
         tabs={[
           { id: "materials", label: "Materials", count: materialsData?.pagination?.total },
@@ -101,16 +156,20 @@ export default function InventoryLocationPage() {
               <thead>
                 <tr>
                   <th>Material</th>
+                  <th>License</th>
                   <th className="text-left">Quantity</th>
                   <th className="text-left">Action</th>
                 </tr>
               </thead>
               <tbody>
+                {/* Scoped per (item, license) — same item repeats once per
+                    license holding stock here. */}
                 {mats.map((m) => (
-                  <tr key={m.itemId}>
+                  <tr key={`${m.itemId}-${m.licenseId}`}>
                     <td>
                       <p className="font-medium">{m.itemName}</p>
                     </td>
+                    <td className="text-sm text-black/60">{m.licenseName}</td>
                     <td className="font-mono text-left min-w-[120px]">
                       {m.quantity} {m.unit}
                     </td>
@@ -167,16 +226,20 @@ export default function InventoryLocationPage() {
               <thead>
                 <tr>
                   <th>Equipment</th>
+                  <th>License</th>
                   <th className="text-left">Quantity</th>
                   <th className="text-left">Action</th>
                 </tr>
               </thead>
               <tbody>
+                {/* Scoped per (item, license) — same item repeats once per
+                    license holding stock here. */}
                 {bulkEqs.map((b) => (
-                  <tr key={b.itemId}>
+                  <tr key={`${b.itemId}-${b.licenseId}`}>
                     <td>
                       <p className="font-medium">{b.itemName}</p>
                     </td>
+                    <td className="text-sm text-black/60">{b.licenseName}</td>
                     <td className="font-mono text-left min-w-[120px]">
                       {b.quantity} {b.unit}
                     </td>
@@ -233,6 +296,7 @@ export default function InventoryLocationPage() {
               <thead>
                 <tr>
                   <th>Equipment</th>
+                  <th>License</th>
                   <th>Assignment</th>
                   <th>Condition</th>
                   <th>Actions</th>
@@ -245,6 +309,7 @@ export default function InventoryLocationPage() {
                       <p className="font-medium">{e.identifier}</p>
                       <p className="font-mono text-[0.7rem] text-black/50">{e.vendorName ?? "No vendor"}</p>
                     </td>
+                    <td className="text-sm text-black/60">{e.licenseId ? licenseNameById.get(e.licenseId) ?? "—" : "—"}</td>
                     <td>
                       <Stamp
                         value={e.assignmentStatus}

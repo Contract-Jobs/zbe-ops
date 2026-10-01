@@ -23,11 +23,15 @@ export function useBudgetOverview(params: Parameters<typeof analyticsApi.getBudg
     })
 }
 
-export function useInventoryAnalytics(params: Parameters<typeof analyticsApi.getInventoryAnalytics>[0] = {}) {
+export function useInventoryAnalytics(
+    params: Parameters<typeof analyticsApi.getInventoryAnalytics>[0] = {},
+    options: { enabled?: boolean } = {},
+) {
     return useQuery({
         queryKey: queryKeys.analytics.inventory(params),
         queryFn: () => analyticsApi.getInventoryAnalytics(params),
         staleTime: ANALYTICS_STALE_TIME,
+        enabled: options.enabled ?? true,
     })
 }
 

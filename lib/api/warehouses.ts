@@ -63,7 +63,7 @@ export async function getWarehouseSoldMaterials(id: string, params: SoldMaterial
 
 // ---- Inventory at this warehouse (resolves its node internally) — pre-joined. ----
 
-export type MaterialsAtWarehouseParams = ListParams<{ includeZeroQuantity?: "true" }>
+export type MaterialsAtWarehouseParams = ListParams<{ includeZeroQuantity?: "true"; licenseId?: string }>
 
 export function getWarehouseMaterials(id: string, params: MaterialsAtWarehouseParams = {}) {
     return apiClient.get<MaterialAtInventory[]>(`/api/warehouses/${id}/materials`, buildListParams(params))

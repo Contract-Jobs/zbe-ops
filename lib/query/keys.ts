@@ -44,7 +44,7 @@ export const queryKeys = {
     // scoped: Site Managers restricted to own site(s) — pass userId in params
     list: (params?: unknown) => ["inventory-balances", "list", params] as const,
     movements: (params?: unknown) => ["inventory-balances", "movements", params] as const,
-    verify: (itemId: string, inventoryId: string) => ["inventory-balances", "verify", itemId, inventoryId] as const,
+    verify: (itemId: string, inventoryId: string, licenseId: string) => ["inventory-balances", "verify", itemId, inventoryId, licenseId] as const,
   },
 
   inventories: {

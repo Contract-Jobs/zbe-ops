@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
+import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { SiteForm, TaskForm } from "@/components/forms/site";
 import {
   closedMode,
@@ -90,14 +91,21 @@ export default function SiteDetailPage() {
   // a real node id — getSiteMaterials/getSiteEquipments below resolve the
   // node internally and never expose it, so this is a separate lookup.
   const { nodeId } = useInventoryNodeId("site", id);
+
+  // Page-level license filter — balances are scoped per (item, location,
+  // license), so every list call out of this page takes it, not just the
+  // materials table.
+  const [licenseFilter, setLicenseFilter] = useState<QueryFilterValues>({});
+  const licenseId = licenseFilter.licenseId || undefined;
+
   const [taskPage, setTaskPage] = useState(1);
   const { data: tasksData } = useSiteTasks(id, { page: taskPage, limit: 50 });
   const [equipPage, setEquipPage] = useState(1);
-  const { data: equipData } = useSiteIndividualEquipment(id, { page: equipPage, limit: 10 });
+  const { data: equipData } = useSiteIndividualEquipment(id, { page: equipPage, limit: 10, licenseId });
   const [bulkEquipPage, setBulkEquipPage] = useState(1);
-  const { data: bulkEquipData } = useSiteBulkEquipment(id, { page: bulkEquipPage, limit: 10 });
+  const { data: bulkEquipData } = useSiteBulkEquipment(id, { page: bulkEquipPage, limit: 10, licenseId });
   const [balPage, setBalPage] = useState(1);
-  const { data: materialsData } = useSiteMaterials(id, { page: balPage, limit: 10 });
+  const { data: materialsData } = useSiteMaterials(id, { page: balPage, limit: 10, licenseId });
   const { data: lifecycleData } = useSiteLifecycle(id);
   const { data: summaryData } = useSiteSummary(id);
   const { data: budgetData } = useBudgetOverview({ siteId: id });
@@ -164,6 +172,7 @@ export default function SiteDetailPage() {
   const bulkEqs = bulkEquipData?.data ?? [];
   const mats = materialsData?.data ?? [];
   const licenses: License[] = licensesData?.data ?? (store.licenses as unknown as License[]);
+  const licenseNameById = new Map(licenses.map((l) => [l.id, l.name]));
   const transactions: Transaction[] = transactionsData?.data ?? [];
   const categories: TransactionCategory[] = categoriesData?.data ?? (store.categories as unknown as TransactionCategory[]);
 
@@ -388,6 +397,18 @@ export default function SiteDetailPage() {
         </div>
       </div>
 
+      <QueryFilters
+        fields={["licenseId"]}
+        values={licenseFilter}
+        onChange={(next) => {
+          setLicenseFilter(next);
+          setBalPage(1);
+          setBulkEquipPage(1);
+          setEquipPage(1);
+        }}
+        className="mb-4"
+      />
+
       <Tabs
         tabs={[
           { id: "materials", label: "Materials", count: materialsData?.pagination?.total },
@@ -594,17 +615,21 @@ export default function SiteDetailPage() {
                   <thead>
                     <tr>
                       <th>Name</th>
+                      <th>License</th>
                       <th className="text-left">Quantity</th>
                       <th className="text-left">Average Unit Price</th>
                       {canMutate && <th className="text-left">Action</th>}
                     </tr>
                   </thead>
                   <tbody>
+                    {/* Scoped per (item, license) — same item repeats once
+                        per license holding stock here. */}
                     {mats.map((m) => (
-                      <tr key={m.itemId}>
+                      <tr key={`${m.itemId}-${m.licenseId}`}>
                         <td>
                           <p className="font-medium">{m.itemName}</p>
                         </td>
+                        <td className="text-sm text-black/60">{m.licenseName}</td>
                         <td className="font-mono text-left min-w-[120px]">
                           {m.quantity} {m.unit}
                         </td>
@@ -666,17 +691,21 @@ export default function SiteDetailPage() {
                   <thead>
                     <tr>
                       <th>Name</th>
+                      <th>License</th>
                       <th className="text-left">Quantity</th>
                       <th className="text-left">Average Unit Value</th>
                       {canMutate && <th className="text-left">Action</th>}
                     </tr>
                   </thead>
                   <tbody>
+                    {/* Scoped per (item, license) — same item repeats once
+                        per license holding stock here. */}
                     {bulkEqs.map((b) => (
-                      <tr key={b.itemId}>
+                      <tr key={`${b.itemId}-${b.licenseId}`}>
                         <td>
                           <p className="font-medium">{b.itemName}</p>
                         </td>
+                        <td className="text-sm text-black/60">{b.licenseName}</td>
                         <td className="font-mono text-left min-w-[120px]">
                           {b.quantity} {b.unit}
                         </td>
@@ -736,6 +765,7 @@ export default function SiteDetailPage() {
                   <thead>
                     <tr>
                       <th>Equipment</th>
+                      <th>License</th>
                       <th>Status</th>
                       <th>Health</th>
                       <th>Book Value</th>
@@ -749,6 +779,7 @@ export default function SiteDetailPage() {
                           <p className="font-medium">{e.identifier}</p>
                           <p className="font-mono text-[0.7rem] text-black/50">{e.vendorName ?? "No vendor"}</p>
                         </td>
+                        <td className="text-sm text-black/60">{e.licenseId ? licenseNameById.get(e.licenseId) ?? "—" : "—"}</td>
                         <td>
                           <Stamp
                             value={e.assignmentStatus}

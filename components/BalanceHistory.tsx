@@ -25,7 +25,6 @@ export function BalanceHistoryPanel({
   unit: string;
 }) {
   const { data, isLoading } = useBalanceMovements({ itemId, inventoryId, includeReversed: false });
-  const { data: verifyData, isLoading: isVerifyLoading } = useVerifyInventoryBalance(itemId, inventoryId);
   const { byId: nodeById } = useInventoryNodeMap();
   const reverseMutation = useReverseInventoryMovement();
   const [reversingId, setReversingId] = useState<string | null>(null);
@@ -34,6 +33,13 @@ export function BalanceHistoryPanel({
   const movements = [...(data?.data ?? [])].sort(
     (a, b) => new Date(b.movementDate).getTime() - new Date(a.movementDate).getTime()
   );
+
+  // Balances (and now verify) are scoped per license lot. This ledger spans
+  // every lot at this (item, location) pair, so "verify" checks the most
+  // recent movement's lot — the one `canReverse` below points at — not
+  // some other lot mixed into the same history.
+  const verifyLicenseId = movements[0]?.licenseId ?? undefined;
+  const { data: verifyData, isLoading: isVerifyLoading } = useVerifyInventoryBalance(itemId, inventoryId, verifyLicenseId);
 
   const locationLabel = (nodeId: string | null) => (nodeId ? nodeById.get(nodeId)?.name ?? "Unknown" : "—");
   // The reversable row is the top of the FULL sorted list, not just the

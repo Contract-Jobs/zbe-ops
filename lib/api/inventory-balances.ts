@@ -6,6 +6,7 @@ import type { InventoryBalance, InventoryMovement, VerifyBalanceResult, RebuildR
 export type InventoryBalanceParams = ListParams<{
     itemId?: string[]
     inventoryId?: string[]
+    licenseId?: string[]
     itemCategory?: ("material" | "equipment")[]
     includeZeroQuantity?: string
 }>
@@ -24,10 +25,13 @@ export function getBalanceMovements(params: { itemId: string; inventoryId: strin
     return apiClient.get<InventoryMovement[]>("/api/inventory-balances/movements", search)
 }
 
-export function verifyInventoryBalance(params: { itemId: string; inventoryId: string }) {
+// licenseId is now required — balances are scoped per (item, location,
+// license), so there's no single balance to verify without it.
+export function verifyInventoryBalance(params: { itemId: string; inventoryId: string; licenseId: string }) {
     const search = new URLSearchParams()
     search.set("itemId", params.itemId)
     search.set("inventoryId", params.inventoryId)
+    search.set("licenseId", params.licenseId)
     return apiClient.get<VerifyBalanceResult>("/api/inventory-balances/verify", search)
 }
 

@@ -22,7 +22,7 @@ export function getInventoryNode(id: string) {
     return apiClient.get<Inventory>(`/api/inventories/${id}`)
 }
 
-export type MaterialsAtLocationParams = ListParams<{ includeZeroQuantity?: "true" }>
+export type MaterialsAtLocationParams = ListParams<{ includeZeroQuantity?: "true"; licenseId?: string }>
 
 // Pre-joined materials sitting at one inventory node — no separate
 // itemId→name lookup needed, unlike raw /api/inventory-balances rows.

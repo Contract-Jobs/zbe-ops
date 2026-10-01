@@ -61,10 +61,15 @@ export interface InventoryItemSubitem {
   deletedAt: string | null;
 }
 
-// GET /api/inventory-items/[id]/balances — row shape
+// GET /api/inventory-items/[id]/balances — row shape. Balances are scoped
+// per (item, location, license) — the same location/locationId can repeat
+// once per license holding stock there, so key rows by (locationId,
+// licenseId), not locationId alone.
 export interface ItemBalanceRow {
   location: string;
   locationId: string;
+  licenseId: string;
+  licenseName: string;
   quantity: number;
   totalValue: string;
   averageUnitValue: string | null;
@@ -79,11 +84,15 @@ export interface ItemHistoryRow {
 
 // ---- 2. Quantity-Tracked Inventory (Materials & Bulk Equipment) ----
 
+// Scoped per (item, location, license) — the same item/location can
+// legitimately appear more than once, one row per license holding stock
+// there. Only a `purchase` movement can create a new row.
 export interface InventoryBalance {
   id: string;
   inventoryId: string;
   itemId: string;
   item?: InventoryItem;
+  licenseId: string;
   quantity: number;
   totalValue: string;
   averageUnitValue: string | null;
@@ -93,12 +102,16 @@ export interface InventoryBalance {
 
 // Row shape for GET /api/inventories|sites|warehouses/[id]/materials — and
 // the "bulk" half of .../equipments. Pre-joined (itemName/itemSlug/unit
-// already resolved), unlike a raw InventoryBalance row.
+// already resolved), unlike a raw InventoryBalance row. Built on the same
+// (item, location, license) scoped balances — itemId can repeat once per
+// license holding stock at this location, so key rows by (itemId, licenseId).
 export interface MaterialAtInventory {
   itemId: string;
   itemName: string;
   itemSlug: string;
   unit: string;
+  licenseId: string;
+  licenseName: string;
   quantity: number;
   totalValue: string;
   averageUnitValue: string | null;
@@ -164,7 +177,10 @@ export type InventoryMovementCreatePayload =
       sourceInventoryId: string;
       unitCost: string;
       clientName?: string;
-      licenseId: string;
+      // Optional — auto-resolved when the source location holds the item
+      // under one license. Only needed when more than one license's lot is
+      // present there (pick the lot from GET /api/inventory-balances).
+      licenseId?: string;
     }
   | {
       movementType: "transfer";
@@ -205,6 +221,10 @@ export interface IndividualEquipmentItem {
   lifecycleStatus: EquipmentLifecycleStatus;
   condition: EquipmentCondition;
   currentInventoryId: string | null;
+  // The license this unit was purchased/currently carried under — unlike
+  // quantity-tracked balances there's no (item, location, license) lot
+  // concept here (one physical unit, one id, never repeats per license).
+  licenseId: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;

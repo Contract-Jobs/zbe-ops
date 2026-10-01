@@ -175,21 +175,25 @@ export default function MaterialDetailPage() {
               <thead>
                 <tr>
                   <th>Location</th>
+                  <th>License</th>
                   <th>Qty</th>
                   <th>Avg Cost</th>
                 </tr>
               </thead>
               <tbody>
+                {/* Scoped per (location, license) — the same location can
+                    repeat once per license holding stock there. */}
                 {balances.map((b) => (
-                  <tr key={b.locationId}>
+                  <tr key={`${b.locationId}-${b.licenseId}`}>
                     <td>{b.location}</td>
+                    <td className="text-sm text-black/60">{b.licenseName}</td>
                     <td className="font-mono">{qty(b.quantity, item.unit)}</td>
                     <td className="font-mono">{b.averageUnitValue ? etb(b.averageUnitValue) : "—"}</td>
                   </tr>
                 ))}
                 {balances.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="py-4 text-center text-sm text-black/45">
+                    <td colSpan={4} className="py-4 text-center text-sm text-black/45">
                       No stock currently distributed.
                     </td>
                   </tr>
