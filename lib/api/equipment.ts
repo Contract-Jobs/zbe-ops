@@ -21,6 +21,7 @@ export interface UpdateEquipmentPayload {
     vendorName?: string
     originalValue?: string
     bookValue?: string
+    licenseId?: string
     // location/condition/assignment/lifecycle are movement-only — not
     // accepted keys on this schema at all in v2.
 }

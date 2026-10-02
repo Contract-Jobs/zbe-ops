@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Field, FormActions } from "@/components/ui";
 import { useUpdateEquipment } from "@/hooks/use-equipment";
+import { useLicenses } from "@/hooks/use-licenses";
 import type { IndividualEquipmentItem } from "@/types/api";
 
 // Direct create is disabled server-side in v2 — equipment can only
@@ -19,6 +20,8 @@ export function EquipmentForm({
   onDone: () => void;
 }) {
   const updateMutation = useUpdateEquipment();
+  const { data: licensesData } = useLicenses({ limit: 50 });
+  const licenses = (licensesData?.data ?? []).filter((l) => !l.deletedAt);
   const [error, setError] = useState<string | null>(null);
 
   const isPending = updateMutation.isPending;
@@ -31,6 +34,7 @@ export function EquipmentForm({
     const vendorName = String(fd.get("vendorName") ?? "").trim();
     const originalValue = String(fd.get("originalValue") ?? "").trim();
     const bookValue = String(fd.get("bookValue") ?? "").trim();
+    const licenseId = String(fd.get("licenseId") ?? "").trim();
 
     try {
       await updateMutation.mutateAsync({
@@ -40,6 +44,7 @@ export function EquipmentForm({
           vendorName: vendorName || undefined,
           originalValue: originalValue || undefined,
           bookValue: bookValue || undefined,
+          licenseId: licenseId || undefined,
         },
       });
       onDone();
@@ -66,6 +71,16 @@ export function EquipmentForm({
       </Field>
       <Field label="Book value (ETB)">
         <input className="field" name="bookValue" defaultValue={initial.bookValue ?? ""} disabled={isPending} />
+      </Field>
+      <Field label="License">
+        <select className="field" name="licenseId" defaultValue={initial.licenseId ?? ""} disabled={isPending}>
+          <option value="">No license</option>
+          {licenses.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.name}
+            </option>
+          ))}
+        </select>
       </Field>
       <p className="text-sm text-black/55 sm:col-span-2">
         Location, condition, assignment, and lifecycle cannot be patched here — raise a movement.
