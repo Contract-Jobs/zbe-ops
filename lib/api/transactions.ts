@@ -14,6 +14,7 @@ export interface CreateTransactionPayload {
     warehouseId?: string
     categoryId?: string
     equipmentId?: string
+    note?: string | null;
     description?: string
     transactionDate?: string
 }

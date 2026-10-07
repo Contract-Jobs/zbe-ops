@@ -70,6 +70,7 @@ export function TransactionForm({
         licenseId: finalLicenseId || undefined,
         siteId,
         warehouseId,
+        note,
         categoryId: finalCategoryId || undefined,
         description: note || "Manual entry",
         transactionDate,
