@@ -146,6 +146,7 @@ export default function TransactionsPage() {
               <tr>
                 <th>Date</th>
                 <th>Site</th>
+                <th>Warehouse</th>
                 <th className="hidden md:table-cell">Category</th>
                 <th className="hidden sm:table-cell">Type</th>
                 <th>Amount</th>
@@ -155,7 +156,8 @@ export default function TransactionsPage() {
             <tbody>
               {rows.map((t) => {
                 const desc = t.description ?? "Manual entry";
-                const siteName = allSites.find(s => s.id === t.siteId)?.name ?? "HQ";
+                let siteName = ""
+                let warehouseName = "";
                 const canReverse =
                   !t.isReversal &&
                   !t.isReversed &&
@@ -177,12 +179,22 @@ export default function TransactionsPage() {
                     <td className="whitespace-nowrap">{day(t.transactionDate ?? (t as any).date ?? t.createdAt)}</td>
                     <td className="min-w-0">
                       <div className="font-medium">{siteName}</div>
-                      <div className="text-sm text-black/60">{desc}</div>
-                      {t.isReversal ? <Stamp value="reversal" tone="bad" /> : null}
-                      <span className="mt-1 block sm:hidden">
-                        <Stamp value={t.type} tone={statusTone(t.type)} />
-                      </span>
+                      {siteName && <><div className="text-sm text-black/60">{desc}</div>
+                        {t.isReversal ? <Stamp value="reversal" tone="bad" /> : null}
+                        <span className="mt-1 block sm:hidden">
+                          <Stamp value={t.type} tone={statusTone(t.type)} />
+                        </span></>}
                     </td>
+
+                    <td className="min-w-0">
+                      <div className="font-medium">{warehouseName}</div>
+                      {warehouseName && <><div className="text-sm text-black/60">{desc}</div>
+                        {t.isReversal ? <Stamp value="reversal" tone="bad" /> : null}
+                        <span className="mt-1 block sm:hidden">
+                          <Stamp value={t.type} tone={statusTone(t.type)} />
+                        </span></>}
+                    </td>
+
                     <td className="hidden md:table-cell">
                       {categories.find((c) => c.id === t.categoryId)?.name ?? "—"}
                     </td>

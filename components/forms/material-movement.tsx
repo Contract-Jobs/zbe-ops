@@ -93,6 +93,7 @@ export function MaterialMovementForm({
   const [fromId, setFromId] = useState(defaultSource?.id ?? "");
   const [toKind, setToKind] = useState<LocationKind | "">(defaultDestination?.type ?? "");
   const [toId, setToId] = useState(defaultDestination?.id ?? "");
+  const [note, setNote] = useState("")
 
   const sourceKind = fixedSource?.type ?? fromKind;
   const sourceRefId = fixedSource?.id ?? fromId;
@@ -131,6 +132,7 @@ export function MaterialMovementForm({
         await purchaseMutation.mutateAsync({
           itemId: mId === "new" ? undefined : mId,
           quantity: qn,
+          note,
           destinationInventoryId: destNodeId,
           unitCost,
           clientName: clientName || undefined,
@@ -142,6 +144,7 @@ export function MaterialMovementForm({
         await transferMutation.mutateAsync({
           itemId: mId,
           quantity: qn,
+          note,
           sourceInventoryId: sourceNodeId,
           destinationInventoryId: destNodeId,
         });
@@ -153,6 +156,7 @@ export function MaterialMovementForm({
         await sellMutation.mutateAsync({
           itemId: mId,
           quantity: qn,
+          note,
           sourceInventoryId: sourceNodeId,
           unitCost,
           clientName: clientName || undefined,
@@ -165,6 +169,7 @@ export function MaterialMovementForm({
         if (!sourceNodeId) throw new Error("Source is required");
         await consumeMutation.mutateAsync({
           itemId: mId,
+          note,
           quantity: qn,
           sourceInventoryId: sourceNodeId,
         });
@@ -173,6 +178,7 @@ export function MaterialMovementForm({
         if (!reason.trim()) throw new Error("Reason is required");
         await lossMutation.mutateAsync({
           itemId: mId,
+          note,
           quantity: qn,
           sourceInventoryId: sourceNodeId,
           metadata: { reason: reason.trim() },
@@ -309,6 +315,11 @@ export function MaterialMovementForm({
           <input className="field mt-1" value={reason} onChange={(e) => setReason(e.target.value)} required />
         </label>
       ) : null}
+
+      <label className="mb-3 block text-sm">
+        Note
+        <input className="field mt-1" value={note} onChange={(e) => setNote(e.target.value)} />
+      </label>
 
       <div className="flex gap-2 mt-4">
         {onCancel && (

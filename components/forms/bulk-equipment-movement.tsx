@@ -86,6 +86,7 @@ export function BulkEquipmentMovementForm({
   const [clientName, setClientName] = useState("");
   const [licenseId, setLicenseId] = useState("");
   const [reason, setReason] = useState("");
+  const [note, setNote] = useState("")
 
   // Location fields — these carry the site's/warehouse's own id; resolved to
   // an inventory node id below before building the payload (docs/migration.md §2.3).
@@ -148,6 +149,7 @@ export function BulkEquipmentMovementForm({
         }
         await purchaseMutation.mutateAsync({
           itemId: purchaseItemId,
+          note,
           quantity: qn,
           destinationInventoryId: destNodeId,
           unitCost,
@@ -158,6 +160,7 @@ export function BulkEquipmentMovementForm({
         if (!sourceNodeId || !destNodeId) throw new Error("Source and destination are required for transfer");
         await transferMutation.mutateAsync({
           itemId: mId,
+          note,
           quantity: qn,
           sourceInventoryId: sourceNodeId,
           destinationInventoryId: destNodeId,
@@ -169,6 +172,7 @@ export function BulkEquipmentMovementForm({
 
         await sellMutation.mutateAsync({
           itemId: mId,
+          note,
           quantity: qn,
           sourceInventoryId: sourceNodeId,
           unitCost,
@@ -182,6 +186,7 @@ export function BulkEquipmentMovementForm({
         if (!sourceNodeId) throw new Error("Source is required");
         await consumeMutation.mutateAsync({
           itemId: mId,
+          note,
           quantity: qn,
           sourceInventoryId: sourceNodeId,
         });
@@ -190,6 +195,7 @@ export function BulkEquipmentMovementForm({
         if (!reason.trim()) throw new Error("Reason is required");
         await lossMutation.mutateAsync({
           itemId: mId,
+          note,
           quantity: qn,
           sourceInventoryId: sourceNodeId,
           metadata: { reason: reason.trim() },
@@ -326,6 +332,12 @@ export function BulkEquipmentMovementForm({
           <input className="field mt-1" value={reason} onChange={(e) => setReason(e.target.value)} required />
         </label>
       ) : null}
+
+      <label className="mb-3 block text-sm">
+        Note
+        <input className="field mt-1" value={note} onChange={(e) => setNote(e.target.value)} />
+      </label>
+
 
       <div className="flex gap-2 mt-4">
         {onCancel && (

@@ -133,6 +133,7 @@ export interface InventoryMovement {
   destinationInventoryId: string | null;
   clientName: string | null;
   movementDate: string;
+  note?: string | null;
   metadata: Record<string, unknown> | null;
   isApproved: boolean;
   isReversed: boolean;
@@ -159,49 +160,48 @@ export interface RebuildResult {
   errors: string[];
 }
 
-export type InventoryMovementCreatePayload =
+export type InventoryMovementCreatePayload = { note?: string | null } & (| {
+  movementType: "purchase";
+  itemId?: string;
+  quantity: number;
+  destinationInventoryId: string;
+  unitCost: string;
+  clientName?: string;
+  licenseId: string;
+  autoCreateItem?: { name: string; slug?: string; category: "material"; unit?: string };
+}
   | {
-      movementType: "purchase";
-      itemId?: string;
-      quantity: number;
-      destinationInventoryId: string;
-      unitCost: string;
-      clientName?: string;
-      licenseId: string;
-      autoCreateItem?: { name: string; slug?: string; category: "material"; unit?: string };
-    }
+    movementType: "sale";
+    itemId: string;
+    quantity: number;
+    sourceInventoryId: string;
+    unitCost: string;
+    clientName?: string;
+    // Optional — auto-resolved when the source location holds the item
+    // under one license. Only needed when more than one license's lot is
+    // present there (pick the lot from GET /api/inventory-balances).
+    licenseId?: string;
+  }
   | {
-      movementType: "sale";
-      itemId: string;
-      quantity: number;
-      sourceInventoryId: string;
-      unitCost: string;
-      clientName?: string;
-      // Optional — auto-resolved when the source location holds the item
-      // under one license. Only needed when more than one license's lot is
-      // present there (pick the lot from GET /api/inventory-balances).
-      licenseId?: string;
-    }
+    movementType: "transfer";
+    itemId: string;
+    quantity: number;
+    sourceInventoryId: string;
+    destinationInventoryId: string;
+  }
   | {
-      movementType: "transfer";
-      itemId: string;
-      quantity: number;
-      sourceInventoryId: string;
-      destinationInventoryId: string;
-    }
+    movementType: "consume";
+    itemId: string;
+    quantity: number;
+    sourceInventoryId: string;
+  }
   | {
-      movementType: "consume";
-      itemId: string;
-      quantity: number;
-      sourceInventoryId: string;
-    }
-  | {
-      movementType: "loss";
-      itemId: string;
-      quantity: number;
-      sourceInventoryId: string;
-      metadata: { reason: string };
-    };
+    movementType: "loss";
+    itemId: string;
+    quantity: number;
+    sourceInventoryId: string;
+    metadata: { reason: string };
+  });
 
 // ---- 3. Individually-Tracked Equipment ----
 
@@ -269,6 +269,7 @@ export interface IndividualEquipmentMovement {
   licenseId: string | null;
   transactionId: string | null;
   ledgerId: string | null;
+  note?: string | null;
   loggedBy: string;
   createdAt: string;
   updatedAt: string;
@@ -300,64 +301,64 @@ interface AutoCreateEquipmentPayload {
   bookValue?: string;
 }
 
-export type EquipmentMovementCreatePayload =
+export type EquipmentMovementCreatePayload = { note?: string | null } & (
   | {
-      movementType: "purchase";
-      individualItemId?: string;
-      destinationInventoryId: string;
-      movementCost?: string;
-      clientName?: string;
-      licenseId: string;
-      autoCreateEquipment?: AutoCreateEquipmentPayload;
-    }
+    movementType: "purchase";
+    individualItemId?: string;
+    destinationInventoryId: string;
+    movementCost?: string;
+    clientName?: string;
+    licenseId: string;
+    autoCreateEquipment?: AutoCreateEquipmentPayload;
+  }
   | {
-      movementType: "deploy_to_site";
-      individualItemId: string;
-      destinationInventoryId: string;
-    }
+    movementType: "deploy_to_site";
+    individualItemId: string;
+    destinationInventoryId: string;
+  }
   | {
-      movementType: "return_to_warehouse";
-      individualItemId: string;
-      destinationInventoryId: string;
-    }
+    movementType: "return_to_warehouse";
+    individualItemId: string;
+    destinationInventoryId: string;
+  }
   | {
-      movementType: "transfer_between_sites";
-      individualItemId: string;
-      destinationInventoryId: string;
-    }
+    movementType: "transfer_between_sites";
+    individualItemId: string;
+    destinationInventoryId: string;
+  }
   | {
-      movementType: "transfer_between_warehouses";
-      individualItemId: string;
-      destinationInventoryId: string;
-    }
+    movementType: "transfer_between_warehouses";
+    individualItemId: string;
+    destinationInventoryId: string;
+  }
   | {
-      movementType: "send_to_maintenance";
-      individualItemId: string;
-      clientName?: string;
-    }
+    movementType: "send_to_maintenance";
+    individualItemId: string;
+    clientName?: string;
+  }
   | {
-      movementType: "return_from_maintenance";
-      individualItemId: string;
-      destinationInventoryId: string;
-      movementCost?: string;
-      licenseId?: string;
-    }
+    movementType: "return_from_maintenance";
+    individualItemId: string;
+    destinationInventoryId: string;
+    movementCost?: string;
+    licenseId?: string;
+  }
   | {
-      movementType: "sale";
-      individualItemId: string;
-      movementCost?: string;
-      clientName?: string;
-      licenseId: string;
-    }
+    movementType: "sale";
+    individualItemId: string;
+    movementCost?: string;
+    clientName?: string;
+    licenseId: string;
+  }
   | {
-      movementType: "dispose";
-      individualItemId: string;
-    }
+    movementType: "dispose";
+    individualItemId: string;
+  }
   | {
-      movementType: "degrade";
-      individualItemId: string;
-      movementCost: string;
-    };
+    movementType: "degrade";
+    individualItemId: string;
+    movementCost: string;
+  });
 
 // ---- 4. Rentals ----
 
@@ -574,6 +575,7 @@ export interface Transaction {
   isApproved: boolean;
   isReversed: boolean;
   isReversal: boolean;
+  note?: string | null;
   reversalOfId: string | null;
   isSystemGenerated: boolean;
   ledgerId: string | null;
@@ -602,6 +604,7 @@ export interface ProjectLedger {
   isReversed: boolean;
   isReversal: boolean;
   reversalOfId: string | null;
+  note?: string | null;
   timestamp: string;
   loggedBy: string;
   createdAt: string;

@@ -32,8 +32,8 @@ export default function WarehouseSoldItemsPage() {
 
   const { data: warehouseData, isLoading: isWhLoading } = useWarehouse(id);
   const { data: overviewData } = useWarehouseSoldOverview(id);
-  const { data: equipmentData } = useWarehouseSoldEquipment(id, { page: equipPage, limit: 10 });
-  const { data: materialsData } = useWarehouseSoldMaterials(id, { page: matPage, limit: 10 });
+  const { data: equipmentData } = useWarehouseSoldEquipment(id, { page: equipPage, limit: 10, ...soldParams });
+  const { data: materialsData } = useWarehouseSoldMaterials(id, { page: matPage, limit: 10, ...soldParams });
   const reverseMutation = useReverseInventoryMovement();
   const [reversingId, setReversingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

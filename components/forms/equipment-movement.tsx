@@ -112,6 +112,7 @@ export function EquipmentMovementForm({
   const [newCatalogName, setNewCatalogName] = useState("");
   const [identifier, setIdentifier] = useState("");
   const [originalValue, setOriginalValue] = useState("");
+  const [note, setNote] = useState("")
 
   // Financial & entity fields
   const [cost, setCost] = useState("");
@@ -178,6 +179,7 @@ export function EquipmentMovementForm({
           destinationInventoryId: destNodeId,
           movementCost: cost || undefined,
           clientName: clientName || undefined,
+          note,
           licenseId,
           autoCreateEquipment: isCreating
             ? {
@@ -191,7 +193,7 @@ export function EquipmentMovementForm({
       } else if (type === "transfer") {
         if (!destNodeId) throw new Error("Destination is required");
         if (!resolvedTransfer) throw new Error("Could not determine the destination type");
-        const payload = { individualItemId: eId, destinationInventoryId: destNodeId };
+        const payload = { individualItemId: eId, destinationInventoryId: destNodeId, note };
         if (resolvedTransfer === "deploy_to_site") await deployMutation.mutateAsync(payload);
         else if (resolvedTransfer === "return_to_warehouse") await returnWarehouseMutation.mutateAsync(payload);
         else if (resolvedTransfer === "transfer_between_sites") await transferSitesMutation.mutateAsync(payload);
@@ -200,25 +202,27 @@ export function EquipmentMovementForm({
         if (!licenseId) throw new Error("License is required");
         await sellMutation.mutateAsync({
           individualItemId: eId,
+          note,
           movementCost: cost || undefined,
           clientName: clientName || undefined,
           licenseId,
         });
       } else if (type === "send_to_maintenance") {
-        await maintenanceOutMutation.mutateAsync({ individualItemId: eId, clientName: clientName || undefined });
+        await maintenanceOutMutation.mutateAsync({ individualItemId: eId, clientName: clientName || undefined, note });
       } else if (type === "return_from_maintenance") {
         if (!destNodeId) throw new Error("Destination is required");
         await maintenanceInMutation.mutateAsync({
           individualItemId: eId,
           destinationInventoryId: destNodeId,
+          note,
           movementCost: cost || undefined,
           licenseId: licenseId || undefined,
         });
       } else if (type === "dispose") {
-        await disposeMutation.mutateAsync({ individualItemId: eId });
+        await disposeMutation.mutateAsync({ individualItemId: eId, note });
       } else if (type === "degrade") {
         if (!cost) throw new Error("Value write-down amount is required");
-        await degradeMutation.mutateAsync({ individualItemId: eId, movementCost: cost });
+        await degradeMutation.mutateAsync({ individualItemId: eId, movementCost: cost, note });
       }
 
       setMsg("Queued for approval.");
@@ -367,6 +371,11 @@ export function EquipmentMovementForm({
           <input className="field mt-1" value={clientName} onChange={(e) => setClientName(e.target.value)} />
         </div>
       )}
+
+      <label className="mb-3 block text-sm">
+        Note
+        <input className="field mt-1" value={note} onChange={(e) => setNote(e.target.value)} />
+      </label>
 
       <div className="flex gap-2 mt-4">
         {onCancel && (
