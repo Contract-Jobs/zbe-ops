@@ -21,6 +21,14 @@ export function useInventoryNode(id: string | undefined) {
   });
 }
 
+export function useInventoriesInBulk(ids: string[]) {
+  return useQuery({
+    queryKey: [...queryKeys.inventories.all, "in-bulk", ids.slice().sort().join(",")],
+    queryFn: () => (ids.length > 0 ? inventoriesApi.getInventoriesInBulk(ids) : Promise.resolve({ data: [] })),
+    enabled: ids.length > 0,
+  });
+}
+
 // Resolves a site or warehouse's own id to its inventory node id — every
 // movement/balance call needs the node id, not the site's/warehouse's id
 // (docs/migration.md §2.3). Returns undefined while loading or if the kind

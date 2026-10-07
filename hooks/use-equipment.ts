@@ -22,6 +22,15 @@ export function useEquipment(id: string | undefined) {
   });
 }
 
+export function useEquipmentInBulk(ids: string[]) {
+  return useQuery({
+    queryKey: [...queryKeys.equipment.all, "in-bulk", ids.slice().sort().join(",")],
+    queryFn: () => (ids.length > 0 ? equipmentApi.getEquipmentInBulk(ids) : Promise.resolve({ data: [] })),
+    enabled: ids.length > 0,
+  });
+}
+
+
 export function useUpdateEquipment() {
   const queryClient = useQueryClient();
   return useMutation({

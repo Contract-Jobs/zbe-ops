@@ -34,6 +34,10 @@ export function getInventoryItem(id: string) {
     return apiClient.get<InventoryItem>(`/api/inventory-items/${id}`)
 }
 
+export function getInventoryItemsInBulk(ids: string[]) {
+    return apiClient.get<InventoryItem[]>("/api/inventory-items/in-bulk", { ids: ids.join(",") })
+}
+
 export function createInventoryItem(payload: CreateInventoryItemPayload) {
     return apiClient.post<InventoryItem>("/api/inventory-items", payload)
 }

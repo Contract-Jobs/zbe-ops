@@ -5,7 +5,7 @@ import { logManualTx, useStore, currentUser } from "@/lib/store";
 import { useCreateTransaction } from "@/hooks/use-transactions";
 import { useCategories } from "@/hooks/use-categories";
 import { useLicenses } from "@/hooks/use-licenses";
-import { useSites } from "@/hooks/use-sites";
+import { useSite } from "@/hooks/use-sites";
 import type { TxType, LocationKind } from "@/lib/types";
 import type { TransactionCategory, License, Site } from "@/types/api";
 import { LocationSelect } from "@/components/LocationSelect";
@@ -24,7 +24,7 @@ export function TransactionForm({
 
   const { data: categoriesData } = useCategories();
   const { data: licensesData } = useLicenses();
-  const { data: sitesData } = useSites();
+  const { data: siteData } = useSite(initialSiteId || undefined);
   const createTxMutation = useCreateTransaction();
 
   const categories = (categoriesData?.data ?? (store.categories as unknown as TransactionCategory[])).filter(
@@ -33,11 +33,10 @@ export function TransactionForm({
   const licenses = (licensesData?.data ?? (store.licenses as unknown as License[])).filter(
     (l) => !l.deletedAt
   );
-  const allSites = (sitesData?.data ?? (store.sites as unknown as Site[])).filter(
-    (s) => !s.deletedAt
-  );
 
-  const lockedSiteName = initialSiteId ? allSites.find(s => s.id === initialSiteId)?.name || "Unknown Site" : "";
+  const lockedSiteName = initialSiteId
+    ? siteData?.data?.name || (store.sites.find((s) => s.id === initialSiteId) as unknown as Site | undefined)?.name || "Unknown Site"
+    : "";
 
   const activeLicenseId = licenses[0]?.id || "";
   const activeCategoryId = categories[0]?.id || "";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { TenderForm } from "@/components/forms/master";
 import {
   closedMode,
@@ -16,7 +16,7 @@ import {
 import { day, etb } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
 import { useTenders, useDeleteTender, useRestoreTender } from "@/hooks/use-tenders";
-import { useLicenses } from "@/hooks/use-licenses";
+import { useLicenses, useLicensesInBulk } from "@/hooks/use-licenses";
 import type { Tender } from "@/types/api";
 
 export default function TendersPage() {
@@ -39,6 +39,18 @@ export default function TendersPage() {
       ? allTenders
       : allTenders.filter((t) => t.licenseId === store.session.licenseId)
   ).filter((t) => showDeleted || !t.deletedAt);
+
+  const licenseIds = useMemo(() => {
+    return Array.from(new Set(rows.map((t) => t.licenseId).filter(Boolean)));
+  }, [rows]);
+
+  const { data: bulkLicensesData } = useLicensesInBulk(licenseIds);
+
+  const licensesMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const l of bulkLicensesData?.data ?? []) map.set(l.id, l.name);
+    return map;
+  }, [bulkLicensesData]);
 
   async function handleDelete() {
     if (mode.kind === "delete" && mode.record) {
@@ -119,7 +131,7 @@ export default function TendersPage() {
                 return (
                   <tr key={t.id}>
                     <td className="font-medium">{t.name}</td>
-                    <td className="hidden md:table-cell">{licensesList.find((l) => l.id === t.licenseId)?.name}</td>
+                    <td className="hidden md:table-cell">{licensesMap.get(t.licenseId)}</td>
                     <td className="hidden sm:table-cell">{t.submissionDate ? day(t.submissionDate) : "—"}</td>
                     <td className="font-mono text-sm">{tenderVal ? etb(tenderVal) : "—"}</td>
                     <td>

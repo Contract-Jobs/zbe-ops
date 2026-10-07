@@ -21,6 +21,14 @@ export function useRental(id: string | undefined) {
     })
 }
 
+export function useRentalsInBulk(ids: string[]) {
+    return useQuery({
+        queryKey: [...queryKeys.rentals.all, "in-bulk", ids.slice().sort().join(",")],
+        queryFn: () => (ids.length > 0 ? rentalsApi.getRentalsInBulk(ids) : Promise.resolve({ data: [] })),
+        enabled: ids.length > 0,
+    })
+}
+
 export function useRentalEvents(id: string | undefined, params: ListParams = {}) {
     return useQuery({
         queryKey: [...queryKeys.rentals.detail(id ?? ""), "events", params],

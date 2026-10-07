@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Stamp, TableWrap, Username } from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import { useBalanceMovements, useVerifyInventoryBalance } from "@/hooks/use-inventory-balances";
 import { useReverseInventoryMovement } from "@/hooks/use-inventory-movements";
-import { useInventoryNodeMap } from "@/hooks/use-inventories";
+import { useInventoriesInBulk } from "@/hooks/use-inventories";
 import { QUANTITY_MOVEMENT_LABELS } from "@/lib/movement-labels";
 
 // One movement ledger for a single (item, inventory) balance — the v2
@@ -25,7 +25,6 @@ export function BalanceHistoryPanel({
   unit: string;
 }) {
   const { data, isLoading } = useBalanceMovements({ itemId, inventoryId, includeReversed: false });
-  const { byId: nodeById } = useInventoryNodeMap();
   const reverseMutation = useReverseInventoryMovement();
   const [reversingId, setReversingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +32,26 @@ export function BalanceHistoryPanel({
   const movements = [...(data?.data ?? [])].sort(
     (a, b) => new Date(b.movementDate).getTime() - new Date(a.movementDate).getTime()
   );
+
+  const inventoryIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const m of movements) {
+      if (m.sourceInventoryId) ids.push(m.sourceInventoryId);
+      if (m.destinationInventoryId) ids.push(m.destinationInventoryId);
+    }
+    return Array.from(new Set(ids));
+  }, [movements]);
+
+  const { data: inventoriesData } = useInventoriesInBulk(inventoryIds);
+
+  const nodeById = useMemo(() => {
+    const map = new Map<string, { kind: "site" | "warehouse"; name: string }>();
+    for (const node of inventoriesData?.data ?? []) {
+      const name = node.site?.name ?? node.warehouse?.name ?? "Unknown";
+      map.set(node.id, { kind: node.inventoryType, name });
+    }
+    return map;
+  }, [inventoriesData]);
 
   // Balances (and now verify) are scoped per license lot. This ledger spans
   // every lot at this (item, location) pair, so "verify" checks the most

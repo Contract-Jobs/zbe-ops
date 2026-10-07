@@ -5,8 +5,8 @@ import { useMemo, useState } from "react";
 import { PageHead, Stamp, TableWrap } from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import { useEquipmentMovements } from "@/hooks/use-equipment-movements";
-import { useEquipmentList } from "@/hooks/use-equipment";
-import { useInventoryNodeMap } from "@/hooks/use-inventories";
+import { useEquipmentInBulk } from "@/hooks/use-equipment";
+import { useInventoriesInBulk } from "@/hooks/use-inventories";
 import { EQUIPMENT_MOVEMENT_LABELS } from "@/lib/movement-labels";
 import type { EquipmentMovementType } from "@/types/api";
 
@@ -21,10 +21,24 @@ export default function EquipmentMovementsPage() {
     limit: 10,
     movementType: (movementType || undefined) as EquipmentMovementType | undefined,
   });
-  // Flat browse — no itemId→identifier join on the list response, pull the
-  // whole equipment catalog once instead (same hard-50 cap used elsewhere).
-  const { data: equipmentData } = useEquipmentList({ limit: 50 });
-  const { byId: nodeById } = useInventoryNodeMap();
+
+  const movements = movementsData?.data ?? [];
+
+  const equipmentIds = useMemo(() => {
+    return Array.from(new Set(movements.map((m) => m.individualItemId).filter(Boolean)));
+  }, [movements]);
+
+  const inventoryIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const m of movements) {
+      if (m.sourceInventoryId) ids.push(m.sourceInventoryId);
+      if (m.destinationInventoryId) ids.push(m.destinationInventoryId);
+    }
+    return Array.from(new Set(ids));
+  }, [movements]);
+
+  const { data: equipmentData } = useEquipmentInBulk(equipmentIds);
+  const { data: inventoriesData } = useInventoriesInBulk(inventoryIds);
 
   const identifierById = useMemo(() => {
     const map = new Map<string, string>();
@@ -32,8 +46,16 @@ export default function EquipmentMovementsPage() {
     return map;
   }, [equipmentData]);
 
+  const nodeById = useMemo(() => {
+    const map = new Map<string, { kind: "site" | "warehouse"; name: string }>();
+    for (const node of inventoriesData?.data ?? []) {
+      const name = node.site?.name ?? node.warehouse?.name ?? "Unknown";
+      map.set(node.id, { kind: node.inventoryType, name });
+    }
+    return map;
+  }, [inventoriesData]);
+
   const locationLabel = (nodeId: string | null) => (nodeId ? nodeById.get(nodeId)?.name ?? "Unknown" : "—");
-  const movements = movementsData?.data ?? [];
 
   return (
     <div>

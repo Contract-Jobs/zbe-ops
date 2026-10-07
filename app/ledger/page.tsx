@@ -5,9 +5,9 @@ import { PageHead, TableWrap, Stamp, Username } from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
 import { useLedgers } from "@/hooks/use-ledgers";
-import { useSites } from "@/hooks/use-sites";
+import { useSites, useSitesInBulk } from "@/hooks/use-sites";
 import { useLicenses } from "@/hooks/use-licenses";
-import type { ProjectLedger, Site, License } from "@/types/api";
+import type { Site, License } from "@/types/api";
 
 export default function LedgerPage() {
   const store = useStore();
@@ -27,10 +27,9 @@ export default function LedgerPage() {
     sourceRefType: sourceRefType ? [sourceRefType] : undefined,
   });
 
-  const { data: sitesData } = useSites();
-  const { data: licensesData } = useLicenses();
+  const { data: sitesData } = useSites({ limit: 50 });
+  const { data: licensesData } = useLicenses({ limit: 50 });
 
-  const ledgers = ledgersData?.data ?? [];
   const allSites = (sitesData?.data ?? (store.sites as unknown as Site[])).filter((s) => !s.deletedAt);
   const licenses = (licensesData?.data ?? (store.licenses as unknown as License[])).filter((l) => !l.deletedAt);
 
@@ -41,6 +40,18 @@ export default function LedgerPage() {
       return true;
     });
   }, [manager, visibleSites, store.session.licenseId, ledgersData?.data]);
+
+  const siteIds = useMemo(() => {
+    return Array.from(new Set(rows.map((r) => r.siteId).filter((id): id is string => Boolean(id))));
+  }, [rows]);
+
+  const { data: bulkSitesData } = useSitesInBulk(siteIds);
+
+  const sitesMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of bulkSitesData?.data ?? []) map.set(s.id, s.name);
+    return map;
+  }, [bulkSitesData]);
 
   return (
     <div>
@@ -97,7 +108,7 @@ export default function LedgerPage() {
               {rows.map((row) => {
                 const desc = row.description || (row.sourceRefType === "material" ? "Material transaction" : "Ledger entry");
                 const isOut = Number(row.amount) < 0;
-                const siteName = row.siteId ? allSites.find(s => s.id === row.siteId)?.name : "HQ";
+                const siteName = row.siteId ? sitesMap.get(row.siteId) ?? row.siteId : "HQ";
 
                 return (
                   <tr key={row.id}>

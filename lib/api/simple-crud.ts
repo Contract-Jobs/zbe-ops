@@ -12,6 +12,7 @@ interface SoftDeletable {
 export interface SimpleCrudApi<T, TCreate, TUpdate = Partial<TCreate>> {
     list: (params?: ListParams) => Promise<{ data: T[]; pagination?: Pagination }>
     get: (id: string) => Promise<{ data: T; pagination?: Pagination }>
+    inBulk: (ids: string[]) => Promise<{ data: T[] }>
     create: (payload: TCreate) => Promise<{ data: T; pagination?: Pagination }>
     update: (id: string, payload: TUpdate) => Promise<{ data: T; pagination?: Pagination }>
     delete: (id: string) => Promise<{ data: void }>
@@ -24,6 +25,7 @@ export function createSimpleCrudApi<T extends SoftDeletable, TCreate, TUpdate = 
     return {
         list: (params = {}) => apiClient.get<T[]>(basePath, buildListParams(params)),
         get: (id) => apiClient.get<T>(`${basePath}/${id}`),
+        inBulk: (ids) => apiClient.get<T[]>(`${basePath}/in-bulk`, { ids: ids.join(",") }),
         create: (payload) => apiClient.post<T>(basePath, payload),
         update: (id, payload) => apiClient.patch<T>(`${basePath}/${id}`, payload),
         delete: (id) => apiClient.delete<void>(`${basePath}/${id}`),      // was {id, deletedAt: string}

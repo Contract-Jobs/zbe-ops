@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { PageHead, Stamp, TableWrap } from "@/components/ui";
 import { day, etb } from "@/lib/format";
-import { useAllRentalEvents } from "@/hooks/use-rentals";
-import { useRentals } from "@/hooks/use-rentals";
+import { useAllRentalEvents, useRentalsInBulk } from "@/hooks/use-rentals";
 
 const EVENT_TYPES = ["initiation", "rate_change", "upfront_payment", "penalty", "settlement"] as const;
 
@@ -18,10 +17,14 @@ export default function RentalEventsPage() {
     limit: 10,
     eventType: eventType || undefined,
   });
-  // Rental events carry only an agreementId — pull the agreement list once
-  // to label rows with the equipment/vendor the event belongs to, same
-  // capped-catalog-pull pattern used elsewhere (hard 50-fetch limit).
-  const { data: agreementsData } = useRentals({ limit: 50 });
+
+  const events = eventsData?.data ?? [];
+
+  const agreementIds = useMemo(() => {
+    return Array.from(new Set(events.map((e) => e.agreementId).filter(Boolean)));
+  }, [events]);
+
+  const { data: agreementsData } = useRentalsInBulk(agreementIds);
 
   const agreementLabelById = useMemo(() => {
     const map = new Map<string, string>();
@@ -30,8 +33,6 @@ export default function RentalEventsPage() {
     }
     return map;
   }, [agreementsData]);
-
-  const events = eventsData?.data ?? [];
 
   return (
     <div>

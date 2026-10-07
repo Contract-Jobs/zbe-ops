@@ -16,6 +16,7 @@ import { queryKeys } from "@/lib/query/keys"
 const {
     useList,
     useDetail,
+    useInBulk,
     useCreate,
     useUpdate,
     useDelete,
@@ -23,6 +24,7 @@ const {
 } = createSimpleCrudHooks(warehousesApi, queryKeys.warehouses)
 
 export const useWarehouses = useList
+export const useWarehousesInBulk = useInBulk
 
 export function useWarehouseSoldOverview(id: string, params: SoldItemsDateParams = {}) {
     return useQuery({

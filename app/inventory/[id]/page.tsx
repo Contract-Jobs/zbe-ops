@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { PageHead, TableWrap, Stamp, ModalPanel, Tabs } from "@/components/ui";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
@@ -12,7 +12,7 @@ import { BulkEquipmentMovementForm } from "@/components/forms/bulk-equipment-mov
 import { InventoryAdjustForm } from "@/components/forms/inventory-adjust";
 import { BalanceHistoryPanel } from "@/components/BalanceHistory";
 import { useInventoryAnalytics } from "@/hooks/use-analytics";
-import { useLicenses } from "@/hooks/use-licenses";
+import { useLicensesInBulk } from "@/hooks/use-licenses";
 import { etb } from "@/lib/format";
 import type { QuantityMovementType } from "@/types/api";
 
@@ -67,12 +67,21 @@ export default function InventoryLocationPage() {
   const [purchaseBulkEquipmentOpen, setPurchaseBulkEquipmentOpen] = useState(false);
   const [tab, setTab] = useState<"materials" | "bulk" | "equipment">("materials");
 
-  const { data: licensesData } = useLicenses({ limit: 50 });
-  const licenseNameById = new Map((licensesData?.data ?? []).map((l) => [l.id, l.name]));
-
   const mats = materialsData?.data ?? [];
   const eqs = equipmentData?.data ?? [];
   const bulkEqs = bulkEquipmentData?.data ?? [];
+
+  const eqLicenseIds = useMemo(() => {
+    return Array.from(new Set(eqs.map((e) => e.licenseId).filter((id): id is string => Boolean(id))));
+  }, [eqs]);
+
+  const { data: bulkLicensesData } = useLicensesInBulk(eqLicenseIds);
+
+  const licenseNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const l of bulkLicensesData?.data ?? []) map.set(l.id, l.name);
+    return map;
+  }, [bulkLicensesData]);
 
   if (isLocLoading && !nodeData) {
     return <p className="p-8 text-center text-sm text-black/50">Loading location inventory...</p>;

@@ -22,6 +22,10 @@ export function getInventoryNode(id: string) {
     return apiClient.get<Inventory>(`/api/inventories/${id}`)
 }
 
+export function getInventoriesInBulk(ids: string[]) {
+    return apiClient.get<Inventory[]>("/api/inventories/in-bulk", { ids: ids.join(",") })
+}
+
 export type MaterialsAtLocationParams = ListParams<{ includeZeroQuantity?: "true"; licenseId?: string }>
 
 // Pre-joined materials sitting at one inventory node — no separate

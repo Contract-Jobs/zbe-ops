@@ -21,8 +21,8 @@ import {
 import { etb } from "@/lib/format";
 import { currentUser, isSiteManager, useStore } from "@/lib/store";
 import { useEquipmentList, useDeleteEquipment, useRestoreEquipment, useRebuildEquipmentStates } from "@/hooks/use-equipment";
-import { useInventoryItems } from "@/hooks/use-inventory-items";
-import { useInventoryNodeMap } from "@/hooks/use-inventories";
+import { useInventoryItems, useInventoryItemsInBulk } from "@/hooks/use-inventory-items";
+import { useInventoriesInBulk } from "@/hooks/use-inventories";
 import { BulkEquipmentMovementForm } from "@/components/forms/bulk-equipment-movement";
 import type {
   EquipmentAssignmentStatus,
@@ -37,17 +37,7 @@ export default function EquipmentPage() {
   const canMutate = !manager;
   const isSuperadmin = currentUser(store).role === "superadmin";
   const [filters, setFilters] = useState<QueryFilterValues>({});
-  const { byId: nodeById } = useInventoryNodeMap();
-  // No itemId→name join on the equipment list response, and no
-  // batch-by-ids lookup — pull the whole equipment catalog once instead of
-  // defaulting to the endpoint's page size of 10 (was silently truncating
-  // this map on any catalog bigger than that).
-  const { data: eqItemsData } = useInventoryItems({ category: "equipment", limit: 50 });
-  const itemNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const it of eqItemsData?.data ?? []) map.set(it.id, it.name);
-    return map;
-  }, [eqItemsData]);
+
   const [mode, setMode] = useState<RecordMode<IndividualEquipmentItem>>(closedMode);
   const [purchaseNew, setPurchaseNew] = useState(false);
   const [purchaseBulkNew, setPurchaseBulkNew] = useState(false);
@@ -76,9 +66,37 @@ export default function EquipmentPage() {
     return equipmentList.filter((e) => showDeleted || !e.deletedAt);
   }, [equipmentList, showDeleted]);
 
-  // Bulk (quantity-tracked) equipment — the catalog side, same "Total"
-  // aggregate InventoryItem already carries (Round 2), no extra fetch.
-  const bulkEquipmentItems = eqItemsData?.data.filter((it) => it.tracking === "quantity") ?? [];
+  const itemIds = useMemo(() => {
+    return Array.from(new Set(rows.map((e) => e.itemId).filter(Boolean)));
+  }, [rows]);
+
+  const inventoryIds = useMemo(() => {
+    return Array.from(
+      new Set(rows.map((e) => e.currentInventoryId).filter((id): id is string => Boolean(id)))
+    );
+  }, [rows]);
+
+  const { data: bulkItemData } = useInventoryItemsInBulk(itemIds);
+  const { data: bulkInventoryData } = useInventoriesInBulk(inventoryIds);
+
+  const itemNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const it of bulkItemData?.data ?? []) map.set(it.id, it.name);
+    return map;
+  }, [bulkItemData]);
+
+  const nodeById = useMemo(() => {
+    const map = new Map<string, { kind: "site" | "warehouse"; name: string }>();
+    for (const node of bulkInventoryData?.data ?? []) {
+      const name = node.site?.name ?? node.warehouse?.name ?? "Unknown";
+      map.set(node.id, { kind: node.inventoryType, name });
+    }
+    return map;
+  }, [bulkInventoryData]);
+
+  // Bulk (quantity-tracked) equipment catalog list for the bottom section
+  const { data: bulkEquipData } = useInventoryItems({ category: "equipment", tracking: "quantity", limit: 50 });
+  const bulkEquipmentItems = bulkEquipData?.data ?? [];
 
   async function handleDelete() {
     if (mode.kind === "delete" && mode.record) {

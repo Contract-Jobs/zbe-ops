@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
 import { day } from "@/lib/format";
 import { useTasks } from "@/hooks/use-tasks";
-import { useSites } from "@/hooks/use-sites";
+import { useSites, useSitesInBulk } from "@/hooks/use-sites";
 import type { SiteTask } from "@/types/api";
 
 const getTaskStatus = (task: SiteTask) => {
@@ -27,13 +27,19 @@ export default function TasksPage() {
   });
   const { data: sitesData } = useSites({ limit: 50 });
 
+  const tasks = tasksData?.data ?? [];
+
+  const siteIds = useMemo(() => {
+    return Array.from(new Set(tasks.map((t) => t.siteId).filter(Boolean)));
+  }, [tasks]);
+
+  const { data: bulkSitesData } = useSitesInBulk(siteIds);
+
   const siteNameById = useMemo(() => {
     const map = new Map<string, string>();
-    for (const s of sitesData?.data ?? []) map.set(s.id, s.name);
+    for (const s of bulkSitesData?.data ?? []) map.set(s.id, s.name);
     return map;
-  }, [sitesData]);
-
-  const tasks = tasksData?.data ?? [];
+  }, [bulkSitesData]);
 
   return (
     <div>

@@ -39,6 +39,10 @@ export function getSite(id: string) {
   return apiClient.get<Site>(`/api/sites/${id}`);
 }
 
+export function getSitesInBulk(ids: string[]) {
+  return apiClient.get<Site[]>("/api/sites/in-bulk", { ids: ids.join(",") });
+}
+
 export function createSite(payload: CreateSitePayload) {
   return apiClient.post<Site>("/api/sites", payload);
 }

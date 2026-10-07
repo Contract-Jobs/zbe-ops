@@ -7,6 +7,7 @@ import { queryKeys } from "@/lib/query/keys"
 const {
     useList,
     useDetail,
+    useInBulk,
     useCreate,
     useUpdate,
     useDelete,
@@ -15,6 +16,7 @@ const {
 
 export const useLicenses = useList
 export const useLicense = useDetail
+export const useLicensesInBulk = useInBulk
 export const useCreateLicense = useCreate
 export const useUpdateLicense = useUpdate
 export const useDeleteLicense = useDelete

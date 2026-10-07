@@ -18,6 +18,15 @@ export function useInventoryItem(id: string | undefined) {
     })
 }
 
+export function useInventoryItemsInBulk(ids: string[]) {
+    return useQuery({
+        queryKey: [...queryKeys.inventoryItems.all, "in-bulk", ids.slice().sort().join(",")],
+        queryFn: () => (ids.length > 0 ? itemsApi.getInventoryItemsInBulk(ids) : Promise.resolve({ data: [] })),
+        enabled: ids.length > 0,
+    })
+}
+
+
 export function useCreateInventoryItem() {
     const queryClient = useQueryClient()
     return useMutation({

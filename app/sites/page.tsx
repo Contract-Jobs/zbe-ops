@@ -17,7 +17,7 @@ import {
 import { etb } from "@/lib/format";
 import { isSiteManager, useStore, visibleSites } from "@/lib/store";
 import { useSites, useDeleteSite, useRestoreSite } from "@/hooks/use-sites";
-import { useLicenses } from "@/hooks/use-licenses";
+import { useLicenses, useLicensesInBulk } from "@/hooks/use-licenses";
 import { useBudgetHealth } from "@/hooks/use-analytics";
 import type { Site } from "@/types/api";
 
@@ -38,6 +38,18 @@ export default function SitesPage() {
   const sites = sitesData ? sitesData.data : (store.sites as unknown as Site[]);
   const licensesList = licensesData ? licensesData.data : store.licenses;
   const spendBySite = new Map((budgetHealthData?.data ?? []).map((b) => [b.siteId, b]));
+
+  const licenseIds = useMemo(() => {
+    return Array.from(new Set(sites.map((s) => s.licenseId).filter(Boolean)));
+  }, [sites]);
+
+  const { data: bulkLicensesData } = useLicensesInBulk(licenseIds);
+
+  const licensesMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const l of bulkLicensesData?.data ?? []) map.set(l.id, l.name);
+    return map;
+  }, [bulkLicensesData]);
 
   // Site manager scoping: filter client-side against visible sites from the store
   const visibleIds = useMemo(() => visibleSites(store).map((s) => s.id), [store]);
@@ -118,7 +130,6 @@ export default function SitesPage() {
             </thead>
             <tbody>
               {sites.map((site) => {
-                const license = licensesList.find((l) => l.id === site.licenseId);
                 const spend = spendBySite.get(site.id);
                 return (
                   <tr key={site.id}>
@@ -131,7 +142,7 @@ export default function SitesPage() {
                         Labor {etb(spend?.laborSpent ?? "0.00")} · Mat {etb(spend?.materialSpent ?? "0.00")}
                       </p>
                     </td>
-                    <td className="hidden md:table-cell">{license?.name}</td>
+                    <td className="hidden md:table-cell">{licensesMap.get(site.licenseId)}</td>
                     <td className="hidden font-mono text-sm sm:table-cell">
                       {etb(spend?.laborSpent ?? "0.00")} / {site.laborBudget ? etb(Number(site.laborBudget)) : "—"}
                     </td>

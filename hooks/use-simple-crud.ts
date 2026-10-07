@@ -8,6 +8,7 @@ import type { SimpleCrudApi } from "@/lib/api/simple-crud"
 import type { ListParams } from "@/lib/api/list-params"
 
 interface SimpleCrudKeys {
+    all?: readonly unknown[]
     lists: () => readonly unknown[]
     list: (params?: unknown) => readonly unknown[]
     detail: (id: string) => readonly unknown[]
@@ -29,6 +30,14 @@ export function createSimpleCrudHooks<T, TCreate, TUpdate = Partial<TCreate>>(
             queryKey: keys.detail(id ?? ""),
             queryFn: () => api.get(id as string),
             enabled: !!id,
+        })
+    }
+
+    function useInBulk(ids: string[]) {
+        return useQuery({
+            queryKey: [...(keys.all ?? keys.lists()), "in-bulk", ids.slice().sort().join(",")],
+            queryFn: () => (ids.length > 0 ? api.inBulk(ids) : Promise.resolve({ data: [] })),
+            enabled: ids.length > 0,
         })
     }
 
@@ -73,5 +82,5 @@ export function createSimpleCrudHooks<T, TCreate, TUpdate = Partial<TCreate>>(
         })
     }
 
-    return { useList, useDetail, useCreate, useUpdate, useDelete, useRestore }
+    return { useList, useDetail, useInBulk, useCreate, useUpdate, useDelete, useRestore }
 }

@@ -216,7 +216,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <>
                   <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-1 font-mono text-[0.68rem] bg-ok/10 text-ok border border-ok/30">
                     <span className="h-1.5 w-1.5 rounded-full bg-ok" />
-                    POSTGRES LIVE · {sessionData.user.name || sessionData.user.email}
+                    LIVE · {sessionData.user.name || sessionData.user.email}
                   </span>
                   <button
                     type="button"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { SiteForm, TaskForm } from "@/components/forms/site";
 import {
@@ -49,9 +49,9 @@ import {
 import { useInventoryNodeId } from "@/hooks/use-inventories";
 import { useBudgetOverview } from "@/hooks/use-analytics";
 
-import { useLicenses } from "@/hooks/use-licenses";
+import { useLicensesInBulk } from "@/hooks/use-licenses";
 import { useTransactions, useReverseTransaction } from "@/hooks/use-transactions";
-import { useCategories } from "@/hooks/use-categories";
+import { useCategoriesInBulk } from "@/hooks/use-categories";
 import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
 import { TransactionForm } from "@/components/forms/transaction";
@@ -109,7 +109,6 @@ export default function SiteDetailPage() {
   const { data: lifecycleData } = useSiteLifecycle(id);
   const { data: summaryData } = useSiteSummary(id);
   const { data: budgetData } = useBudgetOverview({ siteId: id });
-  const { data: licensesData } = useLicenses();
   const [txPage, setTxPage] = useState(1);
   const [showSystemTx, setShowSystemTx] = useState(false);
   const { data: transactionsData, isLoading: isTxLoading } = useTransactions({
@@ -120,7 +119,6 @@ export default function SiteDetailPage() {
     sortBy: "transactionDate",
     sortOrder: "desc",
   });
-  const { data: categoriesData } = useCategories();
 
   const site = siteData?.data ?? (store.sites.find((s) => s.id === id) as unknown as Site | undefined);
 
@@ -157,6 +155,34 @@ export default function SiteDetailPage() {
   const summary = summaryData?.data;
   const budget = budgetData?.data;
 
+  const eqs = useMemo(() => equipData?.data ?? [], [equipData?.data]);
+  const bulkEqs = bulkEquipData?.data ?? [];
+  const mats = materialsData?.data ?? [];
+  const transactions: Transaction[] = useMemo(() => transactionsData?.data ?? [], [transactionsData?.data]);
+
+  const eqLicenseIds = useMemo(() => {
+    return Array.from(new Set(eqs.map((e) => e.licenseId).filter((id): id is string => Boolean(id))));
+  }, [eqs]);
+
+  const txCategoryIds = useMemo(() => {
+    return Array.from(new Set(transactions.map((t) => t.categoryId).filter((id): id is string => Boolean(id))));
+  }, [transactions]);
+
+  const { data: bulkLicensesData } = useLicensesInBulk(eqLicenseIds);
+  const { data: bulkCategoriesData } = useCategoriesInBulk(txCategoryIds);
+
+  const licenseNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const l of bulkLicensesData?.data ?? []) map.set(l.id, l.name);
+    return map;
+  }, [bulkLicensesData]);
+
+  const categoriesMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of bulkCategoriesData?.data ?? []) map.set(c.id, c.name);
+    return map;
+  }, [bulkCategoriesData]);
+
   if (isSiteLoading && !site) {
     return <p className="p-8 text-center text-sm text-black/50">Loading site...</p>;
   }
@@ -168,13 +194,6 @@ export default function SiteDetailPage() {
   const tasks: SiteTask[] = tasksData?.data ??
     (store.tasks.filter((t) => t.siteId === site.id) as unknown as SiteTask[]);
   const logs = lifecycleData?.data ?? store.siteLifecycle.filter((l) => l.siteId === site.id);
-  const eqs = equipData?.data ?? [];
-  const bulkEqs = bulkEquipData?.data ?? [];
-  const mats = materialsData?.data ?? [];
-  const licenses: License[] = licensesData?.data ?? (store.licenses as unknown as License[]);
-  const licenseNameById = new Map(licenses.map((l) => [l.id, l.name]));
-  const transactions: Transaction[] = transactionsData?.data ?? [];
-  const categories: TransactionCategory[] = categoriesData?.data ?? (store.categories as unknown as TransactionCategory[]);
 
   const handleAddTask = async (data: { title: string; targetDate?: string }) => {
     if (!data.title.trim()) return;
@@ -302,7 +321,7 @@ export default function SiteDetailPage() {
         <FormPanel kicker="Site" title="Edit site" onClose={() => setMode(closedMode())}>
           <SiteForm
             initial={mode.kind === "edit" ? mode.record : undefined}
-            licenses={licenses}
+            licenses={store.licenses}
             users={store.users}
             onCancel={() => setMode(closedMode())}
             onDone={() => setMode(closedMode())}
@@ -549,7 +568,7 @@ export default function SiteDetailPage() {
                     </td>
                     <td className="hidden sm:table-cell">{task.targetDate ? day(task.targetDate) : "—"}</td>
                     <td>
-                      <Stamp value={getTaskStatus(task)} tone={statusTone(getTaskStatus(task) as any)} />
+                      <Stamp value={getTaskStatus(task)} tone={statusTone(getTaskStatus(task))} />
                       {task.notes ? (
                         <span className="ml-2 text-sm text-black/50">{task.notes}</span>
                       ) : null}
@@ -848,7 +867,7 @@ export default function SiteDetailPage() {
                       <tr key={t.id}>
                         <td className="whitespace-nowrap">{day(t.transactionDate ?? t.createdAt)}</td>
                         <td className="hidden md:table-cell">
-                          {categories.find((c) => c.id === t.categoryId)?.name ?? "—"}
+                          {t.categoryId ? categoriesMap.get(t.categoryId) ?? "—" : "—"}
                         </td>
                         <td>
                           <Stamp value={t.type} tone={statusTone(t.type)} />

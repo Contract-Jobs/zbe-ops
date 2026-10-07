@@ -5,6 +5,7 @@ import { queryKeys } from "@/lib/query/keys"
 const {
     useList,
     useDetail,
+    useInBulk,
     useCreate,
     useUpdate,
     useDelete,
@@ -13,6 +14,7 @@ const {
 
 export const useCategories = useList
 export const useCategory = useDetail
+export const useCategoriesInBulk = useInBulk
 export const useCreateCategory = useCreate
 export const useUpdateCategory = useUpdate
 export const useDeleteCategory = useDelete

@@ -28,6 +28,14 @@ export function useSite(id: string | undefined) {
   });
 }
 
+export function useSitesInBulk(ids: string[]) {
+  return useQuery({
+    queryKey: [...queryKeys.sites.all, "in-bulk", ids.slice().sort().join(",")],
+    queryFn: () => (ids.length > 0 ? sitesApi.getSitesInBulk(ids) : Promise.resolve({ data: [] })),
+    enabled: ids.length > 0,
+  });
+}
+
 export function useCreateSite() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -71,6 +71,10 @@ export function getRental(id: string) {
     return apiClient.get<RentalAgreement>(`/api/rentals/${id}`)
 }
 
+export function getRentalsInBulk(ids: string[]) {
+    return apiClient.get<RentalAgreement[]>("/api/rentals/in-bulk", { ids: ids.join(",") })
+}
+
 export function getRentalEvents(id: string, params: ListParams = {}) {
     return apiClient.get<RentalEvent[]>(`/api/rentals/${id}/events`, buildListParams(params))
 }

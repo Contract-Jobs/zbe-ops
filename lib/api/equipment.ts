@@ -42,6 +42,11 @@ export function getEquipment(id: string) {
     return apiClient.get<IndividualEquipmentItem>(`/api/equipment/${id}`)
 }
 
+export function getEquipmentInBulk(ids: string[]) {
+    return apiClient.get<IndividualEquipmentItem[]>("/api/equipment/in-bulk", { ids: ids.join(",") })
+}
+
+
 export function updateEquipment(id: string, payload: UpdateEquipmentPayload) {
     return apiClient.patch<IndividualEquipmentItem>(`/api/equipment/${id}`, payload)
 }

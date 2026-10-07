@@ -17,7 +17,7 @@ import {
 } from "@/hooks/use-equipment-movements";
 import { useEquipmentList, useEquipment } from "@/hooks/use-equipment";
 import { useInventoryItems } from "@/hooks/use-inventory-items";
-import { useInventoryNodeId, useInventoryNodeMap } from "@/hooks/use-inventories";
+import { useInventoryNodeId, useInventoryNode } from "@/hooks/use-inventories";
 import { useLicenses } from "@/hooks/use-licenses";
 import type { LocationKind } from "@/lib/types";
 import { SearchableSelect } from "@/components/ui";
@@ -92,7 +92,6 @@ export function EquipmentMovementForm({
   // equipment items, which this form must never offer.
   const { data: eqItemsData } = useInventoryItems({ category: "equipment", limit: 50, tracking: "individual" });
   const equipmentItems = eqItemsData?.data ?? [];
-  const { byId: nodeById } = useInventoryNodeMap();
 
   const availableActions = actions.filter(a => !allowedActions || allowedActions.includes(a.type));
 
@@ -103,9 +102,8 @@ export function EquipmentMovementForm({
   const [type, setType] = useState<UiAction>(isCreating ? "purchase" : (allowedActions?.[0] ?? "transfer"));
 
   const { data: currentEquipment } = useEquipment(isCreating ? undefined : eId);
-  const currentNodeKind = currentEquipment?.data.currentInventoryId
-    ? nodeById.get(currentEquipment.data.currentInventoryId)?.kind
-    : undefined;
+  const { data: currentNode } = useInventoryNode(currentEquipment?.data.currentInventoryId || undefined);
+  const currentNodeKind = currentNode?.data.inventoryType;
 
   // New-equipment fields (purchase, eId === "new")
   const [catalogItemId, setCatalogItemId] = useState("");

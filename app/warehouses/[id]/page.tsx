@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { PageHead, TableWrap, Stamp, ModalPanel, Tabs } from "@/components/ui";
 import { useStore } from "@/lib/store";
@@ -16,12 +16,13 @@ import { BalanceHistoryPanel } from "@/components/BalanceHistory";
 import { isSiteManager } from "@/lib/store";
 import type { Warehouse } from "@/types/api";
 import { useInventoryAnalytics } from "@/hooks/use-analytics";
-import { useLicenses } from "@/hooks/use-licenses";
+import { useLicensesInBulk } from "@/hooks/use-licenses";
 import { etb } from "@/lib/format";
 
 export default function WarehouseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const store = useStore();
+  const canMutate = !isSiteManager(store);
 
   const { data: warehouseData, isLoading: isWarehouseLoading } = useWarehouse(id);
   // Still needed for InventoryAdjustForm's "loss" movement, which requires
@@ -51,9 +52,6 @@ export default function WarehouseDetailPage() {
 
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
 
-  const { data: licensesData } = useLicenses({ limit: 50 });
-  const licenseNameById = new Map((licensesData?.data ?? []).map((l) => [l.id, l.name]));
-
   const [moveMaterialId, setMoveMaterialId] = useState<string | null>(null);
   const [adjustBalance, setAdjustBalance] = useState<{ itemId: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
@@ -63,7 +61,21 @@ export default function WarehouseDetailPage() {
   const [historyTarget, setHistoryTarget] = useState<{ itemId: string; itemName: string; unit: string } | null>(null);
   const [tab, setTab] = useState<"materials" | "bulk" | "equipment">("materials");
 
-  const canMutate = !isSiteManager(store);
+  const equipment = useMemo(() => equipData?.data ?? [], [equipData?.data]);
+  const bulkEquipment = bulkEquipData?.data ?? [];
+  const materials = materialsData?.data ?? [];
+
+  const eqLicenseIds = useMemo(() => {
+    return Array.from(new Set(equipment.map((e) => e.licenseId).filter((id): id is string => Boolean(id))));
+  }, [equipment]);
+
+  const { data: bulkLicensesData } = useLicensesInBulk(eqLicenseIds);
+
+  const licenseNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const l of bulkLicensesData?.data ?? []) map.set(l.id, l.name);
+    return map;
+  }, [bulkLicensesData]);
 
   if (isWarehouseLoading && !warehouse) {
     return <p className="p-8 text-center text-sm text-black/50">Loading warehouse...</p>;
@@ -72,10 +84,6 @@ export default function WarehouseDetailPage() {
   if (!warehouse) {
     return <p className="p-8 text-center text-sm text-black/50">Warehouse not found</p>;
   }
-
-  const equipment = equipData?.data ?? [];
-  const bulkEquipment = bulkEquipData?.data ?? [];
-  const materials = materialsData?.data ?? [];
 
   return (
     <div>

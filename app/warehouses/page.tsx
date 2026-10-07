@@ -91,13 +91,8 @@ export default function WarehousesPage() {
               </tr>
             </thead>
             <tbody>
-              {warehouses.map((w) => {
-                const Materials = store.balances.filter(
-                  (b) => b.locationKind === "warehouse" && b.locationId === w.id && b.quantity > 0
-                ).length;
-                const plant = store.equipment.filter((e) => e.warehouseId === w.id && !e.deletedAt).length;
-                return (
-                  <tr key={w.id}>
+              {warehouses.map((w) => (
+                <tr key={w.id}>
                     <td className="font-medium">
                       <Link href={`/warehouses/${w.id}`} className="hover:underline">
                         {w.name}
@@ -117,8 +112,7 @@ export default function WarehousesPage() {
                       </td>
                     ) : null}
                   </tr>
-                );
-              })}
+              ))}
             </tbody>
           </table>
         </TableWrap>
