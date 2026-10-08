@@ -1,7 +1,14 @@
 import { apiClient } from "./client"
 import { buildListParams } from "./list-params"
 import type { ListParams } from "./list-params"
-import type { IndividualEquipmentMovement, EquipmentMovementCreatePayload, EquipmentMovementType } from "@/types/api"
+import type {
+    IndividualEquipmentMovement,
+    EquipmentMovementCreatePayload,
+    EquipmentMovementType,
+    Transaction,
+    RecordSalePaymentRequest,
+    ReverseSalePaymentRequest,
+} from "@/types/api"
 
 export type EquipmentMovementListParams = ListParams<{
     individualItemId?: string
@@ -26,3 +33,22 @@ export function listEquipmentMovements(params: EquipmentMovementListParams = {})
 export function reverseEquipmentMovement(id: string, payload: { notes?: string } = {}) {
     return apiClient.post<IndividualEquipmentMovement>(`/api/equipment-movements/${id}/reverse`, payload)
 }
+
+export function listEquipmentMovementPayments(id: string) {
+    return apiClient.get<Transaction[]>(`/api/equipment-movements/${id}/payments`)
+}
+
+export function recordEquipmentMovementPayment(id: string, payload: RecordSalePaymentRequest) {
+    return apiClient.post<{ transaction: Transaction; movement: IndividualEquipmentMovement }>(
+        `/api/equipment-movements/${id}/payments`,
+        payload
+    )
+}
+
+export function reverseEquipmentMovementPayment(id: string, paymentId: string, payload: ReverseSalePaymentRequest = {}) {
+    return apiClient.post<{ reversalTransaction: Transaction; movement: IndividualEquipmentMovement }>(
+        `/api/equipment-movements/${id}/payments/${paymentId}/reverse`,
+        payload
+    )
+}
+

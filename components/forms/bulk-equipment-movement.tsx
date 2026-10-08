@@ -86,7 +86,10 @@ export function BulkEquipmentMovementForm({
   const [clientName, setClientName] = useState("");
   const [licenseId, setLicenseId] = useState("");
   const [reason, setReason] = useState("");
-  const [note, setNote] = useState("")
+  const [note, setNote] = useState("");
+  const [movementDate, setMovementDate] = useState("");
+  const [fullyPaid, setFullyPaid] = useState(true);
+  const [paidAmount, setPaidAmount] = useState("0");
 
   // Location fields — these carry the site's/warehouse's own id; resolved to
   // an inventory node id below before building the payload (docs/migration.md §2.3).
@@ -127,6 +130,8 @@ export function BulkEquipmentMovementForm({
       if (!qn || qn <= 0) throw new Error("Quantity required");
       if (!mId) throw new Error("Please select a material");
 
+      const parsedDate = movementDate ? new Date(movementDate).toISOString() : undefined;
+
       if (type === "purchase") {
         if (!unitCost) throw new Error("Unit cost is required");
         if (!licenseId) throw new Error("License is required");
@@ -150,6 +155,7 @@ export function BulkEquipmentMovementForm({
         await purchaseMutation.mutateAsync({
           itemId: purchaseItemId,
           note,
+          movementDate: parsedDate,
           quantity: qn,
           destinationInventoryId: destNodeId,
           unitCost,
@@ -161,6 +167,7 @@ export function BulkEquipmentMovementForm({
         await transferMutation.mutateAsync({
           itemId: mId,
           note,
+          movementDate: parsedDate,
           quantity: qn,
           sourceInventoryId: sourceNodeId,
           destinationInventoryId: destNodeId,
@@ -173,6 +180,7 @@ export function BulkEquipmentMovementForm({
         await sellMutation.mutateAsync({
           itemId: mId,
           note,
+          movementDate: parsedDate,
           quantity: qn,
           sourceInventoryId: sourceNodeId,
           unitCost,
@@ -181,12 +189,15 @@ export function BulkEquipmentMovementForm({
           // license — otherwise the server auto-resolves the lot. An empty
           // string here would fail validation, so omit instead.
           licenseId: licenseId || undefined,
+          fullyPaid,
+          paidAmount: !fullyPaid ? (paidAmount.trim() || "0") : undefined,
         });
       } else if (type === "consume") {
         if (!sourceNodeId) throw new Error("Source is required");
         await consumeMutation.mutateAsync({
           itemId: mId,
           note,
+          movementDate: parsedDate,
           quantity: qn,
           sourceInventoryId: sourceNodeId,
         });
@@ -196,6 +207,7 @@ export function BulkEquipmentMovementForm({
         await lossMutation.mutateAsync({
           itemId: mId,
           note,
+          movementDate: parsedDate,
           quantity: qn,
           sourceInventoryId: sourceNodeId,
           metadata: { reason: reason.trim() },
@@ -280,6 +292,39 @@ export function BulkEquipmentMovementForm({
         </label>
       )}
 
+      {type === "sale" && (
+        <div className="mb-3">
+          <label className="flex items-center gap-2 text-sm text-black/70">
+            <input
+              type="checkbox"
+              checked={fullyPaid}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setFullyPaid(checked);
+                if (!checked && (!paidAmount || paidAmount === "")) {
+                  setPaidAmount("0");
+                }
+              }}
+            />
+            Fully paid
+          </label>
+          {!fullyPaid && (
+            <label className="mt-2 block text-sm">
+              Paid amount (ETB)
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="field mt-1"
+                value={paidAmount}
+                onChange={(e) => setPaidAmount(e.target.value)}
+                placeholder="0.00"
+              />
+            </label>
+          )}
+        </div>
+      )}
+
       {["purchase", "sale"].includes(type) && (
         <label className="mb-3 block text-sm">
           License{type === "sale" ? " (only if this location holds more than one)" : ""}
@@ -332,6 +377,16 @@ export function BulkEquipmentMovementForm({
           <input className="field mt-1" value={reason} onChange={(e) => setReason(e.target.value)} required />
         </label>
       ) : null}
+
+      <label className="mb-3 block text-sm">
+        Date (Optional)
+        <input
+          type="date"
+          className="field mt-1"
+          value={movementDate}
+          onChange={(e) => setMovementDate(e.target.value)}
+        />
+      </label>
 
       <label className="mb-3 block text-sm">
         Note

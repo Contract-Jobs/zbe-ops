@@ -1,7 +1,14 @@
 import { apiClient } from "./client"
 import { buildListParams } from "./list-params"
 import type { ListParams } from "./list-params"
-import type { InventoryMovement, InventoryMovementCreatePayload, QuantityMovementType } from "@/types/api"
+import type {
+    InventoryMovement,
+    InventoryMovementCreatePayload,
+    QuantityMovementType,
+    Transaction,
+    RecordSalePaymentRequest,
+    ReverseSalePaymentRequest,
+} from "@/types/api"
 
 export type InventoryMovementListParams = ListParams<{
     itemId?: string
@@ -26,3 +33,22 @@ export function listInventoryMovements(params: InventoryMovementListParams = {})
 export function reverseInventoryMovement(id: string, payload: { notes?: string } = {}) {
     return apiClient.post<InventoryMovement>(`/api/inventory-movements/${id}/reverse`, payload)
 }
+
+export function listInventoryMovementPayments(id: string) {
+    return apiClient.get<Transaction[]>(`/api/inventory-movements/${id}/payments`)
+}
+
+export function recordInventoryMovementPayment(id: string, payload: RecordSalePaymentRequest) {
+    return apiClient.post<{ transaction: Transaction; movement: InventoryMovement }>(
+        `/api/inventory-movements/${id}/payments`,
+        payload
+    )
+}
+
+export function reverseInventoryMovementPayment(id: string, paymentId: string, payload: ReverseSalePaymentRequest = {}) {
+    return apiClient.post<{ reversalTransaction: Transaction; movement: InventoryMovement }>(
+        `/api/inventory-movements/${id}/payments/${paymentId}/reverse`,
+        payload
+    )
+}
+

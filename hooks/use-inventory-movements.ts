@@ -3,7 +3,11 @@ import * as movementsApi from "@/lib/api/inventory-movements"
 import type { InventoryMovementListParams } from "@/lib/api/inventory-movements"
 import { queryKeys } from "@/lib/query/keys"
 import { onActionSettled } from "@/lib/query/approval-invalidation"
-import type { InventoryMovementCreatePayload } from "@/types/api"
+import type {
+    InventoryMovementCreatePayload,
+    RecordSalePaymentRequest,
+    ReverseSalePaymentRequest,
+} from "@/types/api"
 
 function useCreateMovement() {
     const queryClient = useQueryClient()
@@ -70,3 +74,40 @@ export function useReverseInventoryMovement() {
         },
     })
 }
+
+export function useInventoryMovementPayments(id?: string) {
+    return useQuery({
+        queryKey: queryKeys.inventoryMovements.payments(id ?? ""),
+        queryFn: () => movementsApi.listInventoryMovementPayments(id!),
+        enabled: Boolean(id),
+    })
+}
+
+export function useRecordInventoryMovementPayment() {
+    const queryClient = useQueryClient()
+    return useMutation({
+        mutationFn: ({ id, payload }: { id: string; payload: RecordSalePaymentRequest }) =>
+            movementsApi.recordInventoryMovementPayment(id, payload),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.inventoryMovements.payments(variables.id) })
+            queryClient.invalidateQueries({ queryKey: ["warehouses"] })
+            queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all })
+            queryClient.invalidateQueries({ queryKey: ["analytics"] })
+        },
+    })
+}
+
+export function useReverseInventoryMovementPayment() {
+    const queryClient = useQueryClient()
+    return useMutation({
+        mutationFn: ({ id, paymentId, payload }: { id: string; paymentId: string; payload?: ReverseSalePaymentRequest }) =>
+            movementsApi.reverseInventoryMovementPayment(id, paymentId, payload),
+        onSuccess: (_data, variables) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.inventoryMovements.payments(variables.id) })
+            queryClient.invalidateQueries({ queryKey: ["warehouses"] })
+            queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all })
+            queryClient.invalidateQueries({ queryKey: ["analytics"] })
+        },
+    })
+}
+

@@ -37,6 +37,7 @@ export const queryKeys = {
     all: ["inventory-movements"] as const,
     lists: () => ["inventory-movements", "list"] as const,
     list: (params?: unknown) => ["inventory-movements", "list", params] as const,
+    payments: (id: string) => ["inventory-movements", "detail", id, "payments"] as const,
   },
 
   inventoryBalances: {
@@ -70,6 +71,7 @@ export const queryKeys = {
     all: ["equipment-movements"] as const,
     lists: () => ["equipment-movements", "list"] as const,
     list: (params?: unknown) => ["equipment-movements", "list", params] as const,
+    payments: (id: string) => ["equipment-movements", "detail", id, "payments"] as const,
   },
 
   rentals: {

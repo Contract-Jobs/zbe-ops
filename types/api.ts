@@ -121,6 +121,8 @@ export type BulkEquipmentAtInventory = MaterialAtInventory;
 
 export type QuantityMovementType = "purchase" | "sale" | "transfer" | "consume" | "loss";
 
+export type SaleStatus = "unpaid" | "partially_paid" | "paid";
+
 export interface InventoryMovement {
   id: string;
   itemId: string;
@@ -142,6 +144,8 @@ export interface InventoryMovement {
   licenseId: string | null;
   transactionId: string | null;
   ledgerId: string | null;
+  saleStatus?: SaleStatus;
+  paidAmount?: string;
   loggedBy: string;
   createdAt: string;
   updatedAt: string;
@@ -160,28 +164,34 @@ export interface RebuildResult {
   errors: string[];
 }
 
-export type InventoryMovementCreatePayload = { note?: string | null } & (| {
-  movementType: "purchase";
-  itemId?: string;
-  quantity: number;
-  destinationInventoryId: string;
-  unitCost: string;
-  clientName?: string;
-  licenseId: string;
-  autoCreateItem?: { name: string; slug?: string; category: "material"; unit?: string };
-}
+export type InventoryMovementCreatePayload = {
+  note?: string | null;
+  movementDate?: string;
+} & (
   | {
-    movementType: "sale";
-    itemId: string;
-    quantity: number;
-    sourceInventoryId: string;
-    unitCost: string;
-    clientName?: string;
-    // Optional — auto-resolved when the source location holds the item
-    // under one license. Only needed when more than one license's lot is
-    // present there (pick the lot from GET /api/inventory-balances).
-    licenseId?: string;
-  }
+      movementType: "purchase";
+      itemId?: string;
+      quantity: number;
+      destinationInventoryId: string;
+      unitCost: string;
+      clientName?: string;
+      licenseId: string;
+      autoCreateItem?: { name: string; slug?: string; category: "material"; unit?: string };
+    }
+  | {
+      movementType: "sale";
+      itemId: string;
+      quantity: number;
+      sourceInventoryId: string;
+      unitCost: string;
+      clientName?: string;
+      // Optional — auto-resolved when the source location holds the item
+      // under one license. Only needed when more than one license's lot is
+      // present there (pick the lot from GET /api/inventory-balances).
+      licenseId?: string;
+      fullyPaid?: boolean;
+      paidAmount?: string;
+    }
   | {
     movementType: "transfer";
     itemId: string;
@@ -269,6 +279,8 @@ export interface IndividualEquipmentMovement {
   licenseId: string | null;
   transactionId: string | null;
   ledgerId: string | null;
+  saleStatus?: SaleStatus;
+  paidAmount?: string;
   note?: string | null;
   loggedBy: string;
   createdAt: string;
@@ -301,7 +313,10 @@ interface AutoCreateEquipmentPayload {
   bookValue?: string;
 }
 
-export type EquipmentMovementCreatePayload = { note?: string | null } & (
+export type EquipmentMovementCreatePayload = {
+  note?: string | null;
+  movementDate?: string;
+} & (
   | {
     movementType: "purchase";
     individualItemId?: string;
@@ -349,6 +364,8 @@ export type EquipmentMovementCreatePayload = { note?: string | null } & (
     movementCost?: string;
     clientName?: string;
     licenseId: string;
+    fullyPaid?: boolean;
+    paidAmount?: string;
   }
   | {
     movementType: "dispose";
@@ -556,6 +573,67 @@ export interface SoldItemsOverview {
   soldMaterialTotal: string;
   totalCount: number;
   totalRevenue: string;
+  soldEquipmentCash?: string;
+  soldEquipmentOutstanding?: string;
+  soldMaterialCash?: string;
+  soldMaterialOutstanding?: string;
+  totalCashCollected?: string;
+  totalOutstanding?: string;
+  collectionRate?: string;
+  revenueVsCash?: {
+    summary?: {
+      totalRevenue: string;
+      totalCashCollected: string;
+      totalOutstanding: string;
+      collectionRate: string;
+      totalSaleCount: number;
+    };
+    byCategory?: {
+      material?: {
+        revenue: string;
+        cashCollected: string;
+        outstanding: string;
+        collectionRate: string;
+        saleCount: number;
+      };
+      equipment?: {
+        revenue: string;
+        cashCollected: string;
+        outstanding: string;
+        collectionRate: string;
+        saleCount: number;
+      };
+    };
+    byStatus?: {
+      paid?: {
+        count: number;
+        revenue: string;
+        cashCollected: string;
+      };
+      partiallyPaid?: {
+        count: number;
+        revenue: string;
+        cashCollected: string;
+        outstanding: string;
+      };
+      unpaid?: {
+        count: number;
+        revenue: string;
+        outstanding: string;
+      };
+    };
+  };
+}
+
+export interface RecordSalePaymentRequest {
+  amount: string;
+  paymentDate?: string;
+  note?: string;
+  categoryId?: string;
+}
+
+export interface ReverseSalePaymentRequest {
+  note?: string;
 }
 
 // ---- 7. Financial Transactions & Ledger ----
@@ -733,8 +811,66 @@ export interface SalesAnalytics {
   totalMaterialRevenue: string;
   totalEquipmentRevenue: string;
   totalRevenue: string;
+  totalCashCollected?: string;
+  totalOutstanding?: string;
+  collectionRate?: string;
   materialSaleCount: number;
   equipmentSaleCount: number;
+  revenueVsCash?: {
+    summary: {
+      totalRevenue: string;
+      totalCashCollected: string;
+      totalOutstanding: string;
+      collectionRate: string;
+      totalSaleCount: number;
+    };
+    byCategory: {
+      material: {
+        revenue: string;
+        cashCollected: string;
+        outstanding: string;
+        collectionRate: string;
+        saleCount: number;
+      };
+      equipment: {
+        revenue: string;
+        cashCollected: string;
+        outstanding: string;
+        collectionRate: string;
+        saleCount: number;
+        bulkEquipment?: {
+          revenue: string;
+          cashCollected: string;
+          outstanding: string;
+          saleCount: number;
+        };
+        individualEquipment?: {
+          revenue: string;
+          cashCollected: string;
+          outstanding: string;
+          saleCount: number;
+        };
+      };
+    };
+    byStatus: {
+      paid: {
+        count: number;
+        revenue: string;
+        cashCollected: string;
+      };
+      partiallyPaid: {
+        count: number;
+        revenue: string;
+        cashCollected: string;
+        outstanding: string;
+      };
+      unpaid: {
+        count: number;
+        revenue: string;
+        outstanding: string;
+      };
+    };
+  };
 }
 
 export interface CompanyFinancialSummary {
@@ -746,8 +882,14 @@ export interface CompanyFinancialSummary {
   income: {
     materialSaleRevenue: string;
     equipmentSaleRevenue: string;
+    materialSaleCash?: string;
+    equipmentSaleCash?: string;
+    totalSalesRevenue?: string;
+    totalSalesCash?: string;
+    outstandingSalesReceivables?: string;
     other: string;
     total: string;
   };
   netCashFlow: string;
 }
+

@@ -322,6 +322,7 @@ export function ModalPanel({
   onClose,
   children,
   wide,
+  zIndex = "z-50",
 }: {
   kicker: string;
   title: string;
@@ -331,10 +332,14 @@ export function ModalPanel({
   // several columns, say. Default stays max-w-lg for every existing (form)
   // caller.
   wide?: boolean;
+  zIndex?: string;
 }) {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        event.stopImmediatePropagation();
+        onClose();
+      }
     };
     document.addEventListener("keydown", onKey);
     const previous = document.body.style.overflow;
@@ -346,7 +351,7 @@ export function ModalPanel({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-white/5 backdrop-blur-[5px]!">
+    <div className={`fixed inset-0 ${zIndex} flex items-center justify-center p-4 sm:p-6 bg-white/5 backdrop-blur-[5px]!`}>
       <button type="button" className="absolute inset-0" aria-label="Dismiss" onClick={onClose} />
       <div
         role="dialog"

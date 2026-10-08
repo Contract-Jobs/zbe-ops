@@ -52,7 +52,9 @@ export function getLicenseAnalytics(params: DateRangeParams = {}) {
 
 // Cost breakdown moved to /api/ledgers/cost-breakdown in v2 — see lib/api/ledgers.ts.
 
-export function getSalesAnalytics(params: { warehouseId?: string; licenseId?: string } & DateRangeParams = {}) {
+export function getSalesAnalytics(
+    params: { warehouseId?: string; licenseId?: string; saleStatus?: string } & DateRangeParams = {}
+) {
     return apiClient.get<SalesAnalytics>("/api/analytics/sales", toSearchParams(params))
 }
 

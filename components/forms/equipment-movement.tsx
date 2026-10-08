@@ -21,7 +21,6 @@ import { useInventoryNodeId, useInventoryNode } from "@/hooks/use-inventories";
 import { useLicenses } from "@/hooks/use-licenses";
 import type { LocationKind } from "@/lib/types";
 import { SearchableSelect } from "@/components/ui";
-import type { EquipmentMovementType } from "@/types/api";
 
 // A user-facing action can resolve to more than one wire movementType (the
 // "Transfer" action picks between four v2 types by current/destination node
@@ -116,6 +115,9 @@ export function EquipmentMovementForm({
   const [cost, setCost] = useState("");
   const [clientName, setClientName] = useState("");
   const [licenseId, setLicenseId] = useState("");
+  const [movementDate, setMovementDate] = useState("");
+  const [fullyPaid, setFullyPaid] = useState(true);
+  const [paidAmount, setPaidAmount] = useState("0");
 
   // Destination (source is always server-derived in v2 — never sent by the client)
   const [toKind, setToKind] = useState<LocationKind | "">(defaultDestination?.type ?? "");
@@ -164,6 +166,8 @@ export function EquipmentMovementForm({
     try {
       if (!eId) throw new Error("Please select an equipment");
 
+      const parsedDate = movementDate ? new Date(movementDate).toISOString() : undefined;
+
       if (type === "purchase") {
         setOriginalValue(cost)
         // console.log(originalValue)
@@ -178,6 +182,7 @@ export function EquipmentMovementForm({
           movementCost: cost || undefined,
           clientName: clientName || undefined,
           note,
+          movementDate: parsedDate,
           licenseId,
           autoCreateEquipment: isCreating
             ? {
@@ -191,7 +196,7 @@ export function EquipmentMovementForm({
       } else if (type === "transfer") {
         if (!destNodeId) throw new Error("Destination is required");
         if (!resolvedTransfer) throw new Error("Could not determine the destination type");
-        const payload = { individualItemId: eId, destinationInventoryId: destNodeId, note };
+        const payload = { individualItemId: eId, destinationInventoryId: destNodeId, note, movementDate: parsedDate };
         if (resolvedTransfer === "deploy_to_site") await deployMutation.mutateAsync(payload);
         else if (resolvedTransfer === "return_to_warehouse") await returnWarehouseMutation.mutateAsync(payload);
         else if (resolvedTransfer === "transfer_between_sites") await transferSitesMutation.mutateAsync(payload);
@@ -201,26 +206,30 @@ export function EquipmentMovementForm({
         await sellMutation.mutateAsync({
           individualItemId: eId,
           note,
+          movementDate: parsedDate,
           movementCost: cost || undefined,
           clientName: clientName || undefined,
           licenseId,
+          fullyPaid,
+          paidAmount: !fullyPaid ? (paidAmount.trim() || "0") : undefined,
         });
       } else if (type === "send_to_maintenance") {
-        await maintenanceOutMutation.mutateAsync({ individualItemId: eId, clientName: clientName || undefined, note });
+        await maintenanceOutMutation.mutateAsync({ individualItemId: eId, clientName: clientName || undefined, note, movementDate: parsedDate });
       } else if (type === "return_from_maintenance") {
         if (!destNodeId) throw new Error("Destination is required");
         await maintenanceInMutation.mutateAsync({
           individualItemId: eId,
           destinationInventoryId: destNodeId,
           note,
+          movementDate: parsedDate,
           movementCost: cost || undefined,
           licenseId: licenseId || undefined,
         });
       } else if (type === "dispose") {
-        await disposeMutation.mutateAsync({ individualItemId: eId, note });
+        await disposeMutation.mutateAsync({ individualItemId: eId, note, movementDate: parsedDate });
       } else if (type === "degrade") {
         if (!cost) throw new Error("Value write-down amount is required");
-        await degradeMutation.mutateAsync({ individualItemId: eId, movementCost: cost, note });
+        await degradeMutation.mutateAsync({ individualItemId: eId, movementCost: cost, note, movementDate: parsedDate });
       }
 
       setMsg("Queued for approval.");
@@ -322,6 +331,39 @@ export function EquipmentMovementForm({
         </label>
       )}
 
+      {type === "sale" && (
+        <div className="mb-3">
+          <label className="flex items-center gap-2 text-sm text-black/70">
+            <input
+              type="checkbox"
+              checked={fullyPaid}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setFullyPaid(checked);
+                if (!checked && (!paidAmount || paidAmount === "")) {
+                  setPaidAmount("0");
+                }
+              }}
+            />
+            Fully paid
+          </label>
+          {!fullyPaid && (
+            <label className="mt-2 block text-sm">
+              Paid amount (ETB)
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                className="field mt-1"
+                value={paidAmount}
+                onChange={(e) => setPaidAmount(e.target.value)}
+                placeholder="0.00"
+              />
+            </label>
+          )}
+        </div>
+      )}
+
       {["purchase", "sale"].includes(type) && (
         <label className="mb-3 block text-sm">
           License
@@ -369,6 +411,16 @@ export function EquipmentMovementForm({
           <input className="field mt-1" value={clientName} onChange={(e) => setClientName(e.target.value)} />
         </div>
       )}
+
+      <label className="mb-3 block text-sm">
+        Date (Optional)
+        <input
+          type="date"
+          className="field mt-1"
+          value={movementDate}
+          onChange={(e) => setMovementDate(e.target.value)}
+        />
+      </label>
 
       <label className="mb-3 block text-sm">
         Note

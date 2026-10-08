@@ -27,6 +27,7 @@ export type SoldItemsDateParams = {
     dateFrom?: string
     dateTo?: string
     licenseId?: string
+    saleStatus?: string
 }
 
 export async function getWarehouseSoldOverview(id: string, params: SoldItemsDateParams = {}) {
