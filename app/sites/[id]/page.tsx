@@ -862,7 +862,7 @@ export default function SiteDetailPage() {
                 </thead>
                 <tbody>
                   {transactions.map((t) => {
-                    const canReverse = !t.isReversal && !t.isReversed && !t.isSystemGenerated && t.equipmentId === null && t.itemId === null && !isClosed;
+                    const canReverse = !t.isReversal && !t.isReversed && !t.isSystemGenerated && !isClosed;
                     return (
                       <tr key={t.id}>
                         <td className="whitespace-nowrap">{day(t.transactionDate ?? t.createdAt)}</td>
