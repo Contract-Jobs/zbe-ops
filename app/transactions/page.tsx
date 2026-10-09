@@ -128,7 +128,7 @@ export default function TransactionsPage() {
         // equipmentId !== null means auto-linked to an equipment log — excluded.
         // Material-log-linked transactions have no client field, so the API
         // will 403 and the error is surfaced in the confirm dialog.
-        ((manager || (user?.role === "admin" || user?.role === "superadmin")) && !!t.siteId && sites.has(t.siteId) && t.equipmentId === null && t.itemId === null)
+        ((manager || (user?.role === "admin" || user?.role === "superadmin")) && !!t.siteId)
       )
     );
   };
@@ -207,7 +207,7 @@ export default function TransactionsPage() {
                 <th className="hidden sm:table-cell">Type</th>
                 <th>Note</th>
                 <th>Amount</th>
-                {canMutate && <th></th>}
+                {canMutate && <th>Action</th>}
               </tr>
             </thead>
             <tbody>
@@ -431,9 +431,8 @@ function TransactionDetailModal({
       <div className="mb-6 border-b border-black/10 pb-4">
         <p className="kicker">Amount</p>
         <p
-          className={`mt-1 font-mono text-2xl font-medium tracking-tight ${
-            tx.type === "money_in" ? "text-ok" : "text-black"
-          }`}
+          className={`mt-1 font-mono text-2xl font-medium tracking-tight ${tx.type === "money_in" ? "text-ok" : "text-black"
+            }`}
         >
           {tx.type === "money_in" ? "+" : "-"}
           {etb(Number(tx.amount) || 0)}
