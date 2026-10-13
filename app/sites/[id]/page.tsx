@@ -144,6 +144,15 @@ export default function SiteDetailPage() {
     searchParams.get("tab") === "payables" ? "payables" : "materials",
   );
 
+  // The close-site error links here while this page is already mounted, so
+  // follow ?tab= changes after the initial render too.
+  const tabParam = searchParams.get("tab");
+  const [seenTabParam, setSeenTabParam] = useState(tabParam);
+  if (tabParam !== seenTabParam) {
+    setSeenTabParam(tabParam);
+    if (tabParam === "payables") setTab("payables");
+  }
+
   const createSiteTaskMutation = useCreateSiteTask(id || "");
   const updateSiteTaskMutation = useUpdateSiteTask(id || "");
   const claimSiteTaskMutation = useClaimSiteTask(id || "");

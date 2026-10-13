@@ -74,6 +74,7 @@ export default function BoardPage() {
     healths.find((h) => h.siteId === siteId);
 
   const salesAnalytics = salesAnalyticsData?.data;
+  const profitability = salesAnalytics?.profitability;
 
   return (
     <div>
@@ -187,6 +188,7 @@ export default function BoardPage() {
               onChange={setSalesFilters}
             />
             {salesAnalytics ? (
+              <>
               <div className="grid gap-px bg-black/10">
                 <div className="bg-white p-4">
                   <p className="text-sm font-medium text-black/60">Total Revenue</p>
@@ -201,6 +203,48 @@ export default function BoardPage() {
                   <p className="mt-1 font-mono text-xl">{salesAnalytics.materialSaleCount} <span className="text-sm text-black/50">batches</span></p>
                 </div>
               </div>
+              {profitability ? (
+                <div className="mt-6">
+                  <p className="kicker mb-3">Material profitability</p>
+                  <div className="grid gap-px bg-black/10 sm:grid-cols-2">
+                    <div className="bg-white p-4">
+                      <p className="text-sm font-medium text-black/60">Revenue</p>
+                      <p className="mt-1 font-mono text-xl">{etb(profitability.revenue)}</p>
+                    </div>
+                    <div className="bg-white p-4">
+                      <p className="text-sm font-medium text-black/60">Cost of goods sold</p>
+                      <p className="mt-1 font-mono text-xl">{etb(profitability.cogs)}</p>
+                    </div>
+                    <div className="bg-white p-4">
+                      <p className="text-sm font-medium text-black/60">Gross profit</p>
+                      <p className="mt-1 font-mono text-xl">{etb(profitability.grossProfit)}</p>
+                      <p className="mt-1 font-mono text-xs text-black/50">{profitability.marginPct} margin</p>
+                    </div>
+                    <div className="bg-white p-4">
+                      <p className="text-sm font-medium text-black/60">Profit on cash collected</p>
+                      <p className="mt-1 font-mono text-xl">{etb(profitability.actualProfit)}</p>
+                      <p className="mt-1 font-mono text-xs text-black/50">
+                        {etb(profitability.unrealizedProfit)} still in receivables
+                      </p>
+                    </div>
+                  </div>
+                  {profitability.estimatedCogsSaleCount > 0 ? (
+                    <p className="mt-2 text-xs text-black/55">
+                      Includes {profitability.estimatedCogsSaleCount} sale
+                      {profitability.estimatedCogsSaleCount === 1 ? "" : "s"} with estimated cost.
+                    </p>
+                  ) : null}
+                  {profitability.missingCogsSaleCount > 0 ? (
+                    <p className="mt-2 text-xs text-[var(--warn)]">
+                      {profitability.missingCogsSaleCount} sale
+                      {profitability.missingCogsSaleCount === 1 ? " has" : "s have"} no cost recorded and{" "}
+                      {profitability.missingCogsSaleCount === 1 ? "is" : "are"} left out of these figures. Ask an
+                      administrator to run the cost backfill.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+              </>
             ) : (
               <p className="text-sm text-black/45">No sales in this range.</p>
             )}

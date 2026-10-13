@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Field, FormActions } from "@/components/ui";
+import { ApiError } from "@/lib/api/client";
 import { uiOnly } from "@/components/forms/ui-only";
 import { useCreateSite, useUpdateSite } from "@/hooks/use-sites";
 import type { Site } from "@/types/api";
@@ -26,12 +28,15 @@ export function SiteForm({
   const createMutation = useCreateSite();
   const updateMutation = useUpdateSite();
   const [error, setError] = useState<string | null>(null);
+  // Closing is refused (409) while the site still owes a warehouse.
+  const [blockedByPayables, setBlockedByPayables] = useState(false);
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setBlockedByPayables(false);
     const fd = new FormData(e.currentTarget);
     const name = String(fd.get("name") ?? "").trim();
     const licenseId = String(fd.get("licenseId") ?? "").trim();
@@ -69,6 +74,9 @@ export function SiteForm({
       }
       onDone();
     } catch (err) {
+      setBlockedByPayables(
+        err instanceof ApiError && err.code === "CONFLICT" && /unpaid or partially paid/i.test(err.message),
+      );
       setError(err instanceof Error ? err.message : "Failed to save site");
     }
   }
@@ -78,6 +86,14 @@ export function SiteForm({
       {error ? (
         <p className="border border-[var(--bad)] bg-[var(--white)] p-2 text-sm text-[var(--bad)] sm:col-span-2">
           {error}
+          {blockedByPayables && initial ? (
+            <>
+              {" "}
+              <Link href={`/sites/${initial.id}?tab=payables&saleStatus=owing`} className="underline" onClick={onCancel}>
+                View unpaid purchases
+              </Link>
+            </>
+          ) : null}
         </p>
       ) : null}
       <Field label="Name">
