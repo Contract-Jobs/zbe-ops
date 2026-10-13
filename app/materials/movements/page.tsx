@@ -8,7 +8,29 @@ import { useInventoryMovements } from "@/hooks/use-inventory-movements";
 import { useInventoryItemsInBulk } from "@/hooks/use-inventory-items";
 import { useInventoriesInBulk } from "@/hooks/use-inventories";
 import { QUANTITY_MOVEMENT_LABELS } from "@/lib/movement-labels";
+import { SortSelect, type SortState } from "@/components/SortSelect";
 import type { QuantityMovementType } from "@/types/api";
+
+type MovementSortBy =
+  | "movementDate"
+  | "createdAt"
+  | "quantity"
+  | "unitCost"
+  | "totalCost"
+  | "paidAmount"
+  | "saleStatus"
+  | "clientName";
+
+const MOVEMENT_SORT_OPTIONS: { value: MovementSortBy; label: string }[] = [
+  { value: "movementDate", label: "Date" },
+  { value: "createdAt", label: "Created" },
+  { value: "quantity", label: "Quantity" },
+  { value: "unitCost", label: "Unit cost" },
+  { value: "totalCost", label: "Total cost" },
+  { value: "paidAmount", label: "Paid amount" },
+  { value: "saleStatus", label: "Payment status" },
+  { value: "clientName", label: "Buyer" },
+];
 
 const MOVEMENT_TYPES = Object.keys(QUANTITY_MOVEMENT_LABELS) as QuantityMovementType[];
 
@@ -17,9 +39,12 @@ export default function InventoryMovementsPage() {
   const [movementType, setMovementType] = useState<string>("");
   const [isInternal, setIsInternal] = useState<string>("");
 
+  const [sort, setSort] = useState<SortState<MovementSortBy>>({ sortBy: "movementDate", sortOrder: "desc" });
+
   const { data: movementsData, isLoading } = useInventoryMovements({
     page,
     limit: 10,
+    ...sort,
     movementType: (movementType || undefined) as QuantityMovementType | undefined,
     isInternal: isInternal || undefined,
   });
@@ -94,6 +119,14 @@ export default function InventoryMovementsPage() {
           <option value="true">Sold to a site</option>
           <option value="false">Not sold to a site</option>
         </select>
+        <SortSelect
+          options={MOVEMENT_SORT_OPTIONS}
+          value={sort}
+          onChange={(next) => {
+            setSort(next);
+            setPage(1);
+          }}
+        />
       </div>
 
       {isLoading && !movementsData ? (

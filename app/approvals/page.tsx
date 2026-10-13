@@ -2,6 +2,16 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { SortSelect, type SortState } from "@/components/SortSelect";
+
+type ApprovalSortBy = "createdAt" | "updatedAt" | "status" | "approvalType";
+
+const APPROVAL_SORT_OPTIONS: { value: ApprovalSortBy; label: string }[] = [
+  { value: "createdAt", label: "Created" },
+  { value: "updatedAt", label: "Updated" },
+  { value: "status", label: "Status" },
+  { value: "approvalType", label: "Type" },
+];
 import { PageHead, Stamp, TableWrap, Username, statusTone } from "@/components/ui";
 import { day } from "@/lib/format";
 import { userName, useStore } from "@/lib/store";
@@ -13,10 +23,13 @@ export default function ApprovalsPage() {
   const [status, setStatus] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const [page, setPage] = useState(1);
 
+  const [sort, setSort] = useState<SortState<ApprovalSortBy>>({ sortBy: "createdAt", sortOrder: "desc" });
+
   const { data: approvalsData, isLoading } = useApprovals({
     status: status === "all" ? undefined : [status],
     page,
     limit: 10,
+    ...sort,
   });
 
   const apiApprovals = approvalsData?.data;
@@ -43,6 +56,16 @@ export default function ApprovalsPage() {
             {s}
           </button>
         ))}
+      </div>
+      <div className="mb-5">
+        <SortSelect
+          options={APPROVAL_SORT_OPTIONS}
+          value={sort}
+          onChange={(next) => {
+            setSort(next);
+            setPage(1);
+          }}
+        />
       </div>
       {isLoading && !approvalsData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading approvals...</div>

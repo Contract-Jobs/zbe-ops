@@ -2,6 +2,18 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { SortSelect, type SortState } from "@/components/SortSelect";
+
+type WarehouseSortBy = "name" | "location" | "createdAt" | "updatedAt" | "totalMaterials" | "totalEquipment";
+
+const WAREHOUSE_SORT_OPTIONS: { value: WarehouseSortBy; label: string }[] = [
+  { value: "name", label: "Name" },
+  { value: "location", label: "Location" },
+  { value: "totalMaterials", label: "Materials" },
+  { value: "totalEquipment", label: "Equipment" },
+  { value: "createdAt", label: "Created" },
+  { value: "updatedAt", label: "Updated" },
+];
 import { WarehouseForm } from "@/components/forms/master";
 import { closedMode, DeleteConfirm, FormPanel, PageHead, RecordActions, TableWrap, type RecordMode } from "@/components/ui";
 import { isSiteManager, useStore } from "@/lib/store";
@@ -16,7 +28,9 @@ export default function WarehousesPage() {
 
   const [page, setPage] = useState(1);
 
-  const { data: warehousesData, isLoading } = useWarehouses({ page, limit: 10 });
+  const [sort, setSort] = useState<SortState<WarehouseSortBy>>({ sortBy: "name", sortOrder: "asc" });
+
+  const { data: warehousesData, isLoading } = useWarehouses({ page, limit: 10, ...sort });
   const deleteMutation = useDeleteWarehouse();
   const restoreMutation = useRestoreWarehouse();
 
@@ -76,6 +90,16 @@ export default function WarehousesPage() {
           <WarehouseForm initial={mode.record} onCancel={() => setMode(closedMode())} onDone={() => setMode(closedMode())} />
         </FormPanel>
       ) : null}
+      <div className="mb-5">
+        <SortSelect
+          options={WAREHOUSE_SORT_OPTIONS}
+          value={sort}
+          onChange={(next) => {
+            setSort(next);
+            setPage(1);
+          }}
+        />
+      </div>
       {isLoading ? (
         <div className="p-8 text-center text-sm text-black/50">Loading warehouses...</div>
       ) : (

@@ -2,6 +2,17 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { SortSelect, type SortState } from "@/components/SortSelect";
+
+type InventorySortBy = "createdAt" | "name" | "inventoryType" | "updatedAt";
+
+// Item counts are computed per page by the API, so they aren't sortable.
+const INVENTORY_SORT_OPTIONS: { value: InventorySortBy; label: string }[] = [
+  { value: "createdAt", label: "Created" },
+  { value: "name", label: "Name" },
+  { value: "inventoryType", label: "Site or warehouse" },
+  { value: "updatedAt", label: "Updated" },
+];
 import { ConfirmDialog, PageHead, TableWrap } from "@/components/ui";
 import { currentUser, isSiteManager, useStore } from "@/lib/store";
 import { useInventoryNodes } from "@/hooks/use-inventories";
@@ -28,7 +39,9 @@ export default function InventoryPage() {
     }
   };
 
-  const { data: nodesData, isLoading } = useInventoryNodes({ limit: 50 });
+  const [sort, setSort] = useState<SortState<InventorySortBy>>({ sortBy: "createdAt", sortOrder: "desc" });
+
+  const { data: nodesData, isLoading } = useInventoryNodes({ limit: 50, ...sort });
 
   const locations = useMemo(() => {
     return (nodesData?.data ?? []).map((node) => ({
@@ -68,12 +81,15 @@ export default function InventoryPage() {
         <p className="mb-4 text-sm text-black/60">Site desk shows only stock on your jobs — not central warehouses.</p>
       ) : null}
       {rebuildMsg ? <p className="mb-4 text-sm text-black/60">{rebuildMsg}</p> : null}
-      <input
-        className="field mb-5 w-full max-w-sm"
-        placeholder="Search locations"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-      />
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <input
+          className="field w-full sm:max-w-sm"
+          placeholder="Search locations"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <SortSelect options={INVENTORY_SORT_OPTIONS} value={sort} onChange={setSort} />
+      </div>
       {isLoading && !nodesData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading inventory locations...</div>
       ) : (

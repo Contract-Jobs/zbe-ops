@@ -2,6 +2,20 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { SortSelect, type SortState } from "@/components/SortSelect";
+
+type SiteSortBy = "name" | "location" | "status" | "createdAt" | "updatedAt" | "laborBudget" | "materialBudget" | "otherBudget";
+
+const SITE_SORT_OPTIONS: { value: SiteSortBy; label: string }[] = [
+  { value: "createdAt", label: "Created" },
+  { value: "name", label: "Name" },
+  { value: "location", label: "Location" },
+  { value: "status", label: "Status" },
+  { value: "updatedAt", label: "Updated" },
+  { value: "laborBudget", label: "Labor budget" },
+  { value: "materialBudget", label: "Material budget" },
+  { value: "otherBudget", label: "Other budget" },
+];
 import { SiteForm } from "@/components/forms/site";
 import {
   closedMode,
@@ -29,7 +43,9 @@ export default function SitesPage() {
 
   const [page, setPage] = useState(1);
 
-  const { data: sitesData, isLoading } = useSites({ page, limit: 10 });
+  const [sort, setSort] = useState<SortState<SiteSortBy>>({ sortBy: "createdAt", sortOrder: "desc" });
+
+  const { data: sitesData, isLoading } = useSites({ page, limit: 10, ...sort });
   const { data: licensesData } = useLicenses();
   const { data: budgetHealthData } = useBudgetHealth();
   const deleteMutation = useDeleteSite();
@@ -113,6 +129,16 @@ export default function SitesPage() {
           />
         </FormPanel>
       ) : null}
+      <div className="mb-5">
+        <SortSelect
+          options={SITE_SORT_OPTIONS}
+          value={sort}
+          onChange={(next) => {
+            setSort(next);
+            setPage(1);
+          }}
+        />
+      </div>
       {isLoading && !sitesData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading sites...</div>
       ) : (
