@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { SiteForm, TaskForm } from "@/components/forms/site";
@@ -58,6 +58,7 @@ import { TransactionForm } from "@/components/forms/transaction";
 import { InventoryAdjustForm } from "@/components/forms/inventory-adjust";
 import { BalanceHistoryPanel } from "@/components/BalanceHistory";
 import { LedgerToolsPanel } from "@/components/LedgerTools";
+import { SitePayablesTab } from "@/components/SitePayablesTab";
 import type { Site, SiteTask, License, Transaction, TransactionCategory } from "@/types/api";
 import { BulkEquipmentMovementForm } from "@/components/forms/bulk-equipment-movement";
 
@@ -83,6 +84,7 @@ const formatFieldValue = (value: unknown): string => {
 export default function SiteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const store = useStore();
   const allowed = visibleSiteIds(store);
 
@@ -137,7 +139,10 @@ export default function SiteDetailPage() {
   const [addTxOpen, setAddTxOpen] = useState(false);
   const [reverseTxTarget, setReverseTxTarget] = useState<Transaction | null>(null);
   const [reverseTxError, setReverseTxError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"materials" | "bulk" | "equipment" | "tasks" | "transactions">("materials");
+  const [tab, setTab] = useState<"materials" | "bulk" | "equipment" | "tasks" | "transactions" | "payables">(
+    // Deep link, e.g. from the close-site error: ?tab=payables&saleStatus=owing
+    searchParams.get("tab") === "payables" ? "payables" : "materials",
+  );
 
   const createSiteTaskMutation = useCreateSiteTask(id || "");
   const updateSiteTaskMutation = useUpdateSiteTask(id || "");
@@ -435,6 +440,7 @@ export default function SiteDetailPage() {
           { id: "equipment", label: "Equipment", count: equipData?.pagination?.total },
           { id: "tasks", label: "Tasks", count: tasksData?.pagination?.total ?? tasks.length },
           { id: "transactions", label: "Transactions", count: transactionsData?.pagination?.total },
+          { id: "payables", label: "Payables" },
         ]}
         active={tab}
         onChange={(id) => setTab(id as typeof tab)}
@@ -828,6 +834,10 @@ export default function SiteDetailPage() {
             )}
           </div>
         </section>
+      ) : null}
+
+      {tab === "payables" ? (
+        <SitePayablesTab siteId={id} canMutate={canMutate} initialStatus={searchParams.get("saleStatus") ?? ""} />
       ) : null}
 
       {tab === "transactions" ? (
