@@ -1,7 +1,7 @@
 import { apiClient } from "./client";
 import { buildListParams } from "./list-params";
 import type { ListParams } from "./list-params";
-import type { Site, SiteLifecycleLog, SiteSummary, SiteTask, MaterialAtInventory, BulkEquipmentAtInventory, IndividualEquipmentItem } from "@/types/api";
+import type { Site, SiteLifecycleLog, SiteSummary, SiteTask, MaterialAtInventory, BulkEquipmentAtInventory, IndividualEquipmentItem, PayableRow, SaleStatus, SitePayables } from "@/types/api";
 
 export interface CreateSitePayload {
   name: string;
@@ -130,4 +130,37 @@ export function getSiteIndividualEquipment(siteId: string, params: MaterialsAtSi
 
 export function getSiteBulkEquipment(siteId: string, params: MaterialsAtSiteParams = {}) {
   return apiClient.get<BulkEquipmentAtInventory[]>(`/api/sites/${siteId}/bulk-equipment`, buildListParams(params));
+}
+
+// ---- Payables: what this site owes warehouses for materials bought from them.
+// summary/byWarehouse cover every row matching the filters, not just the page. ----
+
+export type SitePayablesSortBy =
+  | "movementDate"
+  | "totalOwed"
+  | "paidAmount"
+  | "outstanding"
+  | "saleStatus"
+  | "itemName"
+  | "warehouseName"
+  | "buyerSiteName";
+
+export type SitePayablesParams = {
+  page?: number;
+  limit?: number;
+  warehouseId?: string;
+  saleStatus?: SaleStatus[];
+  licenseId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sortBy?: SitePayablesSortBy;
+  sortOrder?: "asc" | "desc";
+};
+
+export function getSitePayables(siteId: string, params: SitePayablesParams = {}) {
+  const { saleStatus, ...rest } = params;
+  const search = buildListParams(rest);
+  // The API takes one comma-separated value, not repeated keys.
+  if (saleStatus?.length) search.set("saleStatus", saleStatus.join(","));
+  return apiClient.getWithExtras<PayableRow[], SitePayables>(`/api/sites/${siteId}/payables`, search);
 }

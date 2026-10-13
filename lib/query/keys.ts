@@ -105,6 +105,7 @@ export const queryKeys = {
     // which TanStack's partialMatchKey does not treat as a wildcard (an
     // `undefined` slot never structurally matches a real params object, even
     // `{}`), so it silently invalidates nothing. Use these instead.
+    payables: (id: string, params?: unknown) => ["sites", "detail", id, "payables", params] as const,
     lifecycleAll: (id: string) => ["sites", "detail", id, "lifecycle"] as const,
     tasksAll: (id: string) => ["sites", "detail", id, "tasks"] as const,
   },

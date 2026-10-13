@@ -146,6 +146,14 @@ export interface InventoryMovement {
   ledgerId: string | null;
   saleStatus?: SaleStatus;
   paidAmount?: string;
+  // Sale to a site: the site is the buyer (treated as a third party — no
+  // stock lands there). clientName holds a snapshot of the site's name.
+  buyerSiteId?: string | null;
+  isInternal?: boolean;
+  // Cost of the stock a sale removed. unitCost/totalCost stay as revenue.
+  cogsUnitCost?: string | null;
+  cogsTotalCost?: string | null;
+  cogsEstimated?: boolean;
   loggedBy: string;
   createdAt: string;
   updatedAt: string;
@@ -184,7 +192,10 @@ export type InventoryMovementCreatePayload = {
       quantity: number;
       sourceInventoryId: string;
       unitCost: string;
+      // clientName and buyerSiteId are mutually exclusive. buyerSiteId is
+      // for materials sold to an active site.
       clientName?: string;
+      buyerSiteId?: string;
       // Optional — auto-resolved when the source location holds the item
       // under one license. Only needed when more than one license's lot is
       // present there (pick the lot from GET /api/inventory-balances).
@@ -807,7 +818,23 @@ export interface BudgetOverview {
   costs: LedgerCostRow[];
 }
 
+export interface SalesProfitability {
+  saleCount: number;
+  revenue: string;
+  cogs: string;
+  grossProfit: string;
+  marginPct: string;
+  cashCollected: string;
+  actualProfit: string;
+  unrealizedProfit: string;
+  // Sales whose COGS was backfilled by replay (an estimate).
+  estimatedCogsSaleCount: number;
+  // Sales with no COGS snapshot — excluded from every figure above.
+  missingCogsSaleCount: number;
+}
+
 export interface SalesAnalytics {
+  profitability?: SalesProfitability;
   totalMaterialRevenue: string;
   totalEquipmentRevenue: string;
   totalRevenue: string;
@@ -893,3 +920,41 @@ export interface CompanyFinancialSummary {
   netCashFlow: string;
 }
 
+// ---- Site payables (what a site owes warehouses for material bought from them) ----
+
+export interface PayableRow {
+  id: string;
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  unitCost: string;
+  totalOwed: string;
+  paidAmount: string;
+  outstanding: string;
+  saleStatus: SaleStatus;
+  licenseId: string | null;
+  movementDate: string;
+  note: string | null;
+  warehouseId: string;
+  warehouseName: string;
+  buyerSiteId: string;
+  buyerSiteName: string;
+}
+
+export interface PayablesTotals {
+  count: number;
+  totalOwed: string;
+  totalPaid: string;
+  outstanding: string;
+}
+
+export interface PayablesGroup extends PayablesTotals {
+  id: string;
+  name: string;
+}
+
+export interface SitePayables {
+  siteId: string;
+  summary: PayablesTotals;
+  byWarehouse: PayablesGroup[];
+}

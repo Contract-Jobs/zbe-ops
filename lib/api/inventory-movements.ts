@@ -17,6 +17,8 @@ export type InventoryMovementListParams = ListParams<{
     toDate?: string
     isReversal?: string
     includeReversed?: string
+    buyerSiteId?: string
+    isInternal?: string
 }>
 
 // movementType: "loss" is silently redirected server-side to the

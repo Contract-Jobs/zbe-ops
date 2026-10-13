@@ -91,6 +91,8 @@ export function useRecordInventoryMovementPayment() {
         onSuccess: (_data, variables) => {
             queryClient.invalidateQueries({ queryKey: queryKeys.inventoryMovements.payments(variables.id) })
             queryClient.invalidateQueries({ queryKey: ["warehouses"] })
+            // A payment on a sale to a site changes that site's payables.
+            queryClient.invalidateQueries({ queryKey: queryKeys.sites.all })
             queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all })
             queryClient.invalidateQueries({ queryKey: ["analytics"] })
         },
@@ -105,6 +107,8 @@ export function useReverseInventoryMovementPayment() {
         onSuccess: (_data, variables) => {
             queryClient.invalidateQueries({ queryKey: queryKeys.inventoryMovements.payments(variables.id) })
             queryClient.invalidateQueries({ queryKey: ["warehouses"] })
+            // A payment on a sale to a site changes that site's payables.
+            queryClient.invalidateQueries({ queryKey: queryKeys.sites.all })
             queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all })
             queryClient.invalidateQueries({ queryKey: ["analytics"] })
         },

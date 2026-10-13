@@ -9,6 +9,7 @@ import type {
   CreateSiteTaskPayload,
   UpdateSiteTaskPayload,
   MaterialsAtSiteParams,
+  SitePayablesParams,
 } from "@/lib/api/sites";
 import { queryKeys } from "@/lib/query/keys";
 import { onActionSettled } from "@/lib/query/approval-invalidation";
@@ -195,5 +196,13 @@ export function useCompleteSiteTask(siteId: string) {
       queryClient.invalidateQueries({ queryKey: queryKeys.sites.tasksAll(siteId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.sites.summary(siteId) });
     },
+  });
+}
+
+export function useSitePayables(siteId: string | undefined, params: SitePayablesParams = {}) {
+  return useQuery({
+    queryKey: queryKeys.sites.payables(siteId ?? "", params),
+    queryFn: () => sitesApi.getSitePayables(siteId as string, params),
+    enabled: !!siteId,
   });
 }

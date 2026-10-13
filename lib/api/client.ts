@@ -74,15 +74,15 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
-async function request<T>(
+async function request<T, X extends object = object>(
   path: string,
   options: RequestOptions = {},
-): Promise<{ data: T; pagination?: Pagination }> {
+): Promise<{ data: T; pagination?: Pagination } & X> {
   const { method = "GET", body, searchParams, signal } = options;
 
   if (process.env.NEXT_PUBLIC_USE_DEMO === "true" && method !== "GET") {
     const { demoHandler } = await import("./demo-handler");
-    return demoHandler(method, path, body);
+    return demoHandler(method, path, body) as Promise<{ data: T; pagination?: Pagination } & X>;
   }
 
   const url = new URL(path, API_BASE_URL);
@@ -137,10 +137,10 @@ async function request<T>(
   }
 
   if (response.status === 204 || json === null) {
-    return { data: undefined as T }
+    return { data: undefined as T } as { data: T; pagination?: Pagination } & X
   }
 
-  return json as ApiSuccessEnvelope<T>
+  return json as ApiSuccessEnvelope<T> & X
 }
 
 // ---- Public client ----
@@ -151,6 +151,14 @@ export const apiClient = {
     searchParams?: RequestOptions["searchParams"],
     signal?: AbortSignal,
   ) => request<T>(path, { method: "GET", searchParams, signal }),
+
+  // For the few endpoints that return top-level fields next to `data`
+  // (e.g. site payables: summary, byWarehouse). X types those extras.
+  getWithExtras: <T, X extends object>(
+    path: string,
+    searchParams?: RequestOptions["searchParams"],
+    signal?: AbortSignal,
+  ) => request<T, X>(path, { method: "GET", searchParams, signal }),
 
   post: <T>(path: string, body?: unknown, signal?: AbortSignal) =>
     request<T>(path, { method: "POST", body, signal }),
