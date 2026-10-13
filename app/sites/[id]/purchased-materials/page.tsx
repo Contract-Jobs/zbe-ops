@@ -1,11 +1,13 @@
 "use client";
 
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { SalePaymentsPanel } from "@/components/SalePaymentsPanel";
-import { Field, ModalPanel, Stamp, TableWrap, statusTone } from "@/components/ui";
-import { useSitePayables } from "@/hooks/use-sites";
+import { Field, ModalPanel, PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
+import { useSite, useSitePayables } from "@/hooks/use-sites";
 import { day, etb } from "@/lib/format";
+import { isSiteManager, useStore } from "@/lib/store";
 import type { PayableRow, SaleStatus } from "@/types/api";
 
 // Value is what the select holds; the API wants a list of statuses.
@@ -17,22 +19,24 @@ const STATUS_OPTIONS: { value: string; label: string; statuses?: SaleStatus[] }[
   { value: "paid", label: "Paid", statuses: ["paid"] },
 ];
 
-export function SitePayablesTab({
-  siteId,
-  canMutate,
-  initialStatus = "",
-}: {
-  siteId: string;
+export default function SitePurchasedMaterialsPage() {
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const store = useStore();
   // Payments are recorded from the warehouse side; site managers only read.
-  canMutate: boolean;
-  initialStatus?: string;
-}) {
+  const canMutate = !isSiteManager(store);
+
+  const { data: siteData } = useSite(id);
+  const siteName = siteData?.data?.name ?? "Site";
+
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState<QueryFilterValues>({});
-  const [status, setStatus] = useState(initialStatus);
+  // ?saleStatus=owing deep-links here from the close-site error.
+  const [status, setStatus] = useState(searchParams.get("saleStatus") ?? "");
   const [paying, setPaying] = useState<PayableRow | null>(null);
 
-  const { data, isLoading } = useSitePayables(siteId, {
+  const { data, isLoading } = useSitePayables(id, {
     page,
     limit: 10,
     warehouseId: filters.warehouseId || undefined,
@@ -48,9 +52,17 @@ export function SitePayablesTab({
   const livePaying = paying ? (rows.find((r) => r.id === paying.id) ?? paying) : null;
 
   return (
-    <section>
-      <p className="kicker mb-3">Payables</p>
-      <p className="mb-4 max-w-xl text-sm text-black/60">
+    <div>
+      <PageHead
+        kicker="Site"
+        title={`${siteName} — Purchased Materials`}
+        action={
+          <button className="btn btn-ghost" onClick={() => router.push(`/sites/${id}`)}>
+            Back to Site
+          </button>
+        }
+      />
+      <p className="mb-6 max-w-xl text-sm text-black/60">
         Material this site bought from warehouses. No stock is added to the site and nothing is posted to its budget.
       </p>
 
@@ -117,7 +129,7 @@ export function SitePayablesTab({
       ) : null}
 
       {isLoading && !data ? (
-        <div className="p-8 text-center text-sm text-black/40">Loading payables...</div>
+        <div className="p-8 text-center text-sm text-black/40">Loading purchased materials...</div>
       ) : (
         <TableWrap pagination={data?.pagination} onPageChange={setPage}>
           <table className="data w-full text-left">
@@ -160,7 +172,7 @@ export function SitePayablesTab({
               {rows.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-sm text-black/45">
-                    No purchases from warehouses.
+                    No materials purchased from warehouses.
                   </td>
                 </tr>
               ) : null}
@@ -182,6 +194,6 @@ export function SitePayablesTab({
           />
         </ModalPanel>
       ) : null}
-    </section>
+    </div>
   );
 }

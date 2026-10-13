@@ -89,7 +89,7 @@ export function SiteForm({
           {blockedByPayables && initial ? (
             <>
               {" "}
-              <Link href={`/sites/${initial.id}?tab=payables&saleStatus=owing`} className="underline" onClick={onCancel}>
+              <Link href={`/sites/${initial.id}/purchased-materials?saleStatus=owing`} className="underline" onClick={onCancel}>
                 View unpaid purchases
               </Link>
             </>
