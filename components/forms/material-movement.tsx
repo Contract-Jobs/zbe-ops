@@ -13,6 +13,7 @@ import {
 import { useInventoryItems } from "@/hooks/use-inventory-items";
 import { useInventoryNodeId } from "@/hooks/use-inventories";
 import { useLicenses } from "@/hooks/use-licenses";
+import { useSites } from "@/hooks/use-sites";
 import type { LocationKind } from "@/lib/types";
 import { SearchableSelect } from "@/components/ui";
 import type { QuantityMovementType } from "@/types/api";
@@ -60,6 +61,9 @@ export function MaterialMovementForm({
   // SearchableSelect below filters client-side, no server search wired.
   const { data: itemsData } = useInventoryItems({ category: "material", limit: 50, tracking: "quantity" });
   const materials = itemsData?.data ?? store.materials;
+  // Only active sites can buy; the server re-checks at stage and at approval.
+  const { data: sitesData } = useSites({ status: ["active"], limit: 50 });
+  const buyerSites = (sitesData?.data ?? []).filter((s) => !s.deletedAt && s.status === "active");
 
   const allActions: Array<{ type: QuantityMovementType; label: string; disabled?: boolean }> = [
     { type: "purchase", label: ACTION_LABELS.purchase },
@@ -84,6 +88,9 @@ export function MaterialMovementForm({
   const [quantity, setQuantity] = useState("1");
   const [unitCost, setUnitCost] = useState("");
   const [clientName, setClientName] = useState("");
+  // clientName and buyerSiteId are mutually exclusive on a sale.
+  const [buyerKind, setBuyerKind] = useState<"client" | "site">("client");
+  const [buyerSiteId, setBuyerSiteId] = useState("");
   const [licenseId, setLicenseId] = useState("");
   const [reason, setReason] = useState("");
   const [movementDate, setMovementDate] = useState("");
@@ -159,6 +166,7 @@ export function MaterialMovementForm({
         if (!unitCost) throw new Error("Unit cost is required");
         if (sourceKind !== "warehouse" || !sourceNodeId) throw new Error("Source must be a warehouse for sales");
         if (manager) throw new Error("Site managers cannot sell");
+        if (buyerKind === "site" && !buyerSiteId) throw new Error("Select the buyer site");
 
         await sellMutation.mutateAsync({
           itemId: mId,
@@ -167,7 +175,8 @@ export function MaterialMovementForm({
           movementDate: parsedDate,
           sourceInventoryId: sourceNodeId,
           unitCost,
-          clientName: clientName || undefined,
+          clientName: buyerKind === "client" ? clientName || undefined : undefined,
+          buyerSiteId: buyerKind === "site" ? buyerSiteId : undefined,
           // Only sent when the source holds this item under more than one
           // license — otherwise the server auto-resolves the lot. An empty
           // string here would fail validation, so omit instead.
@@ -233,7 +242,20 @@ export function MaterialMovementForm({
       {!isCreating && actions.length > 1 && (
         <label className="mb-3 block text-sm">
           Action
-          <select className="field mt-1" value={type} onChange={(e) => setType(e.target.value as QuantityMovementType)}>
+          <select
+            className="field mt-1"
+            value={type}
+            onChange={(e) => {
+              const next = e.target.value as QuantityMovementType;
+              setType(next);
+              // Material can't be transferred to or from a site — drop any
+              // site picked for an earlier action so it isn't sent stale.
+              if (next === "transfer") {
+                if (fromKind === "site") { setFromKind(""); setFromId(""); }
+                if (toKind === "site") { setToKind(""); setToId(""); }
+              }
+            }}
+          >
             {actions.map((a) => (
               <option key={a.type} value={a.type} disabled={a.disabled}>
                 {a.label}
@@ -269,10 +291,40 @@ export function MaterialMovementForm({
       )}
 
       {type === "sale" && (
-        <label className="mb-3 block text-sm">
-          Buyer
-          <input className="field mt-1" value={clientName} onChange={(e) => setClientName(e.target.value)} />
-        </label>
+        <div className="mb-3">
+          <label className="block text-sm">
+            Buyer
+            <select
+              className="field mt-1"
+              value={buyerKind}
+              onChange={(e) => setBuyerKind(e.target.value as "client" | "site")}
+            >
+              <option value="client">External client</option>
+              <option value="site">Site</option>
+            </select>
+          </label>
+          {buyerKind === "site" ? (
+            <label className="mt-2 block text-sm">
+              Buyer site
+              <select className="field mt-1" value={buyerSiteId} onChange={(e) => setBuyerSiteId(e.target.value)}>
+                <option value="">Select site</option>
+                {buyerSites.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs text-black/50">
+                Sold at a price, like any buyer. No stock is added to the site; it owes the warehouse.
+              </span>
+            </label>
+          ) : (
+            <label className="mt-2 block text-sm">
+              Client name
+              <input className="field mt-1" value={clientName} onChange={(e) => setClientName(e.target.value)} />
+            </label>
+          )}
+        </div>
       )}
 
       {type === "sale" && (
@@ -335,7 +387,9 @@ export function MaterialMovementForm({
               id={fromId}
               onKind={setFromKind}
               onId={setFromId}
-              allowSite={type !== "sale"} // Only warehouses can sell
+              // Only warehouses can sell, and material can no longer be
+              // transferred to or from a site — sell it to the site instead.
+              allowSite={type !== "sale" && type !== "transfer"}
             />
           )}
         </div>
@@ -349,7 +403,13 @@ export function MaterialMovementForm({
               {fixedDestination.name}
             </div>
           ) : (
-            <LocationSelect kind={toKind} id={toId} onKind={setToKind} onId={setToId} />
+            <LocationSelect
+              kind={toKind}
+              id={toId}
+              onKind={setToKind}
+              onId={setToId}
+              allowSite={type !== "transfer"}
+            />
           )}
         </div>
       )}

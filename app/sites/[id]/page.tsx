@@ -924,7 +924,7 @@ export default function SiteDetailPage() {
             noBg
             materialId={moveMaterialId}
             fixedSource={{ id: site.id, type: "site", name: site.name }}
-            allowedActions={["transfer", "consume", "loss"]}
+            allowedActions={["consume", "loss"]}
             onSuccess={() => setMoveMaterialId(null)}
             onCancel={() => setMoveMaterialId(null)}
           />

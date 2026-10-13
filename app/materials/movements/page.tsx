@@ -15,11 +15,13 @@ const MOVEMENT_TYPES = Object.keys(QUANTITY_MOVEMENT_LABELS) as QuantityMovement
 export default function InventoryMovementsPage() {
   const [page, setPage] = useState(1);
   const [movementType, setMovementType] = useState<string>("");
+  const [isInternal, setIsInternal] = useState<string>("");
 
   const { data: movementsData, isLoading } = useInventoryMovements({
     page,
     limit: 10,
     movementType: (movementType || undefined) as QuantityMovementType | undefined,
+    isInternal: isInternal || undefined,
   });
 
   const movements = movementsData?.data ?? [];
@@ -64,21 +66,35 @@ export default function InventoryMovementsPage() {
         Every material and bulk-equipment movement across the whole catalog — flat, not scoped to one item.
       </p>
 
-      <select
-        className="field mb-5 w-full max-w-sm"
-        value={movementType}
-        onChange={(e) => {
-          setMovementType(e.target.value);
-          setPage(1);
-        }}
-      >
-        <option value="">All movement types</option>
-        {MOVEMENT_TYPES.map((t) => (
-          <option key={t} value={t}>
-            {QUANTITY_MOVEMENT_LABELS[t]}
-          </option>
-        ))}
-      </select>
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row">
+        <select
+          className="field w-full sm:max-w-sm"
+          value={movementType}
+          onChange={(e) => {
+            setMovementType(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">All movement types</option>
+          {MOVEMENT_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {QUANTITY_MOVEMENT_LABELS[t]}
+            </option>
+          ))}
+        </select>
+        <select
+          className="field w-full sm:max-w-xs"
+          value={isInternal}
+          onChange={(e) => {
+            setIsInternal(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">All buyers</option>
+          <option value="true">Sold to a site</option>
+          <option value="false">Not sold to a site</option>
+        </select>
+      </div>
 
       {isLoading && !movementsData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading inventory movements...</div>
@@ -114,7 +130,17 @@ export default function InventoryMovementsPage() {
                       {m.quantity} {item?.unit ?? ""}
                     </td>
                     <td className="hidden text-sm sm:table-cell">
-                      {locationLabel(m.sourceInventoryId)} → {locationLabel(m.destinationInventoryId)}
+                      {locationLabel(m.sourceInventoryId)} →{" "}
+                      {m.buyerSiteId ? (
+                        <>
+                          <Link href={`/sites/${m.buyerSiteId}`} className="hover:text-yellow">
+                            {m.clientName ?? "Site"}
+                          </Link>{" "}
+                          <Stamp value="site sale" tone="yellow" />
+                        </>
+                      ) : (
+                        locationLabel(m.destinationInventoryId)
+                      )}
                     </td>
                     <td className="font-mono text-sm">{etb(m.unitCost)}</td>
                     <td>

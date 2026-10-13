@@ -93,7 +93,7 @@ export default function InventoryLocationPage() {
 
   const matActions: QuantityMovementType[] = locationType === "warehouse"
     ? ["transfer", "sale", "consume", "loss"]
-    : ["transfer", "consume", "loss"];
+    : ["consume", "loss"]; // no material transfers from a site — sell from a warehouse
 
   const eqActions = (locationType === "warehouse"
     ? ["transfer", "sale", "degrade", "send_to_maintenance", "return_from_maintenance", "dispose"]

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
@@ -414,7 +415,15 @@ export default function WarehouseSoldItemsPage() {
                       <td className="whitespace-nowrap font-mono">
                         {l.quantity} {l.item?.unit ?? ""}
                       </td>
-                      <td>{l.clientName ?? "—"}</td>
+                      <td>
+                        {l.clientName ?? "—"}
+                        {l.buyerSiteId ? (
+                          <>
+                            {" "}
+                            <Stamp value="site" tone="yellow" />
+                          </>
+                        ) : null}
+                      </td>
                       <td>
                         <Stamp value={currentSaleStatus} tone={statusTone(currentSaleStatus)} />
                       </td>
@@ -841,7 +850,15 @@ function SoldMaterialDetailModal({
         />
         <DetailRow
           label="Buyer"
-          value={l.clientName ?? "—"}
+          value={
+            l.buyerSiteId ? (
+              <Link href={`/sites/${l.buyerSiteId}`} className="hover:text-yellow">
+                {l.clientName ?? "Site"} (site)
+              </Link>
+            ) : (
+              l.clientName ?? "—"
+            )
+          }
         />
         <DetailRow
           label="Material"
