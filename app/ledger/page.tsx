@@ -5,33 +5,43 @@ import { PageHead, TableWrap, Stamp, Username } from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
 import { useLedgers } from "@/hooks/use-ledgers";
-import { useSites, useSitesInBulk } from "@/hooks/use-sites";
-import { useLicenses } from "@/hooks/use-licenses";
-import type { Site, License } from "@/types/api";
+import { useSitesInBulk } from "@/hooks/use-sites";
+import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
+import { SortSelect, type SortState } from "@/components/SortSelect";
+import type { LedgerSortBy } from "@/lib/api/ledgers";
+
+const LEDGER_SORT_OPTIONS: { value: LedgerSortBy; label: string }[] = [
+  { value: "timestamp", label: "Date" },
+  { value: "amount", label: "Amount" },
+  { value: "createdAt", label: "Created" },
+];
 
 export default function LedgerPage() {
   const store = useStore();
   const manager = isSiteManager(store);
   const visibleSites = visibleSiteIds(store);
 
-  const [siteId, setSiteId] = useState<string>("");
-  const [licenseId, setLicenseId] = useState<string>("");
-  const [sourceRefType, setSourceRefType] = useState<string>("");
+  const [filters, setFilters] = useState<QueryFilterValues>({});
+  const [sort, setSort] = useState<SortState<LedgerSortBy>>({ sortBy: "timestamp", sortOrder: "desc" });
   const [page, setPage] = useState(1);
 
   const { data: ledgersData, isLoading: isLedgerLoading } = useLedgers({
     page,
     limit: 10,
-    siteId: siteId ? [siteId] : undefined,
-    licenseId: licenseId ? [licenseId] : undefined,
-    sourceRefType: sourceRefType ? [sourceRefType] : undefined,
+    siteId: filters.siteId ? [filters.siteId] : undefined,
+    licenseId: filters.licenseId ? [filters.licenseId] : undefined,
+    sourceRefType: filters.sourceRefType ? [filters.sourceRefType] : undefined,
+    dateFrom: filters.dateFrom || undefined,
+    dateTo: filters.dateTo || undefined,
+    direction: filters.direction || undefined,
+    minAmount: filters.minAmount || undefined,
+    maxAmount: filters.maxAmount || undefined,
+    includeReversed: filters.includeReversed || undefined,
+    categoryId: filters.categoryId || undefined,
+    search: filters.search || undefined,
+    sortBy: sort.sortBy,
+    sortOrder: sort.sortOrder,
   });
-
-  const { data: sitesData } = useSites({ limit: 50 });
-  const { data: licensesData } = useLicenses({ limit: 50 });
-
-  const allSites = (sitesData?.data ?? (store.sites as unknown as Site[])).filter((s) => !s.deletedAt);
-  const licenses = (licensesData?.data ?? (store.licenses as unknown as License[])).filter((l) => !l.deletedAt);
 
   const rows = useMemo(() => {
     return (ledgersData?.data ?? []).filter((l) => {
@@ -60,34 +70,37 @@ export default function LedgerPage() {
         title="Project Ledger"
       />
 
-      <div className="mb-6 flex flex-wrap items-center gap-4">
-        <select className="field w-48" value={licenseId} onChange={(e) => setLicenseId(e.target.value)}>
-          <option value="">All licenses</option>
-          {licenses.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.name}
-            </option>
-          ))}
-        </select>
-
-        <select className="field w-48" value={siteId} onChange={(e) => setSiteId(e.target.value)}>
-          <option value="">All sites</option>
-          {allSites
-            .filter((s) => (manager ? visibleSites.has(s.id) : true))
-            .map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-        </select>
-
-        <select className="field w-48" value={sourceRefType} onChange={(e) => setSourceRefType(e.target.value)}>
-          <option value="">All source types</option>
-          <option value="transaction">Transaction</option>
-          <option value="material_log">Material Log</option>
-          <option value="equipment_log">Equipment Log</option>
-          <option value="rental_event">Rental Event</option>
-        </select>
+      <QueryFilters
+        className="mb-3"
+        searchPlaceholder="Description or note"
+        fields={[
+          "search",
+          "licenseId",
+          "siteId",
+          "sourceRefType",
+          "categoryId",
+          "direction",
+          "dateFrom",
+          "dateTo",
+          "minAmount",
+          "maxAmount",
+          "includeReversed",
+        ]}
+        values={filters}
+        onChange={(next) => {
+          setFilters(next);
+          setPage(1);
+        }}
+      />
+      <div className="mb-6">
+        <SortSelect
+          options={LEDGER_SORT_OPTIONS}
+          value={sort}
+          onChange={(next) => {
+            setSort(next);
+            setPage(1);
+          }}
+        />
       </div>
 
       {isLedgerLoading && !ledgersData ? (

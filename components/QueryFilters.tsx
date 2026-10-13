@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Field } from "@/components/ui";
+import { useCategories } from "@/hooks/use-categories";
 import { useInventoryItems } from "@/hooks/use-inventory-items";
 import { useInventoryNodes } from "@/hooks/use-inventories";
 import { useLicenses } from "@/hooks/use-licenses";
@@ -29,7 +30,18 @@ export type QueryFilterKey =
   | "inventoryId"
   | "lifecycleStatus"
   | "assignmentStatus"
-  | "condition";
+  | "condition"
+  | "buyerSiteId"
+  | "categoryId"
+  | "type"
+  | "direction"
+  | "sourceRefType"
+  | "saleStatus"
+  | "isApproved"
+  | "isInternal"
+  | "includeReversed"
+  | "minAmount"
+  | "maxAmount";
 
 export type QueryFilterValues = Partial<Record<QueryFilterKey, string>>;
 
@@ -61,6 +73,42 @@ const CONDITION: { value: EquipmentCondition; label: string }[] = [
   { value: "under_maintenance", label: "Under maintenance" },
   { value: "out_of_commission", label: "Out of commission" },
 ];
+
+const TX_TYPE = [
+  { value: "money_in", label: "Money in" },
+  { value: "money_out", label: "Money out" },
+];
+
+// Ledger amounts are signed: debit adds cost, credit removes it.
+const DIRECTION = [
+  { value: "debit", label: "Debit (cost added)" },
+  { value: "credit", label: "Credit (cost removed)" },
+];
+
+const SOURCE_REF_TYPE = [
+  { value: "transaction", label: "Transaction" },
+  { value: "material_log", label: "Material log" },
+  { value: "equipment_log", label: "Equipment log" },
+  { value: "rental_event", label: "Rental event" },
+];
+
+const SALE_STATUS = [
+  { value: "unpaid", label: "Unpaid" },
+  { value: "partially_paid", label: "Partially paid" },
+  { value: "paid", label: "Paid" },
+];
+
+const APPROVED = [
+  { value: "true", label: "Approved" },
+  { value: "false", label: "Awaiting approval" },
+];
+
+const INTERNAL = [
+  { value: "true", label: "Sold to a site" },
+  { value: "false", label: "Not sold to a site" },
+];
+
+const INCLUDE_REVERSED = [{ value: "true", label: "Show reversed and reversals" }];
 
 export function QueryFilters({
   fields,
@@ -152,6 +200,30 @@ function FilterControl({
   if (field === "condition") return <StaticSelect label="Condition" empty="Any condition" value={value} options={CONDITION} onChange={onChange} />;
   if (field === "licenseId") return <LicenseSelect value={value} onChange={onChange} />;
   if (field === "siteId") return <SiteSelect value={value} onChange={onChange} />;
+  if (field === "buyerSiteId") return <SiteSelect label="Buyer site" empty="Any buyer site" value={value} onChange={onChange} />;
+  if (field === "categoryId") return <CategorySelect value={value} onChange={onChange} />;
+  if (field === "type") return <StaticSelect label="Type" empty="Money in or out" value={value} options={TX_TYPE} onChange={onChange} />;
+  if (field === "direction") return <StaticSelect label="Direction" empty="Debit or credit" value={value} options={DIRECTION} onChange={onChange} />;
+  if (field === "sourceRefType") return <StaticSelect label="Source" empty="All sources" value={value} options={SOURCE_REF_TYPE} onChange={onChange} />;
+  if (field === "saleStatus") return <StaticSelect label="Payment" empty="Any payment status" value={value} options={SALE_STATUS} onChange={onChange} />;
+  if (field === "isApproved") return <StaticSelect label="Approval" empty="Any approval state" value={value} options={APPROVED} onChange={onChange} />;
+  if (field === "isInternal") return <StaticSelect label="Buyer" empty="All buyers" value={value} options={INTERNAL} onChange={onChange} />;
+  if (field === "includeReversed") return <StaticSelect label="Reversals" empty="Hide reversed" value={value} options={INCLUDE_REVERSED} onChange={onChange} />;
+  if (field === "minAmount" || field === "maxAmount") {
+    return (
+      <Wrap>
+        <Field label={field === "minAmount" ? "Min amount" : "Max amount"}>
+          <input
+            className="field"
+            type="number"
+            step="0.01"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+          />
+        </Field>
+      </Wrap>
+    );
+  }
   if (field === "warehouseId") return <WarehouseSelect value={value} onChange={onChange} />;
   if (field === "itemId") return <ItemSelect value={value} category={itemCategory} onChange={onChange} />;
   return <InventorySelect value={value} onChange={onChange} />;
@@ -209,7 +281,36 @@ function LicenseSelect({ value, onChange }: { value: string; onChange: (value: s
   );
 }
 
-function SiteSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function CategorySelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const { data } = useCategories();
+  const options = (data?.data ?? []).filter((category) => !category.deletedAt);
+  return (
+    <Wrap>
+      <Field label="Category">
+        <select className="field" value={value} onChange={(e) => onChange(e.target.value)}>
+          <option value="">All categories</option>
+          {options.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+    </Wrap>
+  );
+}
+
+function SiteSelect({
+  value,
+  onChange,
+  label = "Site",
+  empty = "All sites",
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  label?: string;
+  empty?: string;
+}) {
   const store = useStore();
   const manager = isSiteManager(store);
   const allowed = visibleSiteIds(store);
@@ -217,9 +318,9 @@ function SiteSelect({ value, onChange }: { value: string; onChange: (value: stri
   const options = (data?.data ?? []).filter((site) => !site.deletedAt && (!manager || allowed.has(site.id)));
   return (
     <Wrap>
-      <Field label="Site">
+      <Field label={label}>
         <select className="field" value={value} onChange={(e) => onChange(e.target.value)}>
-          <option value="">All sites</option>
+          <option value="">{empty}</option>
           {options.map((site) => (
             <option key={site.id} value={site.id}>
               {site.name}

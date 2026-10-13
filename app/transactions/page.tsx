@@ -13,7 +13,17 @@ import { useWarehousesInBulk } from "@/hooks/use-warehouses";
 import { useLicensesInBulk } from "@/hooks/use-licenses";
 import { useEquipmentInBulk } from "@/hooks/use-equipment";
 import { useInventoryItemsInBulk } from "@/hooks/use-inventory-items";
+import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
+import { SortSelect, type SortState } from "@/components/SortSelect";
+import type { TransactionSortBy } from "@/lib/api/transactions";
 import type { Transaction, TransactionCategory, Site, Warehouse } from "@/types/api";
+
+const TRANSACTION_SORT_OPTIONS: { value: TransactionSortBy; label: string }[] = [
+  { value: "createdAt", label: "Posted" },
+  { value: "transactionDate", label: "Transaction date" },
+  { value: "amount", label: "Amount" },
+  { value: "type", label: "Type" },
+];
 
 export default function TransactionsPage() {
   const store = useStore();
@@ -23,7 +33,30 @@ export default function TransactionsPage() {
   const sites = visibleSiteIds(store);
   const [page, setPage] = useState(1);
 
-  const { data: transactionsData, isLoading: isTxLoading } = useTransactions({ page, limit: 10, sortBy: 'createdAt', sortOrder: 'desc' });
+  const [filters, setFilters] = useState<QueryFilterValues>({});
+  // Newest-posted first, as before — the server's own default is transactionDate.
+  const [sort, setSort] = useState<SortState<TransactionSortBy>>({ sortBy: "createdAt", sortOrder: "desc" });
+
+  const { data: transactionsData, isLoading: isTxLoading } = useTransactions({
+    page,
+    limit: 10,
+    siteId: filters.siteId ? [filters.siteId] : undefined,
+    categoryId: filters.categoryId ? [filters.categoryId] : undefined,
+    type: filters.type ? [filters.type] : undefined,
+    dateFrom: filters.dateFrom ? [filters.dateFrom] : undefined,
+    dateTo: filters.dateTo ? [filters.dateTo] : undefined,
+    warehouseId: filters.warehouseId || undefined,
+    itemId: filters.itemId || undefined,
+    buyerSiteId: filters.buyerSiteId || undefined,
+    isInternal: filters.isInternal || undefined,
+    isApproved: filters.isApproved || undefined,
+    minAmount: filters.minAmount || undefined,
+    maxAmount: filters.maxAmount || undefined,
+    includeReversed: filters.includeReversed || undefined,
+    search: filters.search || undefined,
+    sortBy: sort.sortBy,
+    sortOrder: sort.sortOrder,
+  });
   const { data: categoriesData } = useCategories();
 
   const deleteCategoryMutation = useDeleteCategory();
@@ -192,6 +225,43 @@ export default function TransactionsPage() {
           <TransactionForm onDone={() => setAddTxOpen(false)} />
         </FormPanel>
       ) : null}
+
+      <QueryFilters
+        className="mb-3"
+        searchPlaceholder="Description or note"
+        itemCategory="material"
+        fields={[
+          "search",
+          "siteId",
+          "warehouseId",
+          "categoryId",
+          "itemId",
+          "type",
+          "isApproved",
+          "isInternal",
+          "buyerSiteId",
+          "dateFrom",
+          "dateTo",
+          "minAmount",
+          "maxAmount",
+          "includeReversed",
+        ]}
+        values={filters}
+        onChange={(next) => {
+          setFilters(next);
+          setPage(1);
+        }}
+      />
+      <div className="mb-5">
+        <SortSelect
+          options={TRANSACTION_SORT_OPTIONS}
+          value={sort}
+          onChange={(next) => {
+            setSort(next);
+            setPage(1);
+          }}
+        />
+      </div>
 
       {isTxLoading && !transactionsData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading transactions...</div>

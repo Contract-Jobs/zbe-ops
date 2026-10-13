@@ -31,7 +31,25 @@ export type TransactionListParams = ListParams<{
     // movements by default wherever this is passed — callers opt in to see
     // them, matching every other "hidden by default" list flag in the app.
     isSystemGenerated?: string[]
+    warehouseId?: string
+    itemId?: string
+    // All payments for one sale / one equipment movement.
+    inventoryMovementId?: string
+    equipmentMovementId?: string
+    // Payments on sales to this site; isInternal narrows to / away from them.
+    buyerSiteId?: string
+    isInternal?: string
+    // Inclusive, decimal strings.
+    minAmount?: string
+    maxAmount?: string
+    // "false" = staged, awaiting approval.
+    isApproved?: string
+    loggedBy?: string
+    // "true" also returns reversed originals and reversal entries.
+    includeReversed?: string
 }>
+
+export type TransactionSortBy = "transactionDate" | "createdAt" | "amount" | "type"
 
 export function listTransactions(params: TransactionListParams = {}) {
     return apiClient.get<Transaction[]>("/api/transactions", buildListParams(params))
