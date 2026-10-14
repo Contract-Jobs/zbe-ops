@@ -65,7 +65,7 @@ export function RegisterSitePaymentForm({
   }
 
   return (
-    <form className="grid gap-4" onSubmit={submit}>
+    <form className="flex flex-col gap-4" onSubmit={submit}>
       {error ? (
         <p className="border border-[var(--bad)] bg-[var(--white)] p-2 text-sm text-[var(--bad)]">{error}</p>
       ) : null}
