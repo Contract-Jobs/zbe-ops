@@ -23,6 +23,7 @@ import {
   useMarkSoldItemsPaid,
 } from "@/hooks/use-warehouses";
 import { SiteAccountsSection } from "@/components/SiteAccounts";
+import { SalePaymentsPanel } from "@/components/SalePaymentsPanel";
 import { useLicensesInBulk } from "@/hooks/use-licenses";
 import { useReverseInventoryMovement } from "@/hooks/use-inventory-movements";
 import { etb, day } from "@/lib/format";
@@ -41,6 +42,16 @@ import type {
 const soldToSite = (m: { isInternal?: boolean; buyerSiteId?: string | null }) => Boolean(m.isInternal || m.buyerSiteId);
 
 type SoldMatRow = InventoryMovement & { item: InventoryItem | null };
+
+// Per-sale payments exist for sales to outside clients only. A site never pays
+// per sale — it pays its account (Site Accounts tab).
+interface PaymentTarget {
+  id: string;
+  title: string;
+  totalCost: number;
+  paidAmount: number;
+  saleStatus: SaleStatus;
+}
 
 interface ReverseTarget {
   id: string;
@@ -91,6 +102,7 @@ export default function WarehouseSoldItemsPage() {
 
   const [reverseTarget, setReverseTarget] = useState<ReverseTarget | null>(null);
   const [detailModal, setDetailModal] = useState<SoldMatRow | null>(null);
+  const [paymentTarget, setPaymentTarget] = useState<PaymentTarget | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
@@ -442,6 +454,23 @@ export default function WarehouseSoldItemsPage() {
                       <td><Username userId={l.loggedBy ?? ""} /></td>
                       <td className="whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                         <span className="inline-block text-right">
+                          {isSiteSale ? null : (
+                            <button
+                              type="button"
+                              className="mr-3 text-xs text-black/50 hover:text-black hover:underline"
+                              onClick={() =>
+                                setPaymentTarget({
+                                  id: l.id,
+                                  title: l.item?.name ?? "Material sale",
+                                  totalCost: total,
+                                  paidAmount: paid,
+                                  saleStatus: currentSaleStatus,
+                                })
+                              }
+                            >
+                              Payments
+                            </button>
+                          )}
                           {canMutate && canTick(l) ? (
                             <button
                               type="button"
@@ -484,6 +513,25 @@ export default function WarehouseSoldItemsPage() {
       </>
       )}
 
+      {paymentTarget ? (
+        <ModalPanel
+          kicker="Sale Payments"
+          title={`${paymentTarget.title} · Payments`}
+          wide
+          onClose={() => setPaymentTarget(null)}
+        >
+          <SalePaymentsPanel
+            movementId={paymentTarget.id}
+            kind="material"
+            itemTitle={paymentTarget.title}
+            totalCost={paymentTarget.totalCost}
+            paidAmount={paymentTarget.paidAmount}
+            saleStatus={paymentTarget.saleStatus}
+            canMutate={canMutate}
+          />
+        </ModalPanel>
+      ) : null}
+
       {detailModal ? (
         <ModalPanel
           kicker="Sold Material"
@@ -495,6 +543,24 @@ export default function WarehouseSoldItemsPage() {
             warehouseName={warehouse.name}
             licensesMap={licensesMap}
             canReverse={!detailModal.isReversal && !detailModal.isReversed && canMutate}
+            onOpenPayments={
+              soldToSite(detailModal)
+                ? undefined
+                : () => {
+                    const rec = detailModal;
+                    const total = Number(rec.totalCost) || Number(rec.unitCost) * rec.quantity;
+                    const currentSaleStatus = rec.saleStatus ?? "paid";
+                    const paid = Number(rec.paidAmount ?? (currentSaleStatus === "unpaid" ? 0 : total));
+                    setDetailModal(null);
+                    setPaymentTarget({
+                      id: rec.id,
+                      title: rec.item?.name ?? "Material sale",
+                      totalCost: total,
+                      paidAmount: paid,
+                      saleStatus: currentSaleStatus,
+                    });
+                  }
+            }
             onReverse={() => {
               const rec = detailModal;
               const total = Number(rec.totalCost) || Number(rec.unitCost) * rec.quantity;
@@ -553,6 +619,7 @@ function SoldMaterialDetailModal({
   warehouseName,
   licensesMap,
   canReverse,
+  onOpenPayments,
   onReverse,
   onClose,
 }: {
@@ -560,6 +627,8 @@ function SoldMaterialDetailModal({
   warehouseName: string;
   licensesMap: Map<string, License>;
   canReverse: boolean;
+  // Absent for a sale to a site, which has no per-sale payments.
+  onOpenPayments?: () => void;
   onReverse: () => void;
   onClose: () => void;
 }) {
@@ -737,6 +806,15 @@ function SoldMaterialDetailModal({
               onClick={onReverse}
             >
               Reverse sale
+            </button>
+          ) : null}
+          {onOpenPayments ? (
+            <button
+              type="button"
+              className="btn btn-ghost text-xs"
+              onClick={onOpenPayments}
+            >
+              Payments
             </button>
           ) : null}
         </div>
