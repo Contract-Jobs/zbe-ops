@@ -233,6 +233,8 @@ export default function TransactionsPage() {
         className="mb-3"
         searchPlaceholder="Description or note"
         itemCategory="material"
+        popover
+        pinned={["search", "dateFrom", "dateTo"]}
         fields={[
           "search",
           "siteId",

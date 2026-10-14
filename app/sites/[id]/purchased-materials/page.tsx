@@ -286,6 +286,8 @@ export default function SitePurchasedMaterialsPage() {
         <QueryFilters
           className="mb-3"
           fields={[...PAYMENT_FILTER_FIELDS]}
+          popover
+          pinned={["dateFrom", "dateTo"]}
           values={paymentFilters}
           onChange={(next) => {
             setPaymentFilters(next);

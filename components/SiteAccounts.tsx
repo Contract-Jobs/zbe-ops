@@ -316,6 +316,8 @@ function AccountPayments({
       <QueryFilters
         className="mb-3"
         fields={[...PAYMENT_FILTER_FIELDS]}
+        popover
+        pinned={["dateFrom", "dateTo"]}
         values={filters}
         onChange={(next) => {
           setFilters(next);

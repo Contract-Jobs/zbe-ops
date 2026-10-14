@@ -248,6 +248,9 @@ export default function WarehouseSoldItemsPage() {
             : ["licenseId", "dateFrom", "dateTo"]
         }
         searchPlaceholder="Buyer or item"
+        // The Site Accounts tab has only three, so it keeps them inline.
+        popover={view === "sold"}
+        pinned={["search", "dateFrom", "dateTo"]}
         values={filters}
         onChange={(next) => {
           setFilters(next);

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Field } from "@/components/ui";
 import { useCategories } from "@/hooks/use-categories";
@@ -152,6 +153,8 @@ export function QueryFilters({
   title,
   className = "mb-6",
   labels,
+  popover = false,
+  pinned = [],
 }: {
   fields: QueryFilterKey[];
   values: QueryFilterValues;
@@ -163,12 +166,51 @@ export function QueryFilters({
   // Override a control's label where the generic one is ambiguous (e.g. the
   // date range means "submitted" on one screen and "posted" on another).
   labels?: Partial<Record<QueryFilterKey, string>>;
+  // For bars with many fields: keep `pinned` controls inline and put the rest
+  // behind a Filters button. Pinned controls apply as you change them; the ones
+  // in the popover are drafted and only apply on Apply.
+  popover?: boolean;
+  pinned?: QueryFilterKey[];
 }) {
   function set(key: QueryFilterKey, value: string) {
     onChange({ ...values, [key]: value });
   }
 
   const active = fields.some((key) => Boolean(values[key]));
+
+  if (popover) {
+    const pinnedFields = fields.filter((key) => pinned.includes(key));
+    const popoverFields = fields.filter((key) => !pinned.includes(key));
+    return (
+      <div className={`flex flex-wrap items-end gap-3 ${className}`}>
+        {title ? <p className="kicker w-full">{title}</p> : null}
+        {pinnedFields.map((key) => (
+          <FilterControl
+            key={key}
+            field={key}
+            value={values[key] ?? ""}
+            searchPlaceholder={searchPlaceholder}
+            itemCategory={itemCategory}
+            label={labels?.[key]}
+            onChange={(value) => set(key, value)}
+          />
+        ))}
+        <FilterPopover
+          fields={popoverFields}
+          values={values}
+          onChange={onChange}
+          itemCategory={itemCategory}
+          searchPlaceholder={searchPlaceholder}
+          labels={labels}
+        />
+        {active ? (
+          <button type="button" className="btn btn-ghost" onClick={() => onChange({})}>
+            Clear
+          </button>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className={`flex flex-wrap items-end gap-3 ${className}`}>
@@ -188,6 +230,135 @@ export function QueryFilters({
         <button type="button" className="btn btn-ghost" onClick={() => onChange({})}>
           Clear
         </button>
+      ) : null}
+    </div>
+  );
+}
+
+// The Filters button and its panel. The trigger shows how many of its filters
+// are applied (a count badge and an inverted button), so a closed panel still
+// tells you the list is narrowed. Edits are drafted and only take effect on
+// Apply; closing any other way discards them.
+function FilterPopover({
+  fields,
+  values,
+  onChange,
+  itemCategory,
+  searchPlaceholder,
+  labels,
+}: {
+  fields: QueryFilterKey[];
+  values: QueryFilterValues;
+  onChange: (next: QueryFilterValues) => void;
+  itemCategory: InventoryItemCategory;
+  searchPlaceholder: string;
+  labels?: Partial<Record<QueryFilterKey, string>>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<QueryFilterValues>({});
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const appliedCount = fields.filter((key) => Boolean(values[key])).length;
+  const draftCount = fields.filter((key) => Boolean(draft[key])).length;
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  function toggle() {
+    if (!open) {
+      // Start each visit from what is actually applied.
+      setDraft(Object.fromEntries(fields.map((key) => [key, values[key] ?? ""])));
+    }
+    setOpen(!open);
+  }
+
+  function apply() {
+    const next: QueryFilterValues = { ...values };
+    for (const key of fields) {
+      const value = draft[key]?.trim();
+      if (value) next[key] = value;
+      else delete next[key];
+    }
+    onChange(next);
+    setOpen(false);
+  }
+
+  function clearAll() {
+    const next: QueryFilterValues = { ...values };
+    for (const key of fields) delete next[key];
+    onChange(next);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        className={`btn ${appliedCount > 0 ? "" : "btn-ghost"} flex items-center gap-2`}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={appliedCount > 0 ? `Filters, ${appliedCount} applied` : "Filters"}
+        onClick={toggle}
+      >
+        Filters
+        {appliedCount > 0 ? (
+          <span className="min-w-5 border border-current px-1 text-center font-mono text-[0.7rem] leading-5">
+            {appliedCount}
+          </span>
+        ) : null}
+      </button>
+
+      {open ? (
+        <div
+          role="dialog"
+          aria-label="Filters"
+          className="fixed inset-x-4 top-28 z-40 max-h-[75vh] overflow-y-auto border border-black bg-white p-4 sm:absolute sm:inset-x-auto sm:left-0 sm:top-full sm:mt-1 sm:w-[44rem] sm:max-w-[calc(100vw-3rem)]"
+        >
+          <div className="flex flex-wrap items-end gap-3">
+            {fields.map((key) => (
+              <FilterControl
+                key={key}
+                field={key}
+                value={draft[key] ?? ""}
+                searchPlaceholder={searchPlaceholder}
+                itemCategory={itemCategory}
+                label={labels?.[key]}
+                onChange={(value) => setDraft((prev) => ({ ...prev, [key]: value }))}
+              />
+            ))}
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-black/10 pt-3">
+            <button
+              type="button"
+              className="text-xs text-black/60 hover:underline disabled:opacity-40"
+              disabled={appliedCount === 0 && draftCount === 0}
+              onClick={clearAll}
+            >
+              Clear these filters
+            </button>
+            <div className="flex gap-2">
+              <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>
+                Cancel
+              </button>
+              <button type="button" className="btn" onClick={apply}>
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );

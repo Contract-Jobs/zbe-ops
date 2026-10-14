@@ -75,6 +75,8 @@ export default function LedgerPage() {
       <QueryFilters
         className="mb-3"
         searchPlaceholder="Description or note"
+        popover
+        pinned={["search", "dateFrom", "dateTo"]}
         fields={[
           "search",
           "licenseId",

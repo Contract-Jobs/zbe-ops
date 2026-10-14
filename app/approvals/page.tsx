@@ -145,6 +145,8 @@ export default function ApprovalsPage() {
       <QueryFilters
         className="mb-3"
         searchPlaceholder="Search notes"
+        popover
+        pinned={["search", "dateFrom", "dateTo"]}
         labels={{ dateFrom: "Submitted from", dateTo: "Submitted to" }}
         fields={[
           "search",
