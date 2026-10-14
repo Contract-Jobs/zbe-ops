@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import {
@@ -67,8 +67,16 @@ interface PaymentTarget {
 export default function WarehouseSoldItemsPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const store = useStore();
   const canMutate = !isSiteManager(store);
+
+  // Site accounts are admin-only (the API returns none to a site manager), so
+  // a manager only ever sees the sold items. ?tab=accounts deep-links in.
+  const [viewTab, setViewTab] = useState<"accounts" | "sold">(
+    searchParams.get("tab") === "accounts" ? "accounts" : "sold",
+  );
+  const view = canMutate ? viewTab : "sold";
 
   const [equipPage, setEquipPage] = useState(1);
   const [matPage, setMatPage] = useState(1);
@@ -284,15 +292,31 @@ export default function WarehouseSoldItemsPage() {
       </div>
 
       {canMutate ? (
-        <SiteAccountsSection
-          warehouseId={id}
-          accounts={overview.bySite ?? []}
-          canMutate={canMutate}
-          selectedSaleIdsBySite={selectedBySite}
-          onPaymentRegistered={() => setSelectedSales(new Set())}
+        <Tabs
+          tabs={[
+            { id: "accounts", label: "Site Accounts", count: overview.bySite?.length },
+            { id: "sold", label: "Sold Items", count: overview.totalCount },
+          ]}
+          active={view}
+          onChange={(next) => setViewTab(next as typeof viewTab)}
         />
       ) : null}
 
+      {view === "accounts" ? (
+        <>
+          <p className="mb-4 text-xs text-black/50">
+            Balances are all-time, so the license and date filters above don&apos;t apply here.
+          </p>
+          <SiteAccountsSection
+            warehouseId={id}
+            accounts={overview.bySite ?? []}
+            canMutate={canMutate}
+            selectedSaleIdsBySite={selectedBySite}
+            onPaymentRegistered={() => setSelectedSales(new Set())}
+          />
+        </>
+      ) : (
+      <>
       <Tabs
         tabs={[
           { id: "all", label: "All Sales", count: overview.totalCount },
@@ -617,6 +641,8 @@ export default function WarehouseSoldItemsPage() {
           </div>
         )}
       </div>
+      </>
+      )}
 
       {paymentTarget ? (
         <ModalPanel

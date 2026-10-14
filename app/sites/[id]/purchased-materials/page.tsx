@@ -76,7 +76,7 @@ export default function SitePurchasedMaterialsPage() {
       <p className="mb-6 max-w-xl text-sm text-black/60">
         Material this site bought from warehouses. It pays each warehouse in bulk against a running balance, not per
         item. No stock is added to the site and nothing is posted to its budget.
-        {isAdmin ? " Payments are registered from the warehouse's Sold Items page." : ""}
+        {isAdmin ? " Payments are registered from the warehouse's Sold Items page, under Site Accounts." : ""}
       </p>
 
       <div className="mb-6 grid gap-px bg-black/10 sm:grid-cols-3">
@@ -120,7 +120,7 @@ export default function SitePurchasedMaterialsPage() {
                   <tr key={a.id}>
                     <td className="font-medium">
                       {isAdmin ? (
-                        <Link href={`/warehouses/${a.id}/sold-items`} className="hover:text-yellow">
+                        <Link href={`/warehouses/${a.id}/sold-items?tab=accounts`} className="hover:text-yellow">
                           {a.name}
                         </Link>
                       ) : (
