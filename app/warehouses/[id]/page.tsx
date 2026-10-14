@@ -10,6 +10,7 @@ import { useWarehouse, useWarehouseMaterials, useWarehouseBulkEquipment, useWare
 import { useInventoryNodeId } from "@/hooks/use-inventories";
 import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
+import { MarketValueCells, SetMarketValueButton } from "@/components/MarketValue";
 import { BulkEquipmentMovementForm } from "@/components/forms/bulk-equipment-movement";
 import { InventoryAdjustForm } from "@/components/forms/inventory-adjust";
 import { BalanceHistoryPanel } from "@/components/BalanceHistory";
@@ -170,6 +171,8 @@ export default function WarehouseDetailPage() {
                   <th>License</th>
                   <th className="text-left">Quantity</th>
                   <th className="text-left">Average Unit Price</th>
+                  <th className="text-left">Market Value</th>
+                  <th className="text-left">Total Market Value</th>
                   {canMutate && <th className="text-left">Action</th>}
                 </tr>
               </thead>
@@ -189,11 +192,19 @@ export default function WarehouseDetailPage() {
                     <td className="font-mono text-left min-w-[120px]">
                       {m.averageUnitValue ? etb(m.averageUnitValue) : "—"}
                     </td>
+                    <MarketValueCells marketValue={m.marketValue} totalMarketValue={m.totalMarketValue} />
 
                     <td>
                       {canMutate && (
                         <span className="inline-block text-left">
                           <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId(m.itemId)}>Move</button>
+                          <SetMarketValueButton
+                            itemId={m.itemId}
+                            itemName={m.itemName}
+                            unit={m.unit}
+                            marketValue={m.marketValue}
+                            averageUnitValue={m.averageUnitValue}
+                          />
                           <button
                             className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
                             onClick={() => setAdjustBalance({

@@ -3,6 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { MaterialForm, SubitemForm } from "@/components/forms/material";
+import { MarketValueCells, SetMarketValueButton } from "@/components/MarketValue";
 import {
   closedMode,
   DeleteConfirm,
@@ -167,6 +168,26 @@ export default function MaterialDetailPage() {
                 <p className="kicker">Total Value</p>
                 <p className="mt-2 break-words text-2xl tracking-tight">{etb(item.totalValue)}</p>
               </div>
+
+              <div className="bg-white p-5">
+                <p className="kicker">Market Value</p>
+                <p className="mt-2 break-words text-2xl tracking-tight">
+                  {item.marketValue != null ? etb(item.marketValue) : "—"}
+                  {item.marketValue != null ? <span className="text-sm text-black/50"> / {item.unit}</span> : null}
+                </p>
+                <p className="mt-1 text-sm text-black/60">
+                  {item.totalMarketValue != null ? `${etb(item.totalMarketValue)} in stock` : "Not set"}
+                </p>
+                {canMutate ? (
+                  <SetMarketValueButton
+                    itemId={item.id}
+                    itemName={item.name}
+                    unit={item.unit}
+                    marketValue={item.marketValue}
+                    className="mt-2 text-xs text-blue-600/80 hover:text-black hover:underline"
+                  />
+                ) : null}
+              </div>
             </div>
           </div>
           <p className="kicker mb-2">Global Distribution</p>
@@ -178,6 +199,9 @@ export default function MaterialDetailPage() {
                   <th>License</th>
                   <th>Qty</th>
                   <th>Avg Cost</th>
+                  <th>Market Value</th>
+                  <th>Total Market Value</th>
+                  {canMutate ? <th></th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -189,11 +213,24 @@ export default function MaterialDetailPage() {
                     <td className="text-sm text-black/60">{b.licenseName}</td>
                     <td className="font-mono">{qty(b.quantity, item.unit)}</td>
                     <td className="font-mono">{b.averageUnitValue ? etb(b.averageUnitValue) : "—"}</td>
+                    <MarketValueCells marketValue={b.marketValue} totalMarketValue={b.totalMarketValue} />
+                    {canMutate ? (
+                      <td className="whitespace-nowrap text-right">
+                        <SetMarketValueButton
+                          itemId={item.id}
+                          itemName={item.name}
+                          unit={item.unit}
+                          marketValue={b.marketValue}
+                          averageUnitValue={b.averageUnitValue}
+                          className="text-xs text-blue-600/80 hover:text-black hover:underline"
+                        />
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
                 {balances.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-4 text-center text-sm text-black/45">
+                    <td colSpan={canMutate ? 7 : 6} className="py-4 text-center text-sm text-black/45">
                       No stock currently distributed.
                     </td>
                   </tr>

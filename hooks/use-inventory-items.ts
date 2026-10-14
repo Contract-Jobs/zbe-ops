@@ -43,6 +43,14 @@ export function useUpdateInventoryItem() {
         onSuccess: (_result, variables) => {
             queryClient.invalidateQueries({ queryKey: queryKeys.inventoryItems.lists() })
             queryClient.invalidateQueries({ queryKey: queryKeys.inventoryItems.detail(variables.id) })
+            // marketValue is shown (with totalMarketValue) on every balance
+            // row this item has, wherever the balances are listed.
+            if ("marketValue" in variables.payload) {
+                queryClient.invalidateQueries({ queryKey: queryKeys.sites.all })
+                queryClient.invalidateQueries({ queryKey: queryKeys.warehouses.all })
+                queryClient.invalidateQueries({ queryKey: queryKeys.inventories.all })
+                queryClient.invalidateQueries({ queryKey: queryKeys.inventoryBalances.all })
+            }
         },
     })
 }

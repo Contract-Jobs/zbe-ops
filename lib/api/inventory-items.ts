@@ -17,6 +17,9 @@ export interface CreateInventoryItemPayload {
     compositionType?: InventoryItemCompositionType
     unit?: string
     subitems?: CreateSubitemInput[]
+    // Current market price per unit, "12.50" (>= 0, at most 2 decimals).
+    // null clears it. Materials only — the API refuses it on equipment.
+    marketValue?: string | null
 }
 
 export type UpdateInventoryItemPayload = Partial<CreateInventoryItemPayload>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Field, FormActions } from "@/components/ui";
+import { MARKET_VALUE_PATTERN } from "@/components/MarketValue";
 import { useCreateInventoryItem, useUpdateInventoryItem, useAddSubitem, useUpdateSubitem } from "@/hooks/use-inventory-items";
 import type { InventoryItem, InventoryItemSubitem } from "@/types/api";
 
@@ -28,19 +29,28 @@ export function MaterialForm({
     const fd = new FormData(e.currentTarget);
     const name = String(fd.get("name") ?? "").trim();
     const unit = String(fd.get("unit") ?? "").trim();
+    const marketValueText = String(fd.get("marketValue") ?? "").trim();
 
     if (!name) return;
+    if (marketValueText && !MARKET_VALUE_PATTERN.test(marketValueText)) {
+      setError("Market value must be 0 or more, with at most 2 decimals.");
+      return;
+    }
 
     try {
       if (initial) {
+        // Blank on an item that had one clears it (null); blank on one that
+        // never had one leaves it untouched.
+        const marketValue = marketValueText || (initial.marketValue != null ? null : undefined);
         await updateMutation.mutateAsync({
           id: initial.id,
-          payload: { name, unit: unit || undefined },
+          payload: { name, unit: unit || undefined, marketValue },
         });
       } else {
         await createMutation.mutateAsync({
           name,
           unit: unit || undefined,
+          marketValue: marketValueText || undefined,
           category: "material",
           tracking: "quantity",
           compositionType,
@@ -66,6 +76,16 @@ export function MaterialForm({
       </Field>
       <Field label="Unit">
         <input className="field" name="unit" defaultValue={initial?.unit ?? "pcs"} disabled={isPending} />
+      </Field>
+      <Field label="Market value per unit (ETB, optional)">
+        <input
+          className="field"
+          name="marketValue"
+          inputMode="decimal"
+          placeholder="Leave blank if unknown"
+          defaultValue={initial?.marketValue ?? ""}
+          disabled={isPending}
+        />
       </Field>
       <Field label="Type">
         <select
