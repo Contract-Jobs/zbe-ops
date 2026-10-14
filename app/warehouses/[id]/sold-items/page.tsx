@@ -453,14 +453,7 @@ export default function WarehouseSoldItemsPage() {
                       </td>
                       <td>
                         {isSiteSale ? (
-                          <>
-                            <Stamp value="site account" tone="yellow" />
-                            {l.isMarkedPaid ? (
-                              <div className="mt-1">
-                                <Stamp value="marked paid" tone="ok" />
-                              </div>
-                            ) : null}
-                          </>
+                          l.isMarkedPaid ? <Stamp value="marked paid" tone="ok" /> : null
                         ) : (
                           <Stamp value={currentSaleStatus} tone={statusTone(currentSaleStatus)} />
                         )}
