@@ -153,7 +153,7 @@ export function SalePaymentsPanel({
         </p>
       ) : null}
 
-      <div className="mb-6 grid grid-cols-1 gap-px bg-black/10 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-px bg-black/10">
         <div className="bg-white p-4">
           <p className="kicker">Total Sale Amount</p>
           <p className="mt-1 font-mono text-xl font-medium tracking-tight text-black">{etb(totalCost)}</p>
@@ -183,11 +183,9 @@ export function SalePaymentsPanel({
             setError(null);
           }}
         >
-          <form onSubmit={handleRecordPayment} className="grid gap-3 sm:grid-cols-2">
+          <form onSubmit={handleRecordPayment} className="grid gap-3">
             {error ? (
-              <p className="border border-[var(--bad)] bg-[var(--white)] p-2 text-sm text-[var(--bad)] sm:col-span-2">
-                {error}
-              </p>
+              <p className="border border-[var(--bad)] bg-[var(--white)] p-2 text-sm text-[var(--bad)]">{error}</p>
             ) : null}
 
             <Field label="Amount (ETB) *">
@@ -234,20 +232,18 @@ export function SalePaymentsPanel({
               </Field>
             ) : null}
 
-            <div className={kind === "material" && categories.length > 0 ? "" : "sm:col-span-2"}>
-              <Field label="Payment note (optional)">
-                <input
-                  type="text"
-                  value={paymentNote}
-                  onChange={(e) => setPaymentNote(e.target.value)}
-                  placeholder="e.g. Bank transfer, installment 1"
-                  className="field"
-                  disabled={isPendingMutation}
-                />
-              </Field>
-            </div>
+            <Field label="Payment note (optional)">
+              <input
+                type="text"
+                value={paymentNote}
+                onChange={(e) => setPaymentNote(e.target.value)}
+                placeholder="e.g. Bank transfer, installment 1"
+                className="field"
+                disabled={isPendingMutation}
+              />
+            </Field>
 
-            <div className="mt-2 sm:col-span-2">
+            <div className="mt-2">
               <FormActions
                 saveLabel="Save payment"
                 onCancel={() => {
