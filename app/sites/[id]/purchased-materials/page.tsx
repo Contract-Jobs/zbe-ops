@@ -199,9 +199,9 @@ export default function SitePurchasedMaterialsPage() {
       </section>
 
       <section className={tab === "items" ? "mb-10" : "hidden"}>
-        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-          <p className="kicker">Items bought</p>
-          <div className="w-full sm:w-52">
+        {/* One left-aligned row, like the other tabs: paid label, dates, sort. */}
+        <div className="mb-4 flex flex-wrap items-end gap-3">
+          <div className="w-full sm:w-44">
             <Field label="Paid label">
               <select
                 className="field"
@@ -217,17 +217,15 @@ export default function SitePurchasedMaterialsPage() {
               </select>
             </Field>
           </div>
-        </div>
-        <QueryFilters
-          className="mb-3"
-          fields={["dateFrom", "dateTo"]}
-          values={salesRange}
-          onChange={(next) => {
-            setSalesRange(next);
-            setSalesPage(1);
-          }}
-        />
-        <div className="mb-4">
+          <QueryFilters
+            className=""
+            fields={["dateFrom", "dateTo"]}
+            values={salesRange}
+            onChange={(next) => {
+              setSalesRange(next);
+              setSalesPage(1);
+            }}
+          />
           <SortSelect
             options={SALES_SORT_OPTIONS}
             value={salesSort}
