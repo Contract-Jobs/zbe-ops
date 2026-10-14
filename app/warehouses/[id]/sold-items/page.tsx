@@ -18,7 +18,6 @@ import { useStore, isSiteManager } from "@/lib/store";
 import { toast } from "sonner";
 import {
   useWarehouseSoldOverview,
-  useWarehouseSoldEquipment,
   useWarehouseSoldMaterials,
   useWarehouse,
   useMarkSoldItemsPaid,
@@ -26,13 +25,10 @@ import {
 import { SiteAccountsSection } from "@/components/SiteAccounts";
 import { useLicensesInBulk } from "@/hooks/use-licenses";
 import { useReverseInventoryMovement } from "@/hooks/use-inventory-movements";
-import { useReverseEquipmentMovement } from "@/hooks/use-equipment-movements";
 import { etb, day } from "@/lib/format";
 import type {
   SoldItemsOverview,
   Warehouse,
-  IndividualEquipmentMovement,
-  IndividualEquipmentItem,
   InventoryMovement,
   InventoryItem,
   License,
@@ -44,17 +40,10 @@ import type {
 // mistaken for an ordinary sale with its own payments.
 const soldToSite = (m: { isInternal?: boolean; buyerSiteId?: string | null }) => Boolean(m.isInternal || m.buyerSiteId);
 
-type SoldEquipRow = IndividualEquipmentMovement & { equipment: IndividualEquipmentItem | null };
 type SoldMatRow = InventoryMovement & { item: InventoryItem | null };
-
-type DetailModalState =
-  | { kind: "equipment"; record: SoldEquipRow }
-  | { kind: "material"; record: SoldMatRow }
-  | null;
 
 interface ReverseTarget {
   id: string;
-  kind: "equipment" | "material";
   title: string;
   amount: number;
 }
@@ -73,11 +62,8 @@ export default function WarehouseSoldItemsPage() {
   );
   const view = canMutate ? viewTab : "sold";
 
-  const [equipPage, setEquipPage] = useState(1);
   const [matPage, setMatPage] = useState(1);
-  // Which sold table the Sold Items tab shows. Payment status is a filter in
-  // the bar above (filters.saleStatus), not a second row of tabs.
-  const [soldKind, setSoldKind] = useState<"materials" | "equipment">("materials");
+  // Payment status is a filter in the bar above (filters.saleStatus).
   const [filters, setFilters] = useState<QueryFilterValues>({});
 
   const soldParams = {
@@ -94,11 +80,9 @@ export default function WarehouseSoldItemsPage() {
     dateFrom: filters.dateFrom || undefined,
     dateTo: filters.dateTo || undefined,
   });
-  const { data: equipmentData } = useWarehouseSoldEquipment(id, { page: equipPage, limit: 10, ...soldParams });
   const { data: materialsData } = useWarehouseSoldMaterials(id, { page: matPage, limit: 10, ...soldParams });
 
   const reverseMaterialMutation = useReverseInventoryMovement();
-  const reverseEquipmentMutation = useReverseEquipmentMovement();
   const markPaidMutation = useMarkSoldItemsPaid();
 
   // Sales to sites ticked for the paid label. Cleared whenever the page of
@@ -106,7 +90,7 @@ export default function WarehouseSoldItemsPage() {
   const [selectedSales, setSelectedSales] = useState<Set<string>>(new Set());
 
   const [reverseTarget, setReverseTarget] = useState<ReverseTarget | null>(null);
-  const [detailModal, setDetailModal] = useState<DetailModalState>(null);
+  const [detailModal, setDetailModal] = useState<SoldMatRow | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
@@ -121,7 +105,6 @@ export default function WarehouseSoldItemsPage() {
   };
 
   const overview = overviewData?.data ?? fallbackOverview;
-  const soldEquip: SoldEquipRow[] = useMemo(() => equipmentData?.data ?? [], [equipmentData?.data]);
   const soldMats: SoldMatRow[] = useMemo(() => materialsData?.data ?? [], [materialsData?.data]);
 
   // Only an approved, live sale to a site can carry the paid label.
@@ -144,14 +127,19 @@ export default function WarehouseSoldItemsPage() {
       return next;
     });
 
-  const applyPaidLabel = async (paid: boolean) => {
+  const setPaidLabel = async (movementIds: string[], paid: boolean) => {
     try {
-      await markPaidMutation.mutateAsync({ warehouseId: id, movementIds: Array.from(selectedSales), paid });
+      await markPaidMutation.mutateAsync({ warehouseId: id, movementIds, paid });
       toast.success(paid ? "Marked as paid." : "Paid label removed.");
-      setSelectedSales(new Set());
+      return true;
     } catch {
       // The API client already toasts the failure; nothing changed (all-or-nothing).
+      return false;
     }
+  };
+
+  const applyPaidLabel = async (paid: boolean) => {
+    if (await setPaidLabel(Array.from(selectedSales), paid)) setSelectedSales(new Set());
   };
 
   const totalRevenue = Number(overview.totalRevenue ?? 0);
@@ -165,12 +153,10 @@ export default function WarehouseSoldItemsPage() {
   const licenseIds = useMemo(() => {
     return Array.from(
       new Set(
-        [...soldEquip.map((e) => e.licenseId), ...soldMats.map((m) => m.licenseId)].filter(
-          (licId): licId is string => Boolean(licId)
-        )
+        soldMats.map((m) => m.licenseId).filter((licId): licId is string => Boolean(licId))
       )
     );
-  }, [soldEquip, soldMats]);
+  }, [soldMats]);
 
   const { data: licensesData } = useLicensesInBulk(licenseIds);
 
@@ -192,13 +178,9 @@ export default function WarehouseSoldItemsPage() {
     if (!reverseTarget) return;
     setError(null);
     try {
-      if (reverseTarget.kind === "material") {
-        await reverseMaterialMutation.mutateAsync({ id: reverseTarget.id });
-      } else {
-        await reverseEquipmentMutation.mutateAsync({ id: reverseTarget.id });
-      }
+      await reverseMaterialMutation.mutateAsync({ id: reverseTarget.id });
       setReverseTarget(null);
-      if (detailModal?.record.id === reverseTarget.id) {
+      if (detailModal?.id === reverseTarget.id) {
         setDetailModal(null);
       }
     } catch (e) {
@@ -212,7 +194,7 @@ export default function WarehouseSoldItemsPage() {
     }
   };
 
-  const isReversing = reverseMaterialMutation.isPending || reverseEquipmentMutation.isPending;
+  const isReversing = reverseMaterialMutation.isPending;
 
   return (
     <div>
@@ -233,7 +215,6 @@ export default function WarehouseSoldItemsPage() {
         values={filters}
         onChange={(next) => {
           setFilters(next);
-          setEquipPage(1);
           setMatPage(1);
           setSelectedSales(new Set());
         }}
@@ -316,112 +297,6 @@ export default function WarehouseSoldItemsPage() {
         </>
       ) : (
       <>
-      <Tabs
-        tabs={[
-          { id: "materials", label: "Materials", count: overview.soldMaterialCount },
-          { id: "equipment", label: "Equipment", count: overview.soldEquipmentCount },
-        ]}
-        active={soldKind}
-        onChange={(next) => {
-          setSoldKind(next as typeof soldKind);
-          setSelectedSales(new Set());
-        }}
-      />
-
-      {soldKind === "equipment" ? (
-      <div className="mb-8">
-        {soldEquip.length > 0 ? (
-          <TableWrap pagination={equipmentData?.pagination} onPageChange={setEquipPage}>
-            <table className="data w-full text-left">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Equipment</th>
-                  <th>Buyer</th>
-                  <th>Status</th>
-                  <th>Note</th>
-                  <th>Price</th>
-                  <th>Logged By</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {soldEquip.map((l) => {
-                  const canReverse = !l.isReversal && !l.isReversed;
-                  const price = Number(l.movementCost ?? 0);
-                  const currentSaleStatus = l.saleStatus ?? "paid";
-                  const paid = Number(l.paidAmount ?? (currentSaleStatus === "unpaid" ? 0 : price));
-                  return (
-                    <tr
-                      key={l.id}
-                      onClick={() => setDetailModal({ kind: "equipment", record: l })}
-                      className="cursor-pointer"
-                      tabIndex={0}
-                      role="button"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          setDetailModal({ kind: "equipment", record: l });
-                        }
-                      }}
-                    >
-                      <td className="whitespace-nowrap">{day(l.movementDate)}</td>
-                      <td className="min-w-0">
-                        <div className="font-medium">{l.equipment?.identifier ?? "Unknown equipment"}</div>
-                        {l.equipment?.item?.name && <div className="text-sm text-black/60">{l.equipment.item.name}</div>}
-                        {l.isReversal ? <Stamp value="reversal" tone="bad" /> : null}
-                        {l.isReversed ? <Stamp value="reversed" tone="bad" /> : null}
-                      </td>
-                      <td>{l.clientName ?? "—"}</td>
-                      <td>
-                        <Stamp value={currentSaleStatus} tone={statusTone(currentSaleStatus)} />
-                      </td>
-                      <td
-                        className="max-w-[12rem] truncate text-sm text-black/70"
-                        title={l.note ?? undefined}
-                      >
-                        {l.note || "—"}
-                      </td>
-                      <td className="whitespace-nowrap font-mono">
-                        <div>{etb(price)}</div>
-                        {currentSaleStatus !== "paid" ? (
-                          <div className="text-xs text-black/50">Paid: {etb(paid)}</div>
-                        ) : null}
-                      </td>
-                      <td><Username userId={l.loggedBy ?? ""} /></td>
-                      <td className="whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
-                        <span className="inline-block text-right">
-                          {canReverse && canMutate ? (
-                            <button
-                              type="button"
-                              className="text-xs text-bad hover:underline"
-                              onClick={() =>
-                                setReverseTarget({
-                                  id: l.id,
-                                  kind: "equipment",
-                                  title: l.equipment?.identifier ?? "Equipment sale",
-                                  amount: price,
-                                })
-                              }
-                            >
-                              Reverse sale
-                            </button>
-                          ) : null}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </TableWrap>
-        ) : (
-          <div className="border border-dashed border-black/20 p-8 text-center text-sm text-black/40">
-            No equipment sold from this warehouse.
-          </div>
-        )}
-      </div>
-      ) : (
       <div className="mb-8">
         {selectedSales.size > 0 && canMutate ? (
           <div className="mb-3 flex flex-wrap items-center gap-3 border border-black/10 bg-paper/40 p-3 text-sm">
@@ -496,14 +371,14 @@ export default function WarehouseSoldItemsPage() {
                   return (
                     <tr
                       key={l.id}
-                      onClick={() => setDetailModal({ kind: "material", record: l })}
+                      onClick={() => setDetailModal(l)}
                       className="cursor-pointer"
                       tabIndex={0}
                       role="button"
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          setDetailModal({ kind: "material", record: l });
+                          setDetailModal(l);
                         }
                       }}
                     >
@@ -567,6 +442,16 @@ export default function WarehouseSoldItemsPage() {
                       <td><Username userId={l.loggedBy ?? ""} /></td>
                       <td className="whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                         <span className="inline-block text-right">
+                          {canMutate && canTick(l) ? (
+                            <button
+                              type="button"
+                              className="mr-3 text-xs text-blue-600/80 hover:text-black hover:underline"
+                              disabled={markPaidMutation.isPending}
+                              onClick={() => void setPaidLabel([l.id], !l.isMarkedPaid)}
+                            >
+                              {l.isMarkedPaid ? "Unmark paid" : "Mark paid"}
+                            </button>
+                          ) : null}
                           {canReverse && canMutate ? (
                             <button
                               type="button"
@@ -574,7 +459,6 @@ export default function WarehouseSoldItemsPage() {
                               onClick={() =>
                                 setReverseTarget({
                                   id: l.id,
-                                  kind: "material",
                                   title: l.item?.name ?? "Material sale",
                                   amount: total,
                                 })
@@ -597,54 +481,26 @@ export default function WarehouseSoldItemsPage() {
           </div>
         )}
       </div>
-      )}
       </>
       )}
 
-      {detailModal?.kind === "equipment" ? (
-        <ModalPanel
-          kicker="Sold Equipment"
-          title={detailModal.record.equipment?.identifier ? `Equipment · ${detailModal.record.equipment.identifier}` : "Equipment sale detail"}
-          onClose={() => setDetailModal(null)}
-        >
-          <SoldEquipmentDetailModal
-            record={detailModal.record}
-            warehouseName={warehouse.name}
-            licensesMap={licensesMap}
-            canReverse={!detailModal.record.isReversal && !detailModal.record.isReversed && canMutate}
-            onReverse={() => {
-              const rec = detailModal.record;
-              setDetailModal(null);
-              setReverseTarget({
-                id: rec.id,
-                kind: "equipment",
-                title: rec.equipment?.identifier ?? "Equipment sale",
-                amount: Number(rec.movementCost ?? 0),
-              });
-            }}
-            onClose={() => setDetailModal(null)}
-          />
-        </ModalPanel>
-      ) : null}
-
-      {detailModal?.kind === "material" ? (
+      {detailModal ? (
         <ModalPanel
           kicker="Sold Material"
-          title={detailModal.record.item?.name ? `Material · ${detailModal.record.item.name}` : "Material sale detail"}
+          title={detailModal.item?.name ? `Material · ${detailModal.item.name}` : "Material sale detail"}
           onClose={() => setDetailModal(null)}
         >
           <SoldMaterialDetailModal
-            record={detailModal.record}
+            record={detailModal}
             warehouseName={warehouse.name}
             licensesMap={licensesMap}
-            canReverse={!detailModal.record.isReversal && !detailModal.record.isReversed && canMutate}
+            canReverse={!detailModal.isReversal && !detailModal.isReversed && canMutate}
             onReverse={() => {
-              const rec = detailModal.record;
+              const rec = detailModal;
               const total = Number(rec.totalCost) || Number(rec.unitCost) * rec.quantity;
               setDetailModal(null);
               setReverseTarget({
                 id: rec.id,
-                kind: "material",
                 title: rec.item?.name ?? "Material sale",
                 amount: total,
               });
@@ -660,7 +516,7 @@ export default function WarehouseSoldItemsPage() {
         body={
           error
             ? error
-            : `This will reverse the ${reverseTarget?.kind === "equipment" ? "equipment" : "material"} sale for ${reverseTarget?.title} (${etb(reverseTarget?.amount ?? 0)}). This will restore stock balance and record inverse ledger lines.`
+            : `This will reverse the material sale for ${reverseTarget?.title} (${etb(reverseTarget?.amount ?? 0)}). This will restore stock balance and record inverse ledger lines.`
         }
         confirmLabel="Reverse sale"
         danger
@@ -688,163 +544,6 @@ function DetailRow({
     <div className={fullWidth ? "sm:col-span-2" : undefined}>
       <dt className="kicker">{label}</dt>
       <dd className="mt-1 break-words">{value}</dd>
-    </div>
-  );
-}
-
-function SoldEquipmentDetailModal({
-  record: l,
-  warehouseName,
-  licensesMap,
-  canReverse,
-  onReverse,
-  onClose,
-}: {
-  record: SoldEquipRow;
-  warehouseName: string;
-  licensesMap: Map<string, License>;
-  canReverse: boolean;
-  onReverse: () => void;
-  onClose: () => void;
-}) {
-  const store = useStore();
-  const license = l.licenseId ? licensesMap.get(l.licenseId) : null;
-  const licenseName = l.licenseId
-    ? license?.name ?? store.licenses.find((lic) => lic.id === l.licenseId)?.name ?? l.licenseId
-    : "—";
-  const price = Number(l.movementCost ?? 0);
-  const currentSaleStatus = l.saleStatus ?? "paid";
-  const paid = Number(l.paidAmount ?? (currentSaleStatus === "unpaid" ? 0 : price));
-  const remaining = Math.max(0, price - paid);
-
-  return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Stamp
-          value={l.isApproved ? "approved" : "pending"}
-          tone={l.isApproved ? "ok" : "yellow"}
-        />
-        <Stamp value={currentSaleStatus} tone={statusTone(currentSaleStatus)} />
-        {l.isReversal ? <Stamp value="reversal" tone="bad" /> : null}
-        {l.isReversed ? <Stamp value="reversed" tone="bad" /> : null}
-        <Stamp value="equipment sale" tone="ok" />
-      </div>
-
-      <div className="mb-6 border-b border-black/10 pb-4">
-        <p className="kicker">Sale Price</p>
-        <p className="mt-1 font-mono text-2xl font-medium tracking-tight text-ok">
-          {etb(price)}
-        </p>
-      </div>
-
-      <dl className="grid grid-cols-1 gap-x-8 gap-y-4 border border-black/10 p-4 text-sm sm:grid-cols-2 sm:p-5">
-        <DetailRow
-          label="Sale date"
-          value={<span className="font-mono text-xs">{day(l.movementDate)}</span>}
-        />
-        <DetailRow
-          label="Buyer"
-          value={l.clientName ?? "—"}
-        />
-        <DetailRow
-          label="Equipment identifier"
-          value={<span className="font-mono text-xs">{l.equipment?.identifier ?? l.individualItemId}</span>}
-        />
-        <DetailRow
-          label="Equipment model"
-          value={l.equipment?.item?.name ?? "—"}
-        />
-        <DetailRow
-          label="Payment status"
-          value={<Stamp value={currentSaleStatus} tone={statusTone(currentSaleStatus)} />}
-        />
-        <DetailRow
-          label="Cash collected"
-          value={<span className="font-mono text-xs text-ok">{etb(paid)}</span>}
-        />
-        {remaining > 0 ? (
-          <DetailRow
-            label="Outstanding balance"
-            value={<span className="font-mono text-xs text-bad">{etb(remaining)}</span>}
-          />
-        ) : null}
-        <DetailRow label="Warehouse" value={warehouseName} />
-        <DetailRow label="License" value={licenseName} />
-        <DetailRow
-          label="Logged by"
-          value={<Username userId={l.loggedBy} fallback={l.loggedBy || "—"} />}
-        />
-
-        {l.transactionId ? (
-          <DetailRow
-            label="Transaction reference"
-            value={<span className="font-mono text-xs">{l.transactionId}</span>}
-          />
-        ) : null}
-
-        {l.ledgerId ? (
-          <DetailRow
-            label="Ledger reference"
-            value={<span className="font-mono text-xs">{l.ledgerId}</span>}
-          />
-        ) : null}
-
-        {l.reversalOfId ? (
-          <DetailRow
-            label="Reversal of"
-            value={<span className="font-mono text-xs">{l.reversalOfId}</span>}
-          />
-        ) : null}
-
-        <DetailRow
-          label="Note"
-          value={l.note || "—"}
-          fullWidth
-        />
-
-        <DetailRow
-          label="Movement ID"
-          value={
-            <span className="font-mono text-xs text-black/60 break-all">
-              {l.id}
-            </span>
-          }
-          fullWidth
-        />
-
-        <DetailRow
-          label="Created at"
-          value={<span className="font-mono text-xs">{day(l.createdAt)}</span>}
-        />
-
-        {l.updatedAt ? (
-          <DetailRow
-            label="Updated at"
-            value={<span className="font-mono text-xs">{day(l.updatedAt)}</span>}
-          />
-        ) : null}
-      </dl>
-
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-4">
-        <div className="flex items-center gap-2">
-          {canReverse ? (
-            <button
-              type="button"
-              className="btn btn-ghost-bad text-xs"
-              onClick={onReverse}
-            >
-              Reverse sale
-            </button>
-          ) : null}
-        </div>
-        <button
-          type="button"
-          className="btn btn-ghost text-xs"
-          onClick={onClose}
-        >
-          Close
-        </button>
-      </div>
     </div>
   );
 }
