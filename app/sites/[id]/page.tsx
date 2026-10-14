@@ -148,7 +148,8 @@ export default function SiteDetailPage() {
   const [taskMode, setTaskMode] = useState<RecordMode<SiteTask>>(closedMode);
   const [lifecycleModalOpen, setLifecycleModalOpen] = useState(false);
   const [ledgerToolsOpen, setLedgerToolsOpen] = useState(false);
-  const [moveMaterialId, setMoveMaterialId] = useState<string | null>(null);
+  // The balance row being moved: its item and the license that stock is under.
+  const [moveMaterialId, setMoveMaterialId] = useState<{ itemId: string; license: { id: string; name: string } } | null>(null);
   const [adjustBalance, setAdjustBalance] = useState<{ itemId: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
   const [historyTarget, setHistoryTarget] = useState<{ itemId: string; itemName: string; unit: string } | null>(null);
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
@@ -678,7 +679,7 @@ export default function SiteDetailPage() {
                         <td>
                           {canMutate && (
                             <span className="inline-block text-left">
-                              <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId(m.itemId)}>Move</button>
+                              <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId({ itemId: m.itemId, license: { id: m.licenseId, name: m.licenseName } })}>Move</button>
                               <SetMarketValueButton
                                 itemId={m.itemId}
                                 itemName={m.itemName}
@@ -760,7 +761,7 @@ export default function SiteDetailPage() {
                         <td>
                           {canMutate && (
                             <span className="inline-block text-left">
-                              <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId(b.itemId)}>Move</button>
+                              <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId({ itemId: b.itemId, license: { id: b.licenseId, name: b.licenseName } })}>Move</button>
                               <button
                                 className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
                                 onClick={() => setAdjustBalance({
@@ -949,7 +950,8 @@ export default function SiteDetailPage() {
         <ModalPanel kicker="Site Inventory" title="Move Material" onClose={() => setMoveMaterialId(null)}>
           <MaterialMovementForm
             noBg
-            materialId={moveMaterialId}
+            materialId={moveMaterialId.itemId}
+            lockedLicense={moveMaterialId.license}
             fixedSource={{ id: site.id, type: "site", name: site.name }}
             allowedActions={["consume", "loss"]}
             onSuccess={() => setMoveMaterialId(null)}

@@ -34,6 +34,10 @@ export interface MaterialMovementFormProps {
   fixedSource?: { id: string; type: LocationKind; name: string };
   fixedDestination?: { id: string; type: LocationKind; name: string };
   allowedActions?: QuantityMovementType[];
+  // The balance row this was raised from. Balances are held per (item,
+  // license), so the form is told which license's stock it is working on.
+  // A sale sends it; the other actions have no license field in the API.
+  lockedLicense?: { id: string; name: string };
   title?: string;
   noBg?: boolean,
   onSuccess?: () => void;
@@ -47,6 +51,7 @@ export function MaterialMovementForm({
   fixedSource,
   fixedDestination,
   allowedActions,
+  lockedLicense,
   title,
   onSuccess,
   noBg,
@@ -91,7 +96,7 @@ export function MaterialMovementForm({
   // clientName and buyerSiteId are mutually exclusive on a sale.
   const [buyerKind, setBuyerKind] = useState<"client" | "site">("client");
   const [buyerSiteId, setBuyerSiteId] = useState("");
-  const [licenseId, setLicenseId] = useState("");
+  const [licenseId, setLicenseId] = useState(lockedLicense?.id ?? "");
   const [reason, setReason] = useState("");
   const [movementDate, setMovementDate] = useState("");
   const [fullyPaid, setFullyPaid] = useState(true);
@@ -369,7 +374,18 @@ export function MaterialMovementForm({
         </div>
       )}
 
-      {["purchase", "sale"].includes(type) && (
+      {lockedLicense ? (
+        <div className="mb-3 text-sm">
+          License
+          <div className="field mt-1 cursor-not-allowed bg-black/5 text-black/50">{lockedLicense.name}</div>
+          {type !== "sale" ? (
+            <p className="mt-1 text-xs text-black/50">
+              This row&apos;s stock. Only a sale can name the license; the other actions take stock from the lot the
+              system picks.
+            </p>
+          ) : null}
+        </div>
+      ) : ["purchase", "sale"].includes(type) && (
         <label className="mb-3 block text-sm">
           License{type === "sale" ? " (only if this location holds more than one)" : ""}
           <select className="field mt-1" value={licenseId} onChange={(e) => setLicenseId(e.target.value)}>

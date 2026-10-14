@@ -69,7 +69,8 @@ export default function WarehouseDetailPage() {
 
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
 
-  const [moveMaterialId, setMoveMaterialId] = useState<string | null>(null);
+  // The balance row being moved: its item and the license that stock is under.
+  const [moveMaterialId, setMoveMaterialId] = useState<{ itemId: string; license: { id: string; name: string } } | null>(null);
   const [adjustBalance, setAdjustBalance] = useState<{ itemId: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
   const [purchaseMaterialOpen, setPurchaseMaterialOpen] = useState(false);
@@ -205,7 +206,7 @@ export default function WarehouseDetailPage() {
                     <td>
                       {canMutate && (
                         <span className="inline-block text-left">
-                          <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId(m.itemId)}>Move</button>
+                          <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId({ itemId: m.itemId, license: { id: m.licenseId, name: m.licenseName } })}>Move</button>
                           <SetMarketValueButton
                             itemId={m.itemId}
                             itemName={m.itemName}
@@ -279,7 +280,7 @@ export default function WarehouseDetailPage() {
                     <td>
                       {canMutate && (
                         <span className="inline-block text-left">
-                          <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId(b.itemId)}>Move</button>
+                          <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId({ itemId: b.itemId, license: { id: b.licenseId, name: b.licenseName } })}>Move</button>
                           <button
                             className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
                             onClick={() => setAdjustBalance({
@@ -372,7 +373,8 @@ export default function WarehouseDetailPage() {
         <ModalPanel kicker="Warehouse Inventory" title="Move Material" onClose={() => setMoveMaterialId(null)}>
           <MaterialMovementForm
             noBg
-            materialId={moveMaterialId}
+            materialId={moveMaterialId.itemId}
+            lockedLicense={moveMaterialId.license}
             fixedSource={{ id: warehouse.id, type: "warehouse", name: warehouse.name }}
             allowedActions={["transfer", "sale", "consume", "loss"]}
             onSuccess={() => setMoveMaterialId(null)}

@@ -58,7 +58,8 @@ export default function InventoryLocationPage() {
       ? allowedSites.has(refId)
       : true; // Admin can mutate anything
 
-  const [moveMaterialId, setMoveMaterialId] = useState<string | null>(null);
+  // The balance row being moved: its item and the license that stock is under.
+  const [moveMaterialId, setMoveMaterialId] = useState<{ itemId: string; license: { id: string; name: string } } | null>(null);
   const [adjustBalance, setAdjustBalance] = useState<{ itemId: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
   const [historyTarget, setHistoryTarget] = useState<{ itemId: string; itemName: string; unit: string } | null>(null);
@@ -185,7 +186,7 @@ export default function InventoryLocationPage() {
                     <td className="text-left">
                       {canMutate && (
                         <span className="inline-block">
-                          <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveMaterialId(m.itemId)}>Move</button>
+                          <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveMaterialId({ itemId: m.itemId, license: { id: m.licenseId, name: m.licenseName } })}>Move</button>
                           <button
                             className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
                             onClick={() => setAdjustBalance({
@@ -255,7 +256,7 @@ export default function InventoryLocationPage() {
                     <td className="text-left">
                       {canMutate && (
                         <span className="inline-block">
-                          <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveMaterialId(b.itemId)}>Move</button>
+                          <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveMaterialId({ itemId: b.itemId, license: { id: b.licenseId, name: b.licenseName } })}>Move</button>
                           <button
                             className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
                             onClick={() => setAdjustBalance({
@@ -349,7 +350,8 @@ export default function InventoryLocationPage() {
       {moveMaterialId ? (
         <ModalPanel kicker={`${locationType} Inventory`} title="Move Material" onClose={() => setMoveMaterialId(null)}>
           <MaterialMovementForm
-            materialId={moveMaterialId}
+            materialId={moveMaterialId.itemId}
+            lockedLicense={moveMaterialId.license}
             noBg
             fixedSource={{ id: refId, type: locationType as "site" | "warehouse", name: locationName }}
             allowedActions={matActions}
