@@ -28,7 +28,6 @@ import { useLicensesInBulk } from "@/hooks/use-licenses";
 import { useReverseInventoryMovement } from "@/hooks/use-inventory-movements";
 import { useReverseEquipmentMovement } from "@/hooks/use-equipment-movements";
 import { etb, day } from "@/lib/format";
-import { SalePaymentsPanel } from "@/components/SalePaymentsPanel";
 import type {
   SoldItemsOverview,
   Warehouse,
@@ -58,15 +57,6 @@ interface ReverseTarget {
   kind: "equipment" | "material";
   title: string;
   amount: number;
-}
-
-interface PaymentTarget {
-  id: string;
-  kind: "equipment" | "material";
-  title: string;
-  totalCost: number;
-  paidAmount: number;
-  saleStatus: SaleStatus;
 }
 
 export default function WarehouseSoldItemsPage() {
@@ -117,7 +107,6 @@ export default function WarehouseSoldItemsPage() {
 
   const [reverseTarget, setReverseTarget] = useState<ReverseTarget | null>(null);
   const [detailModal, setDetailModal] = useState<DetailModalState>(null);
-  const [paymentTarget, setPaymentTarget] = useState<PaymentTarget | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
@@ -402,26 +391,10 @@ export default function WarehouseSoldItemsPage() {
                       <td><Username userId={l.loggedBy ?? ""} /></td>
                       <td className="whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                         <span className="inline-block text-right">
-                          <button
-                            type="button"
-                            className="text-xs text-black/50 hover:text-black hover:underline"
-                            onClick={() =>
-                              setPaymentTarget({
-                                id: l.id,
-                                kind: "equipment",
-                                title: l.equipment?.identifier ?? "Equipment sale",
-                                totalCost: price,
-                                paidAmount: paid,
-                                saleStatus: currentSaleStatus,
-                              })
-                            }
-                          >
-                            Payments
-                          </button>
                           {canReverse && canMutate ? (
                             <button
                               type="button"
-                              className="ml-3 text-xs text-bad hover:underline"
+                              className="text-xs text-bad hover:underline"
                               onClick={() =>
                                 setReverseTarget({
                                   id: l.id,
@@ -594,28 +567,10 @@ export default function WarehouseSoldItemsPage() {
                       <td><Username userId={l.loggedBy ?? ""} /></td>
                       <td className="whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                         <span className="inline-block text-right">
-                          {isSiteSale ? null : (
-                            <button
-                              type="button"
-                              className="text-xs text-black/50 hover:text-black hover:underline"
-                              onClick={() =>
-                                setPaymentTarget({
-                                  id: l.id,
-                                  kind: "material",
-                                  title: l.item?.name ?? "Material sale",
-                                  totalCost: total,
-                                  paidAmount: paid,
-                                  saleStatus: currentSaleStatus,
-                                })
-                              }
-                            >
-                              Payments
-                            </button>
-                          )}
                           {canReverse && canMutate ? (
                             <button
                               type="button"
-                              className="ml-3 text-xs text-bad hover:underline"
+                              className="text-xs text-bad hover:underline"
                               onClick={() =>
                                 setReverseTarget({
                                   id: l.id,
@@ -646,25 +601,6 @@ export default function WarehouseSoldItemsPage() {
       </>
       )}
 
-      {paymentTarget ? (
-        <ModalPanel
-          kicker="Sale Payments"
-          title={`${paymentTarget.title} · Payments`}
-          wide
-          onClose={() => setPaymentTarget(null)}
-        >
-          <SalePaymentsPanel
-            movementId={paymentTarget.id}
-            kind={paymentTarget.kind}
-            itemTitle={paymentTarget.title}
-            totalCost={paymentTarget.totalCost}
-            paidAmount={paymentTarget.paidAmount}
-            saleStatus={paymentTarget.saleStatus}
-            canMutate={canMutate}
-          />
-        </ModalPanel>
-      ) : null}
-
       {detailModal?.kind === "equipment" ? (
         <ModalPanel
           kicker="Sold Equipment"
@@ -676,21 +612,6 @@ export default function WarehouseSoldItemsPage() {
             warehouseName={warehouse.name}
             licensesMap={licensesMap}
             canReverse={!detailModal.record.isReversal && !detailModal.record.isReversed && canMutate}
-            onOpenPayments={() => {
-              const rec = detailModal.record;
-              const price = Number(rec.movementCost ?? 0);
-              const currentSaleStatus = rec.saleStatus ?? "paid";
-              const paid = Number(rec.paidAmount ?? (currentSaleStatus === "unpaid" ? 0 : price));
-              setDetailModal(null);
-              setPaymentTarget({
-                id: rec.id,
-                kind: "equipment",
-                title: rec.equipment?.identifier ?? "Equipment sale",
-                totalCost: price,
-                paidAmount: paid,
-                saleStatus: currentSaleStatus,
-              });
-            }}
             onReverse={() => {
               const rec = detailModal.record;
               setDetailModal(null);
@@ -717,25 +638,6 @@ export default function WarehouseSoldItemsPage() {
             warehouseName={warehouse.name}
             licensesMap={licensesMap}
             canReverse={!detailModal.record.isReversal && !detailModal.record.isReversed && canMutate}
-            onOpenPayments={
-              soldToSite(detailModal.record)
-                ? undefined
-                : () => {
-                    const rec = detailModal.record;
-                    const total = Number(rec.totalCost) || Number(rec.unitCost) * rec.quantity;
-                    const currentSaleStatus = rec.saleStatus ?? "paid";
-                    const paid = Number(rec.paidAmount ?? (currentSaleStatus === "unpaid" ? 0 : total));
-                    setDetailModal(null);
-                    setPaymentTarget({
-                      id: rec.id,
-                      kind: "material",
-                      title: rec.item?.name ?? "Material sale",
-                      totalCost: total,
-                      paidAmount: paid,
-                      saleStatus: currentSaleStatus,
-                    });
-                  }
-            }
             onReverse={() => {
               const rec = detailModal.record;
               const total = Number(rec.totalCost) || Number(rec.unitCost) * rec.quantity;
@@ -795,7 +697,6 @@ function SoldEquipmentDetailModal({
   warehouseName,
   licensesMap,
   canReverse,
-  onOpenPayments,
   onReverse,
   onClose,
 }: {
@@ -803,8 +704,6 @@ function SoldEquipmentDetailModal({
   warehouseName: string;
   licensesMap: Map<string, License>;
   canReverse: boolean;
-  // Absent when the sale has no per-sale payments (a sale to a site).
-  onOpenPayments?: () => void;
   onReverse: () => void;
   onClose: () => void;
 }) {
@@ -937,15 +836,6 @@ function SoldEquipmentDetailModal({
               Reverse sale
             </button>
           ) : null}
-          {onOpenPayments ? (
-            <button
-              type="button"
-              className="btn btn-ghost text-xs"
-              onClick={onOpenPayments}
-            >
-              Payments
-            </button>
-          ) : null}
         </div>
         <button
           type="button"
@@ -964,7 +854,6 @@ function SoldMaterialDetailModal({
   warehouseName,
   licensesMap,
   canReverse,
-  onOpenPayments,
   onReverse,
   onClose,
 }: {
@@ -972,8 +861,6 @@ function SoldMaterialDetailModal({
   warehouseName: string;
   licensesMap: Map<string, License>;
   canReverse: boolean;
-  // Absent when the sale has no per-sale payments (a sale to a site).
-  onOpenPayments?: () => void;
   onReverse: () => void;
   onClose: () => void;
 }) {
@@ -1151,15 +1038,6 @@ function SoldMaterialDetailModal({
               onClick={onReverse}
             >
               Reverse sale
-            </button>
-          ) : null}
-          {onOpenPayments ? (
-            <button
-              type="button"
-              className="btn btn-ghost text-xs"
-              onClick={onOpenPayments}
-            >
-              Payments
             </button>
           ) : null}
         </div>
