@@ -1,55 +1,66 @@
 "use client";
 
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
-import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
-import { SalePaymentsPanel } from "@/components/SalePaymentsPanel";
-import { Field, ModalPanel, PageHead, Stamp, TableWrap, statusTone } from "@/components/ui";
-import { useSite, useSitePayables } from "@/hooks/use-sites";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { Field, PageHead, Stamp, TableWrap, Username } from "@/components/ui";
+import { useInventoriesInBulk } from "@/hooks/use-inventories";
+import { useInventoryItemsInBulk } from "@/hooks/use-inventory-items";
+import { useInventoryMovements } from "@/hooks/use-inventory-movements";
+import { useSite, useSitePayablePayments, useSitePayables } from "@/hooks/use-sites";
 import { day, etb } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
-import type { PayableRow, SaleStatus } from "@/types/api";
 
-// Value is what the select holds; the API wants a list of statuses.
-const STATUS_OPTIONS: { value: string; label: string; statuses?: SaleStatus[] }[] = [
-  { value: "", label: "All purchases" },
-  { value: "owing", label: "Unpaid or partly paid", statuses: ["unpaid", "partially_paid"] },
-  { value: "unpaid", label: "Unpaid", statuses: ["unpaid"] },
-  { value: "partially_paid", label: "Partially paid", statuses: ["partially_paid"] },
-  { value: "paid", label: "Paid", statuses: ["paid"] },
-];
-
+// Read side of the site's warehouse accounts. A site pays each warehouse in
+// bulk against a running balance; payments are registered from the warehouse's
+// sold-items page, so nothing here mutates.
 export default function SitePurchasedMaterialsPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const store = useStore();
-  // Payments are recorded from the warehouse side; site managers only read.
-  const canMutate = !isSiteManager(store);
+  const isAdmin = !isSiteManager(store);
 
   const { data: siteData } = useSite(id);
   const siteName = siteData?.data?.name ?? "Site";
 
-  const [page, setPage] = useState(1);
-  const [filters, setFilters] = useState<QueryFilterValues>({});
-  // ?saleStatus=owing deep-links here from the close-site error.
-  const [status, setStatus] = useState(searchParams.get("saleStatus") ?? "");
-  const [paying, setPaying] = useState<PayableRow | null>(null);
+  const { data: payablesData, isLoading: isAccountsLoading } = useSitePayables(id);
+  const summary = payablesData?.summary;
+  const accounts = payablesData?.byWarehouse ?? [];
 
-  const { data, isLoading } = useSitePayables(id, {
-    page,
+  const [salesPage, setSalesPage] = useState(1);
+  const [markedFilter, setMarkedFilter] = useState("");
+  const { data: salesData, isLoading: isSalesLoading } = useInventoryMovements({
+    buyerSiteId: id,
+    movementType: "sale",
+    isMarkedPaid: markedFilter || undefined,
+    page: salesPage,
     limit: 10,
-    warehouseId: filters.warehouseId || undefined,
-    dateFrom: filters.dateFrom || undefined,
-    dateTo: filters.dateTo || undefined,
-    saleStatus: STATUS_OPTIONS.find((o) => o.value === status)?.statuses,
+    sortBy: "movementDate",
+    sortOrder: "desc",
   });
+  const sales = useMemo(() => salesData?.data ?? [], [salesData?.data]);
 
-  const rows = data?.data ?? [];
-  const summary = data?.summary;
-  const byWarehouse = data?.byWarehouse ?? [];
-  // Re-read the open row so totals refresh after a payment is recorded.
-  const livePaying = paying ? (rows.find((r) => r.id === paying.id) ?? paying) : null;
+  const [paymentsPage, setPaymentsPage] = useState(1);
+  const { data: paymentsData, isLoading: isPaymentsLoading } = useSitePayablePayments(id, {
+    page: paymentsPage,
+    limit: 10,
+  });
+  const payments = paymentsData?.data ?? [];
+
+  const itemIds = useMemo(() => Array.from(new Set(sales.map((s) => s.itemId))), [sales]);
+  const sourceIds = useMemo(
+    () => Array.from(new Set(sales.map((s) => s.sourceInventoryId).filter((v): v is string => Boolean(v)))),
+    [sales],
+  );
+  const { data: itemsData } = useInventoryItemsInBulk(itemIds);
+  const { data: nodesData } = useInventoriesInBulk(sourceIds);
+  const itemById = useMemo(() => new Map((itemsData?.data ?? []).map((i) => [i.id, i])), [itemsData]);
+  const warehouseByNode = useMemo(
+    () => new Map((nodesData?.data ?? []).map((n) => [n.id, n.warehouse?.name ?? n.site?.name ?? "—"])),
+    [nodesData],
+  );
+
+  const outstanding = Number(summary?.outstanding ?? 0);
 
   return (
     <div>
@@ -63,137 +74,199 @@ export default function SitePurchasedMaterialsPage() {
         }
       />
       <p className="mb-6 max-w-xl text-sm text-black/60">
-        Material this site bought from warehouses. No stock is added to the site and nothing is posted to its budget.
+        Material this site bought from warehouses. It pays each warehouse in bulk against a running balance, not per
+        item. No stock is added to the site and nothing is posted to its budget.
+        {isAdmin ? " Payments are registered from the warehouse's Sold Items page." : ""}
       </p>
-
-      <div className="mb-5 flex flex-wrap items-end gap-3">
-        <div className="w-full sm:w-52">
-          <Field label="Status">
-            <select
-              className="field"
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
-                setPage(1);
-              }}
-            >
-              {STATUS_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        <QueryFilters
-          className=""
-          fields={["warehouseId", "dateFrom", "dateTo"]}
-          values={filters}
-          onChange={(next) => {
-            setFilters(next);
-            setPage(1);
-          }}
-        />
-      </div>
 
       <div className="mb-6 grid gap-px bg-black/10 sm:grid-cols-3">
         <div className="bg-white p-4">
-          <p className="kicker">Total owed</p>
-          <p className="mt-2 font-mono text-sm">{etb(summary?.totalOwed)}</p>
+          <p className="kicker">Bought</p>
+          <p className="mt-2 font-mono text-sm">{etb(summary?.sold)}</p>
         </div>
         <div className="bg-white p-4">
           <p className="kicker">Paid</p>
-          <p className="mt-2 font-mono text-sm">{etb(summary?.totalPaid)}</p>
+          <p className="mt-2 font-mono text-sm">{etb(summary?.paid)}</p>
         </div>
         <div className="bg-white p-4">
           <p className="kicker">Outstanding</p>
-          <p className="mt-2 font-mono text-sm">{etb(summary?.outstanding)}</p>
+          <p className={`mt-2 font-mono text-sm ${outstanding > 0 ? "text-bad" : ""}`}>{etb(summary?.outstanding)}</p>
         </div>
       </div>
 
-      {byWarehouse.length > 1 ? (
-        <div className="mb-6">
-          <p className="kicker mb-2">By warehouse</p>
-          <div className="grid gap-px bg-black/10 sm:grid-cols-2 lg:grid-cols-3">
-            {byWarehouse.map((w) => (
-              <div key={w.id} className="bg-white p-4">
-                <p className="text-sm font-medium">{w.name}</p>
-                <p className="mt-1 font-mono text-xs text-black/60">
-                  {etb(w.outstanding)} outstanding of {etb(w.totalOwed)} · {w.count}{" "}
-                  {w.count === 1 ? "purchase" : "purchases"}
-                </p>
-              </div>
-            ))}
+      <section className="mb-10">
+        <p className="kicker mb-3">Accounts by warehouse</p>
+        {isAccountsLoading && !payablesData ? (
+          <div className="p-6 text-center text-sm text-black/40">Loading accounts...</div>
+        ) : accounts.length === 0 ? (
+          <div className="border border-dashed border-black/20 p-6 text-center text-sm text-black/40">
+            This site has not bought material from a warehouse.
+          </div>
+        ) : (
+          <TableWrap showPagination={false} data={accounts}>
+            <table className="data w-full text-left">
+              <thead>
+                <tr>
+                  <th>Warehouse</th>
+                  <th className="hidden sm:table-cell">Sales</th>
+                  <th>Bought</th>
+                  <th>Paid</th>
+                  <th>Outstanding</th>
+                  <th className="hidden md:table-cell">Marked paid</th>
+                </tr>
+              </thead>
+              <tbody>
+                {accounts.map((a) => (
+                  <tr key={a.id}>
+                    <td className="font-medium">
+                      {isAdmin ? (
+                        <Link href={`/warehouses/${a.id}/sold-items`} className="hover:text-yellow">
+                          {a.name}
+                        </Link>
+                      ) : (
+                        a.name
+                      )}
+                    </td>
+                    <td className="hidden font-mono text-sm sm:table-cell">{a.saleCount}</td>
+                    <td className="font-mono text-sm">{etb(a.sold)}</td>
+                    <td className="font-mono text-sm">{etb(a.paid)}</td>
+                    <td className={`font-mono text-sm ${Number(a.outstanding) > 0 ? "text-bad" : ""}`}>
+                      {etb(a.outstanding)}
+                    </td>
+                    <td className="hidden font-mono text-xs text-black/60 md:table-cell">
+                      {etb(a.markedPaidTotal)} of {etb(a.sold)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+        )}
+        <p className="mt-2 text-xs text-black/50">
+          The balance is bought minus paid. &ldquo;Marked paid&rdquo; is a manual label staff use to track items; it
+          never changes the balance.
+        </p>
+      </section>
+
+      <section className="mb-10">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <p className="kicker">Items bought</p>
+          <div className="w-full sm:w-52">
+            <Field label="Paid label">
+              <select
+                className="field"
+                value={markedFilter}
+                onChange={(e) => {
+                  setMarkedFilter(e.target.value);
+                  setSalesPage(1);
+                }}
+              >
+                <option value="">All items</option>
+                <option value="true">Marked paid</option>
+                <option value="false">Not marked paid</option>
+              </select>
+            </Field>
           </div>
         </div>
-      ) : null}
-
-      {isLoading && !data ? (
-        <div className="p-8 text-center text-sm text-black/40">Loading purchased materials...</div>
-      ) : (
-        <TableWrap pagination={data?.pagination} onPageChange={setPage}>
-          <table className="data w-full text-left">
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Item</th>
-                <th className="hidden md:table-cell">Warehouse</th>
-                <th>Owed</th>
-                <th className="hidden sm:table-cell">Paid</th>
-                <th>Outstanding</th>
-                <th>Status</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td className="whitespace-nowrap">{day(r.movementDate)}</td>
-                  <td>
-                    <div className="font-medium">{r.itemName}</div>
-                    <div className="font-mono text-xs text-black/50">
-                      {r.quantity} × {etb(r.unitCost)}
-                    </div>
-                  </td>
-                  <td className="hidden md:table-cell">{r.warehouseName}</td>
-                  <td className="font-mono text-sm">{etb(r.totalOwed)}</td>
-                  <td className="hidden font-mono text-sm sm:table-cell">{etb(r.paidAmount)}</td>
-                  <td className="font-mono text-sm">{etb(r.outstanding)}</td>
-                  <td>
-                    <Stamp value={r.saleStatus} tone={statusTone(r.saleStatus)} />
-                  </td>
-                  <td>
-                    <button type="button" className="btn btn-ghost px-2 py-0.5 text-sm" onClick={() => setPaying(r)}>
-                      Payments
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 ? (
+        {isSalesLoading && !salesData ? (
+          <div className="p-6 text-center text-sm text-black/40">Loading items...</div>
+        ) : (
+          <TableWrap pagination={salesData?.pagination} onPageChange={setSalesPage}>
+            <table className="data w-full text-left">
+              <thead>
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-sm text-black/45">
-                    No materials purchased from warehouses.
-                  </td>
+                  <th>Date</th>
+                  <th>Item</th>
+                  <th className="hidden md:table-cell">Warehouse</th>
+                  <th>Total</th>
+                  <th>Paid label</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </TableWrap>
-      )}
+              </thead>
+              <tbody>
+                {sales.map((s) => {
+                  const item = s.item ?? itemById.get(s.itemId);
+                  return (
+                    <tr key={s.id}>
+                      <td className="whitespace-nowrap">{day(s.movementDate)}</td>
+                      <td>
+                        <div className="font-medium">{item?.name ?? s.itemId}</div>
+                        <div className="font-mono text-xs text-black/50">
+                          {s.quantity} {item?.unit ?? ""} × {etb(s.unitCost)}
+                        </div>
+                      </td>
+                      <td className="hidden md:table-cell">
+                        {s.sourceInventoryId ? (warehouseByNode.get(s.sourceInventoryId) ?? "—") : "—"}
+                      </td>
+                      <td className="font-mono text-sm">{etb(s.totalCost)}</td>
+                      <td>
+                        {!s.isApproved ? (
+                          <Stamp value="pending" tone="yellow" />
+                        ) : s.isMarkedPaid ? (
+                          <Stamp value="marked paid" tone="ok" />
+                        ) : (
+                          <Stamp value="not marked" tone="ink" />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {sales.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-10 text-center text-sm text-black/45">
+                      No items bought from warehouses.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </TableWrap>
+        )}
+      </section>
 
-      {livePaying ? (
-        <ModalPanel kicker="Sale Payments" title={`${livePaying.itemName} · Payments`} wide onClose={() => setPaying(null)}>
-          <SalePaymentsPanel
-            movementId={livePaying.id}
-            kind="material"
-            itemTitle={livePaying.itemName}
-            totalCost={Number(livePaying.totalOwed)}
-            paidAmount={Number(livePaying.paidAmount)}
-            saleStatus={livePaying.saleStatus}
-            canMutate={canMutate}
-          />
-        </ModalPanel>
-      ) : null}
+      <section>
+        <p className="kicker mb-3">Payments made</p>
+        {isPaymentsLoading && !paymentsData ? (
+          <div className="p-6 text-center text-sm text-black/40">Loading payments...</div>
+        ) : (
+          <TableWrap pagination={paymentsData?.pagination} onPageChange={setPaymentsPage}>
+            <table className="data w-full text-left">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Warehouse</th>
+                  <th>Amount</th>
+                  <th className="hidden sm:table-cell">Note</th>
+                  <th className="hidden md:table-cell">By</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((p) => (
+                  <tr key={p.id}>
+                    <td className="whitespace-nowrap">{day(p.paymentDate)}</td>
+                    <td>{p.warehouseName}</td>
+                    <td className="font-mono text-sm">{etb(p.amount)}</td>
+                    <td className="hidden max-w-[14rem] truncate text-sm text-black/70 sm:table-cell" title={p.note ?? undefined}>
+                      {p.note ?? "—"}
+                    </td>
+                    <td className="hidden md:table-cell">
+                      <Username userId={p.loggedBy} fallback={p.loggedBy} />
+                    </td>
+                    <td>{p.isReversed ? <Stamp value="reversed" tone="bad" /> : <Stamp value="received" tone="ok" />}</td>
+                  </tr>
+                ))}
+                {payments.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center text-sm text-black/45">
+                      No payments made yet.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </TableWrap>
+        )}
+      </section>
     </div>
   );
 }

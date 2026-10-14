@@ -106,6 +106,7 @@ export const queryKeys = {
     // `undefined` slot never structurally matches a real params object, even
     // `{}`), so it silently invalidates nothing. Use these instead.
     payables: (id: string, params?: unknown) => ["sites", "detail", id, "payables", params] as const,
+    payablePayments: (id: string, params?: unknown) => ["sites", "detail", id, "payable-payments", params] as const,
     lifecycleAll: (id: string) => ["sites", "detail", id, "lifecycle"] as const,
     tasksAll: (id: string) => ["sites", "detail", id, "tasks"] as const,
   },
@@ -125,6 +126,7 @@ export const queryKeys = {
     soldItems: (id: string, params?: unknown) => ["warehouses", "detail", id, "sold-items", params] as const,
     soldEquipment: (id: string, params?: unknown) => ["warehouses", "detail", id, "sold-equipment", params] as const,
     soldMaterials: (id: string, params?: unknown) => ["warehouses", "detail", id, "sold-materials", params] as const,
+    sitePayments: (id: string, params?: unknown) => ["warehouses", "detail", id, "site-payments", params] as const,
     materials: (id: string, params?: unknown) => ["warehouses", "detail", id, "materials", params] as const,
     equipment: (id: string, params?: unknown) => ["warehouses", "detail", id, "equipment", params] as const,
     bulkEquipment: (id: string, params?: unknown) => ["warehouses", "detail", id, "bulk-equipment", params] as const,

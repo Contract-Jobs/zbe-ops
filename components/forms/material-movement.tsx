@@ -181,8 +181,10 @@ export function MaterialMovementForm({
           // license — otherwise the server auto-resolves the lot. An empty
           // string here would fail validation, so omit instead.
           licenseId: licenseId || undefined,
-          fullyPaid,
-          paidAmount: !fullyPaid ? (paidAmount.trim() || "0") : undefined,
+          // A site pays its warehouse account in bulk afterwards, never per
+          // sale — the API ignores fullyPaid for it and rejects a paidAmount.
+          fullyPaid: buyerKind === "site" ? undefined : fullyPaid,
+          paidAmount: buyerKind === "site" || fullyPaid ? undefined : (paidAmount.trim() || "0"),
         });
       } else if (type === "consume") {
         if (!sourceNodeId) throw new Error("Source is required");
@@ -327,7 +329,14 @@ export function MaterialMovementForm({
         </div>
       )}
 
-      {type === "sale" && (
+      {type === "sale" && buyerKind === "site" && (
+        <p className="mb-3 text-xs text-black/50">
+          Not paid per item. The site settles its balance with this warehouse in one payment, registered from the
+          warehouse&apos;s Sold Items page.
+        </p>
+      )}
+
+      {type === "sale" && buyerKind === "client" && (
         <div className="mb-3">
           <label className="flex items-center gap-2 text-sm text-black/70">
             <input

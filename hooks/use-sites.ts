@@ -9,7 +9,7 @@ import type {
   CreateSiteTaskPayload,
   UpdateSiteTaskPayload,
   MaterialsAtSiteParams,
-  SitePayablesParams,
+  SitePaymentListParams,
 } from "@/lib/api/sites";
 import { queryKeys } from "@/lib/query/keys";
 import { onActionSettled } from "@/lib/query/approval-invalidation";
@@ -199,10 +199,22 @@ export function useCompleteSiteTask(siteId: string) {
   });
 }
 
-export function useSitePayables(siteId: string | undefined, params: SitePayablesParams = {}) {
+export function useSitePayables(siteId: string | undefined, params: { warehouseId?: string } = {}) {
   return useQuery({
     queryKey: queryKeys.sites.payables(siteId ?? "", params),
     queryFn: () => sitesApi.getSitePayables(siteId as string, params),
+    enabled: !!siteId,
+  });
+}
+
+// Payments this site made to warehouses (read-only from the site side).
+export function useSitePayablePayments(
+  siteId: string | undefined,
+  params: SitePaymentListParams & { warehouseId?: string } = {},
+) {
+  return useQuery({
+    queryKey: queryKeys.sites.payablePayments(siteId ?? "", params),
+    queryFn: () => sitesApi.listSitePayments(siteId as string, params),
     enabled: !!siteId,
   });
 }

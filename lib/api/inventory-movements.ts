@@ -19,6 +19,8 @@ export type InventoryMovementListParams = ListParams<{
     includeReversed?: string
     buyerSiteId?: string
     isInternal?: string
+    // Sales to a site ticked / not ticked as paid (tracking label only).
+    isMarkedPaid?: string
 }>
 
 // movementType: "loss" is silently redirected server-side to the

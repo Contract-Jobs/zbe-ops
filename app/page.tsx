@@ -34,12 +34,15 @@ export default function BoardPage() {
     dateTo: spendFilters.dateTo || undefined,
   });
   const { data: budgetHealthData } = useBudgetHealth();
-  const { data: salesAnalyticsData } = useSalesAnalytics({
-    warehouseId: salesFilters.warehouseId || undefined,
-    licenseId: salesFilters.licenseId || undefined,
-    dateFrom: salesFilters.dateFrom || undefined,
-    dateTo: salesFilters.dateTo || undefined,
-  });
+  const { data: salesAnalyticsData } = useSalesAnalytics(
+    {
+      warehouseId: salesFilters.warehouseId || undefined,
+      licenseId: salesFilters.licenseId || undefined,
+      dateFrom: salesFilters.dateFrom || undefined,
+      dateTo: salesFilters.dateTo || undefined,
+    },
+    { enabled: !manager },
+  );
 
   const sites = useMemo(() => {
     const list = sitesData?.data ?? (store.sites as unknown as Site[]);
@@ -75,6 +78,7 @@ export default function BoardPage() {
 
   const salesAnalytics = salesAnalyticsData?.data;
   const profitability = salesAnalytics?.profitability;
+  const siteSales = salesAnalytics?.siteSales;
 
   return (
     <div>
@@ -180,6 +184,7 @@ export default function BoardPage() {
         </section>
 
         <section className="flex flex-col gap-10">
+          {!manager ? (
           <div>
             <p className="kicker mb-3">Sales Overview</p>
             <QueryFilters
@@ -191,7 +196,7 @@ export default function BoardPage() {
               <>
               <div className="grid gap-px bg-black/10">
                 <div className="bg-white p-4">
-                  <p className="text-sm font-medium text-black/60">Total Revenue</p>
+                  <p className="text-sm font-medium text-black/60">Total Revenue (external buyers)</p>
                   <p className="mt-1 font-mono text-xl">{etb(Number(salesAnalytics.totalRevenue))}</p>
                 </div>
                 <div className="bg-white p-4">
@@ -205,7 +210,7 @@ export default function BoardPage() {
               </div>
               {profitability ? (
                 <div className="mt-6">
-                  <p className="kicker mb-3">Material profitability</p>
+                  <p className="kicker mb-3">Material profitability (external buyers)</p>
                   <div className="grid gap-px bg-black/10 sm:grid-cols-2">
                     <div className="bg-white p-4">
                       <p className="text-sm font-medium text-black/60">Revenue</p>
@@ -244,11 +249,56 @@ export default function BoardPage() {
                   ) : null}
                 </div>
               ) : null}
+              {siteSales && siteSales.saleCount > 0 ? (
+                <div className="mt-6">
+                  <p className="kicker mb-3">Sales to sites</p>
+                  <div className="grid gap-px bg-black/10 sm:grid-cols-2">
+                    <div className="bg-white p-4">
+                      <p className="text-sm font-medium text-black/60">Revenue</p>
+                      <p className="mt-1 font-mono text-xl">{etb(siteSales.revenue)}</p>
+                      <p className="mt-1 font-mono text-xs text-black/50">{siteSales.saleCount} sales</p>
+                    </div>
+                    <div className="bg-white p-4">
+                      <p className="text-sm font-medium text-black/60">Gross profit</p>
+                      <p className="mt-1 font-mono text-xl">{etb(siteSales.profitability.grossProfit)}</p>
+                      <p className="mt-1 font-mono text-xs text-black/50">{siteSales.profitability.marginPct} margin</p>
+                    </div>
+                    <div className="bg-white p-4">
+                      <p className="text-sm font-medium text-black/60">Received from sites</p>
+                      <p className="mt-1 font-mono text-xl">
+                        {siteSales.cashReceived === null ? "—" : etb(siteSales.cashReceived)}
+                      </p>
+                    </div>
+                    <div className="bg-white p-4">
+                      <p className="text-sm font-medium text-black/60">Sites owe</p>
+                      <p className="mt-1 font-mono text-xl">
+                        {siteSales.outstandingBalance === null ? "—" : etb(siteSales.outstandingBalance)}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs text-black/55">
+                    Profit is counted when the material is sold, since sites pay a balance rather than each sale.
+                    {siteSales.cashReceived === null ? " Cash and balance are not shown under a license filter." : ""}
+                  </p>
+                  {siteSales.profitability.estimatedCogsSaleCount > 0 ? (
+                    <p className="mt-1 text-xs text-black/55">
+                      Includes {siteSales.profitability.estimatedCogsSaleCount} with estimated cost.
+                    </p>
+                  ) : null}
+                  {siteSales.profitability.missingCogsSaleCount > 0 ? (
+                    <p className="mt-1 text-xs text-[var(--warn)]">
+                      {siteSales.profitability.missingCogsSaleCount} have no cost recorded and are left out of the
+                      profit figures.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
               </>
             ) : (
               <p className="text-sm text-black/45">No sales in this range.</p>
             )}
           </div>
+          ) : null}
 
           <div>
             <p className="kicker mb-3">Waiting on you</p>

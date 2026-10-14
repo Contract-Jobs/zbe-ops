@@ -75,7 +75,7 @@ export function SiteForm({
       onDone();
     } catch (err) {
       setBlockedByPayables(
-        err instanceof ApiError && err.code === "CONFLICT" && /unpaid or partially paid/i.test(err.message),
+        err instanceof ApiError && err.code === "CONFLICT" && /still owes/i.test(err.message),
       );
       setError(err instanceof Error ? err.message : "Failed to save site");
     }
@@ -89,8 +89,8 @@ export function SiteForm({
           {blockedByPayables && initial ? (
             <>
               {" "}
-              <Link href={`/sites/${initial.id}/purchased-materials?saleStatus=owing`} className="underline" onClick={onCancel}>
-                View unpaid purchases
+              <Link href={`/sites/${initial.id}/purchased-materials`} className="underline" onClick={onCancel}>
+                View what it owes
               </Link>
             </>
           ) : null}

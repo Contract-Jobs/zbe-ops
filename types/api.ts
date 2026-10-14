@@ -45,6 +45,11 @@ export interface InventoryItem {
   // server-side. 0/"0" for individually-tracked items (no balances).
   totalQuantity: number;
   totalValue: string;
+  // Current market price per unit — a reference price staff maintain, not the
+  // weighted-average cost. Materials only; null = not set (never 0).
+  marketValue?: string | null;
+  // quantity × marketValue across all locations; null when marketValue is.
+  totalMarketValue?: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -73,6 +78,8 @@ export interface ItemBalanceRow {
   quantity: number;
   totalValue: string;
   averageUnitValue: string | null;
+  marketValue?: string | null;
+  totalMarketValue?: string | null;
 }
 
 // GET /api/inventory-items/[id]/history — row shape
@@ -96,6 +103,8 @@ export interface InventoryBalance {
   quantity: number;
   totalValue: string;
   averageUnitValue: string | null;
+  marketValue?: string | null;
+  totalMarketValue?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -115,6 +124,8 @@ export interface MaterialAtInventory {
   quantity: number;
   totalValue: string;
   averageUnitValue: string | null;
+  marketValue?: string | null;
+  totalMarketValue?: string | null;
 }
 
 export type BulkEquipmentAtInventory = MaterialAtInventory;
@@ -144,12 +155,19 @@ export interface InventoryMovement {
   licenseId: string | null;
   transactionId: string | null;
   ledgerId: string | null;
-  saleStatus?: SaleStatus;
-  paidAmount?: string;
+  // null on a sale to a site: it has no per-sale payment, the site pays its
+  // warehouse account in bulk instead.
+  saleStatus?: SaleStatus | null;
+  paidAmount?: string | null;
   // Sale to a site: the site is the buyer (treated as a third party — no
   // stock lands there). clientName holds a snapshot of the site's name.
   buyerSiteId?: string | null;
   isInternal?: boolean;
+  // Manual "paid" label on a sale to a site. Tracking only — never changes a
+  // balance, analytics or a guard.
+  isMarkedPaid?: boolean;
+  markedPaidAt?: string | null;
+  markedPaidBy?: string | null;
   // Cost of the stock a sale removed. unitCost/totalCost stay as revenue.
   cogsUnitCost?: string | null;
   cogsTotalCost?: string | null;
@@ -591,6 +609,9 @@ export interface SoldItemsOverview {
   totalCashCollected?: string;
   totalOutstanding?: string;
   collectionRate?: string;
+  // One account per site that bought from this warehouse (all-time; empty
+  // under a saleStatus filter and for site managers).
+  bySite?: AccountRow[];
   revenueVsCash?: {
     summary?: {
       totalRevenue: string;
@@ -636,6 +657,65 @@ export interface SoldItemsOverview {
   };
 }
 
+// A site's running account with one warehouse: outstanding = sold − paid,
+// computed on read. Payments are not allocated to individual sales.
+export interface AccountTotals {
+  sold: string;
+  paid: string;
+  outstanding: string;
+}
+
+export interface AccountRow extends AccountTotals {
+  // The other party: the warehouse on a site's payables, the site on a
+  // warehouse's sold-items.
+  id: string;
+  name: string;
+  saleCount: number;
+  // Split of `sold` by the manual paid label — tracking only.
+  markedPaidTotal: string;
+  unmarkedTotal: string;
+}
+
+export interface SitePayables {
+  siteId: string;
+  summary: AccountTotals;
+  byWarehouse: AccountRow[];
+}
+
+export interface SitePayment {
+  id: string;
+  siteId: string;
+  warehouseId: string;
+  siteName: string;
+  warehouseName: string;
+  amount: string;
+  paymentDate: string;
+  note: string | null;
+  transactionId: string | null;
+  loggedBy: string;
+  isReversed: boolean;
+  reversedAt: string | null;
+  reversedBy: string | null;
+  reversalNote: string | null;
+  createdAt: string;
+}
+
+export interface RegisterSitePaymentRequest {
+  siteId: string;
+  amount: string;
+  paymentDate?: string;
+  note?: string;
+  categoryId?: string;
+  // Sales to tick as paid in the same step; one bad id fails the whole call.
+  markPaidMovementIds?: string[];
+}
+
+export interface RegisterSitePaymentResult {
+  payment: SitePayment;
+  markedPaid: { id: string; isMarkedPaid: boolean; markedPaidAt: string | null }[];
+  balance: AccountTotals;
+}
+
 export interface RecordSalePaymentRequest {
   amount: string;
   paymentDate?: string;
@@ -651,7 +731,8 @@ export interface ReverseSalePaymentRequest {
 
 export interface Transaction {
   id: string;
-  licenseId: string;
+  // null on money received against a site account — not tied to a license.
+  licenseId: string | null;
   siteId: string | null;
   warehouseId: string | null;
   equipmentId: string | null;
@@ -737,6 +818,9 @@ export interface Approval {
   status: ApprovalStatus;
   submittedBy: string;
   approvedBy: string | null;
+  // Resolved server-side so the list needs no user lookups.
+  submittedByName?: string | null;
+  approvedByName?: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -833,8 +917,22 @@ export interface SalesProfitability {
   missingCogsSaleCount: number;
 }
 
+// Sales to sites. Profit is accrual-based: payments are not tied to sales, so
+// there is no per-sale "actual profit". cashReceived / outstandingBalance are
+// null under a licenseId or saleStatus filter (account cash has no license or
+// status).
+export interface SiteSalesAnalytics {
+  saleCount: number;
+  revenue: string;
+  profitability: Omit<SalesProfitability, "cashCollected" | "actualProfit" | "unrealizedProfit">;
+  cashReceived: string | null;
+  outstandingBalance: string | null;
+}
+
 export interface SalesAnalytics {
+  // External-buyer material sales only.
   profitability?: SalesProfitability;
+  siteSales?: SiteSalesAnalytics;
   totalMaterialRevenue: string;
   totalEquipmentRevenue: string;
   totalRevenue: string;
@@ -914,47 +1012,14 @@ export interface CompanyFinancialSummary {
     totalSalesRevenue?: string;
     totalSalesCash?: string;
     outstandingSalesReceivables?: string;
+    // Revenue from sales to sites, recognised at the sale (no transaction
+    // exists then); already inside materialSaleRevenue and `total`.
+    siteSaleRevenue?: string;
     other: string;
     total: string;
   };
+  // Cash in − expense.
   netCashFlow: string;
-}
-
-// ---- Site payables (what a site owes warehouses for material bought from them) ----
-
-export interface PayableRow {
-  id: string;
-  itemId: string;
-  itemName: string;
-  quantity: number;
-  unitCost: string;
-  totalOwed: string;
-  paidAmount: string;
-  outstanding: string;
-  saleStatus: SaleStatus;
-  licenseId: string | null;
-  movementDate: string;
-  note: string | null;
-  warehouseId: string;
-  warehouseName: string;
-  buyerSiteId: string;
-  buyerSiteName: string;
-}
-
-export interface PayablesTotals {
-  count: number;
-  totalOwed: string;
-  totalPaid: string;
-  outstanding: string;
-}
-
-export interface PayablesGroup extends PayablesTotals {
-  id: string;
-  name: string;
-}
-
-export interface SitePayables {
-  siteId: string;
-  summary: PayablesTotals;
-  byWarehouse: PayablesGroup[];
+  // income.total − expense.total: site sales counted when sold.
+  netIncome?: string;
 }

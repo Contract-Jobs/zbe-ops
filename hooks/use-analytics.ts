@@ -51,11 +51,17 @@ export function useLicenseAnalytics(params: Parameters<typeof analyticsApi.getLi
     })
 }
 
-export function useSalesAnalytics(params: Parameters<typeof analyticsApi.getSalesAnalytics>[0] = {}) {
+// Admin/superadmin only (company-wide revenue, COGS and every site's balance);
+// a site_manager gets 403, so callers pass enabled: false for them.
+export function useSalesAnalytics(
+    params: Parameters<typeof analyticsApi.getSalesAnalytics>[0] = {},
+    options: { enabled?: boolean } = {}
+) {
     return useQuery({
         queryKey: queryKeys.analytics.sales(params),
         queryFn: () => analyticsApi.getSalesAnalytics(params),
         staleTime: ANALYTICS_STALE_TIME,
+        enabled: options.enabled ?? true,
     })
 }
 

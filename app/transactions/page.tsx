@@ -78,7 +78,9 @@ export default function TransactionsPage() {
 
   const rows = useMemo(() => {
     return transactions.filter((t) => {
-      if (store.session.licenseId !== "all" && t.licenseId !== store.session.licenseId) return false;
+      // Money received on a site account has no license, so the header
+      // license can't exclude it — hiding it would make payments vanish.
+      if (store.session.licenseId !== "all" && t.licenseId && t.licenseId !== store.session.licenseId) return false;
       if (manager) return t.siteId ? sites.has(t.siteId) : false;
       return true;
     });

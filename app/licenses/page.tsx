@@ -111,7 +111,7 @@ export default function LicensesPage() {
                     <dd className="mt-1 font-mono text-lg">{sites?.data.filter(s => s.licenseId === l.id).length || 0}</dd>
                   </div>
                   <div>
-                    <dt className="kicker">In</dt>
+                    <dt className="kicker" title="Cash received, plus sales to sites counted when sold">In</dt>
                     {/* A brand-new (or otherwise transaction-less) license has
                         no row in licenseAnalytics at all — find() rather than
                         filter()[0], and etb() already treats undefined as 0. */}

@@ -51,7 +51,9 @@ export default function CompanyFinancialsPage() {
         <div className="p-8 text-center text-sm text-black/50">No data.</div>
       ) : (
         <>
-          <div className="mb-10 grid gap-px bg-black/10 sm:grid-cols-3">
+          <div
+            className={`mb-10 grid gap-px bg-black/10 ${summary.netIncome !== undefined ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-3"}`}
+          >
             <div className="bg-white p-5">
               <p className="kicker">Total Income</p>
               <p className="mt-2 break-words text-2xl tracking-tight">{etb(summary.income.total)}</p>
@@ -63,7 +65,15 @@ export default function CompanyFinancialsPage() {
             <div className="bg-white p-5">
               <p className="kicker">Net Cash Flow</p>
               <p className="mt-2 break-words text-2xl tracking-tight">{etb(summary.netCashFlow)}</p>
+              <p className="mt-1 text-xs text-black/50">Cash in minus expense</p>
             </div>
+            {summary.netIncome !== undefined ? (
+              <div className="bg-white p-5">
+                <p className="kicker">Net Income</p>
+                <p className="mt-2 break-words text-2xl tracking-tight">{etb(summary.netIncome)}</p>
+                <p className="mt-1 text-xs text-black/50">Counts site sales when sold</p>
+              </div>
+            ) : null}
           </div>
 
           <div className="grid gap-10 lg:grid-cols-2">
@@ -94,9 +104,21 @@ export default function CompanyFinancialsPage() {
                 <table className="data w-full text-left">
                   <tbody>
                     <tr><td className="font-medium">Material sales</td><td className="font-mono">{etb(summary.income.materialSaleRevenue)}</td></tr>
+                    {summary.income.siteSaleRevenue !== undefined ? (
+                      <tr>
+                        <td className="pl-6 text-black/60">of which sold to sites</td>
+                        <td className="font-mono text-black/60">{etb(summary.income.siteSaleRevenue)}</td>
+                      </tr>
+                    ) : null}
                     <tr><td className="font-medium">Equipment sales</td><td className="font-mono">{etb(summary.income.equipmentSaleRevenue)}</td></tr>
                     <tr><td className="font-medium">Other</td><td className="font-mono">{etb(summary.income.other)}</td></tr>
                     <tr className="font-medium"><td>Total income</td><td className="font-mono">{etb(summary.income.total)}</td></tr>
+                    {summary.income.outstandingSalesReceivables !== undefined ? (
+                      <tr>
+                        <td className="font-medium">Owed to us on sales</td>
+                        <td className="font-mono">{etb(summary.income.outstandingSalesReceivables)}</td>
+                      </tr>
+                    ) : null}
                   </tbody>
                 </table>
               </TableWrap>

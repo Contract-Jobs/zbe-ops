@@ -1,6 +1,7 @@
 import { createSimpleCrudApi } from "./simple-crud"
 import { apiClient } from "./client"
 import { buildListParams, type ListParams } from "./list-params"
+import type { SitePaymentListParams } from "./sites"
 import type {
     Warehouse,
     SoldItemsOverview,
@@ -10,6 +11,10 @@ import type {
     InventoryItem,
     MaterialAtInventory,
     BulkEquipmentAtInventory,
+    RegisterSitePaymentRequest,
+    RegisterSitePaymentResult,
+    AccountTotals,
+    SitePayment,
 } from "@/types/api"
 
 export interface CreateWarehousePayload {
@@ -76,4 +81,31 @@ export function getWarehouseIndividualEquipment(id: string, params: MaterialsAtW
 
 export function getWarehouseBulkEquipment(id: string, params: MaterialsAtWarehouseParams = {}) {
     return apiClient.get<BulkEquipmentAtInventory[]>(`/api/warehouses/${id}/bulk-equipment`, buildListParams(params))
+}
+
+// ---- Site accounts: sites pay a warehouse in bulk against a running balance,
+// never per sale. Admin/superadmin only; site managers read their own site's
+// side via lib/api/sites.ts. ----
+
+export function listWarehouseSitePayments(id: string, params: SitePaymentListParams & { siteId?: string } = {}) {
+    return apiClient.get<SitePayment[]>(`/api/warehouses/${id}/site-payments`, buildListParams(params))
+}
+
+export function registerSitePayment(id: string, payload: RegisterSitePaymentRequest) {
+    return apiClient.post<RegisterSitePaymentResult>(`/api/warehouses/${id}/site-payments`, payload)
+}
+
+export function reverseSitePayment(id: string, paymentId: string, payload: { note?: string } = {}) {
+    return apiClient.post<{ payment: SitePayment; reversalTransactionId: string; balance: AccountTotals }>(
+        `/api/warehouses/${id}/site-payments/${paymentId}/reverse`,
+        payload
+    )
+}
+
+// Tracking label only — never changes a balance. paid:false unmarks.
+export function markSoldItemsPaid(id: string, payload: { movementIds: string[]; paid: boolean }) {
+    return apiClient.post<{ sales: { id: string; isMarkedPaid: boolean; markedPaidAt: string | null }[] }>(
+        `/api/warehouses/${id}/sold-items/mark-paid`,
+        payload
+    )
 }
