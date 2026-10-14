@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { MaterialForm } from "@/components/forms/material";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
+import { ListToolbar } from "@/components/ListToolbar";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { closedMode, DeleteConfirm, FormPanel, ModalPanel, PageHead, RecordActions, Stamp, TableWrap, type RecordMode } from "@/components/ui";
 import type { InventoryItemCategory, InventoryItemTracking } from "@/types/api";
@@ -106,15 +107,18 @@ export default function MaterialsPage() {
           <MaterialForm initial={mode.record} onCancel={() => setMode(closedMode())} onDone={() => setMode(closedMode())} />
         </FormPanel>
       ) : null}
-      <QueryFilters
-        fields={["search", "category", "tracking"]}
-        values={filters}
-        searchPlaceholder="Search catalog"
-        onChange={(next) => {
-          setFilters(Object.keys(next).length === 0 ? { category: "material" } : next);
-          setPage(1);
-        }}
-      />
+      <ListToolbar>
+        <QueryFilters
+          className="contents"
+          fields={["search", "category", "tracking"]}
+          values={filters}
+          searchPlaceholder="Search catalog"
+          onChange={(next) => {
+            setFilters(Object.keys(next).length === 0 ? { category: "material" } : next);
+            setPage(1);
+          }}
+        />
+      </ListToolbar>
       {isLoading && !itemsData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading materials...</div>
       ) : (

@@ -11,7 +11,8 @@ import {
   type PaymentSortBy,
 } from "@/components/SiteAccounts";
 import { SortSelect, type SortState } from "@/components/SortSelect";
-import { Field, PageHead, Stamp, Tabs, TableWrap, Username } from "@/components/ui";
+import { ListToolbar } from "@/components/ListToolbar";
+import { PageHead, Stamp, Tabs, TableWrap, Username } from "@/components/ui";
 import { useInventoriesInBulk } from "@/hooks/use-inventories";
 import { useInventoryItemsInBulk } from "@/hooks/use-inventory-items";
 import { useInventoryMovements } from "@/hooks/use-inventory-movements";
@@ -48,15 +49,14 @@ export default function SitePurchasedMaterialsPage() {
   const accounts = payablesData?.byWarehouse ?? [];
 
   const [salesPage, setSalesPage] = useState(1);
-  const [markedFilter, setMarkedFilter] = useState("");
-  const [salesRange, setSalesRange] = useState<QueryFilterValues>({});
+  const [salesFilters, setSalesFilters] = useState<QueryFilterValues>({});
   const [salesSort, setSalesSort] = useState<SortState<SalesSortBy>>({ sortBy: "movementDate", sortOrder: "desc" });
   const { data: salesData, isLoading: isSalesLoading } = useInventoryMovements({
     buyerSiteId: id,
     movementType: "sale",
-    isMarkedPaid: markedFilter || undefined,
-    fromDate: salesRange.dateFrom || undefined,
-    toDate: salesRange.dateTo || undefined,
+    isMarkedPaid: salesFilters.isMarkedPaid || undefined,
+    fromDate: salesFilters.dateFrom || undefined,
+    toDate: salesFilters.dateTo || undefined,
     page: salesPage,
     limit: 10,
     ...salesSort,
@@ -136,16 +136,17 @@ export default function SitePurchasedMaterialsPage() {
       />
 
       <section className={tab === "accounts" ? "mb-10" : "hidden"}>
-        <p className="kicker mb-3">Accounts by warehouse</p>
-        <QueryFilters
-          className="mb-3"
-          fields={["warehouseId"]}
-          values={accountFilter}
-          onChange={(next) => {
-            setAccountFilter(next);
-            setPaymentsPage(1);
-          }}
-        />
+        <ListToolbar>
+          <QueryFilters
+            className="contents"
+            fields={["warehouseId"]}
+            values={accountFilter}
+            onChange={(next) => {
+              setAccountFilter(next);
+              setPaymentsPage(1);
+            }}
+          />
+        </ListToolbar>
         {isAccountsLoading && !payablesData ? (
           <div className="p-6 text-center text-sm text-black/40">Loading accounts...</div>
         ) : accounts.length === 0 ? (
@@ -199,42 +200,28 @@ export default function SitePurchasedMaterialsPage() {
       </section>
 
       <section className={tab === "items" ? "mb-10" : "hidden"}>
-        {/* One left-aligned row, like the other tabs: paid label, dates, sort. */}
-        <div className="mb-4 flex flex-wrap items-end gap-3">
-          <div className="w-full sm:w-44">
-            <Field label="Paid label">
-              <select
-                className="field"
-                value={markedFilter}
-                onChange={(e) => {
-                  setMarkedFilter(e.target.value);
-                  setSalesPage(1);
-                }}
-              >
-                <option value="">All items</option>
-                <option value="true">Marked paid</option>
-                <option value="false">Not marked paid</option>
-              </select>
-            </Field>
-          </div>
+        <ListToolbar
+          sort={
+            <SortSelect
+              options={SALES_SORT_OPTIONS}
+              value={salesSort}
+              onChange={(next) => {
+                setSalesSort(next);
+                setSalesPage(1);
+              }}
+            />
+          }
+        >
           <QueryFilters
-            className=""
-            fields={["dateFrom", "dateTo"]}
-            values={salesRange}
+            className="contents"
+            fields={["dateFrom", "dateTo", "isMarkedPaid"]}
+            values={salesFilters}
             onChange={(next) => {
-              setSalesRange(next);
+              setSalesFilters(next);
               setSalesPage(1);
             }}
           />
-          <SortSelect
-            options={SALES_SORT_OPTIONS}
-            value={salesSort}
-            onChange={(next) => {
-              setSalesSort(next);
-              setSalesPage(1);
-            }}
-          />
-        </div>
+        </ListToolbar>
         {isSalesLoading && !salesData ? (
           <div className="p-6 text-center text-sm text-black/40">Loading items...</div>
         ) : (
@@ -291,28 +278,30 @@ export default function SitePurchasedMaterialsPage() {
       </section>
 
       <section className={tab === "payments" ? "" : "hidden"}>
-        <p className="kicker mb-3">Payments made</p>
-        <QueryFilters
-          className="mb-3"
-          fields={[...PAYMENT_FILTER_FIELDS]}
-          popover
-          pinned={["dateFrom", "dateTo"]}
-          values={paymentFilters}
-          onChange={(next) => {
-            setPaymentFilters(next);
-            setPaymentsPage(1);
-          }}
-        />
-        <div className="mb-4">
-          <SortSelect
-            options={PAYMENT_SORT_OPTIONS}
-            value={paymentSort}
+        <ListToolbar
+          sort={
+            <SortSelect
+              options={PAYMENT_SORT_OPTIONS}
+              value={paymentSort}
+              onChange={(next) => {
+                setPaymentSort(next);
+                setPaymentsPage(1);
+              }}
+            />
+          }
+        >
+          <QueryFilters
+            className="contents"
+            fields={[...PAYMENT_FILTER_FIELDS]}
+            popover
+            pinned={["dateFrom", "dateTo"]}
+            values={paymentFilters}
             onChange={(next) => {
-              setPaymentSort(next);
+              setPaymentFilters(next);
               setPaymentsPage(1);
             }}
           />
-        </div>
+        </ListToolbar>
         {isPaymentsLoading && !paymentsData ? (
           <div className="p-6 text-center text-sm text-black/40">Loading payments...</div>
         ) : (

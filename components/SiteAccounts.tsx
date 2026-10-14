@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
+import { ListToolbar } from "@/components/ListToolbar";
 import { SortSelect, type SortState } from "@/components/SortSelect";
 import { ConfirmDialog, Field, FormActions, ModalPanel, Stamp, TableWrap, Username } from "@/components/ui";
 import { useCategories } from "@/hooks/use-categories";
@@ -313,27 +314,30 @@ function AccountPayments({
         <span className="font-mono">{etb(account.paid)}</span> of{" "}
         <span className="font-mono">{etb(account.sold)}</span>
       </p>
-      <QueryFilters
-        className="mb-3"
-        fields={[...PAYMENT_FILTER_FIELDS]}
-        popover
-        pinned={["dateFrom", "dateTo"]}
-        values={filters}
-        onChange={(next) => {
-          setFilters(next);
-          setPage(1);
-        }}
-      />
-      <div className="mb-4">
-        <SortSelect
-          options={PAYMENT_SORT_OPTIONS}
-          value={sort}
+      <ListToolbar
+        sort={
+          <SortSelect
+            options={PAYMENT_SORT_OPTIONS}
+            value={sort}
+            onChange={(next) => {
+              setSort(next);
+              setPage(1);
+            }}
+          />
+        }
+      >
+        <QueryFilters
+          className="contents"
+          fields={[...PAYMENT_FILTER_FIELDS]}
+          popover
+          pinned={["dateFrom", "dateTo"]}
+          values={filters}
           onChange={(next) => {
-            setSort(next);
+            setFilters(next);
             setPage(1);
           }}
         />
-      </div>
+      </ListToolbar>
       {isLoading && !data ? (
         <div className="p-6 text-center text-sm text-black/40">Loading payments...</div>
       ) : (

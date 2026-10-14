@@ -23,6 +23,7 @@ import {
   useMarkSoldItemsPaid,
 } from "@/hooks/use-warehouses";
 import { SiteAccountsSection } from "@/components/SiteAccounts";
+import { ListToolbar } from "@/components/ListToolbar";
 import { SalePaymentsPanel } from "@/components/SalePaymentsPanel";
 import { useLicensesInBulk } from "@/hooks/use-licenses";
 import { useReverseInventoryMovement } from "@/hooks/use-inventory-movements";
@@ -227,39 +228,7 @@ export default function WarehouseSoldItemsPage() {
         }
       />
 
-      <QueryFilters
-        // The sold-item filters only mean something for that list, so they are
-        // offered there and not on the account balances.
-        fields={
-          view === "sold"
-            ? [
-                "search",
-                "licenseId",
-                "dateFrom",
-                "dateTo",
-                "saleStatus",
-                "buyerType",
-                "buyerSiteId",
-                "isMarkedPaid",
-                "isApproved",
-                "minAmount",
-                "maxAmount",
-              ]
-            : ["licenseId", "dateFrom", "dateTo"]
-        }
-        searchPlaceholder="Buyer or item"
-        // The Site Accounts tab has only three, so it keeps them inline.
-        popover={view === "sold"}
-        pinned={["search", "dateFrom", "dateTo"]}
-        values={filters}
-        onChange={(next) => {
-          setFilters(next);
-          setMatPage(1);
-          setSelectedSales(new Set());
-        }}
-      />
-
-      <div className="mb-8 grid gap-px bg-black/10 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-px bg-black/10 sm:grid-cols-2 lg:grid-cols-3">
         <div className="bg-white p-5">
           <p className="kicker">Total Revenue</p>
           <p className="mt-2 break-words text-2xl tracking-tight">{etb(totalRevenue)}</p>
@@ -310,6 +279,10 @@ export default function WarehouseSoldItemsPage() {
         </div>
       </div>
 
+      <p className="mb-8 mt-2 text-xs text-black/50">
+        Totals follow the date and license filters on the Sold Items tab.
+      </p>
+
       {canMutate ? (
         <Tabs
           tabs={[
@@ -324,7 +297,7 @@ export default function WarehouseSoldItemsPage() {
       {view === "accounts" ? (
         <>
           <p className="mb-4 text-xs text-black/50">
-            Balances are all-time, so the license and date filters above don&apos;t apply here.
+            Balances are all-time, so date and license filters don&apos;t apply to them.
           </p>
           <SiteAccountsSection
             warehouseId={id}
@@ -336,6 +309,33 @@ export default function WarehouseSoldItemsPage() {
         </>
       ) : (
       <>
+      <ListToolbar>
+        <QueryFilters
+          className="contents"
+          searchPlaceholder="Buyer or item"
+          popover
+          pinned={["search", "dateFrom", "dateTo"]}
+          fields={[
+            "search",
+            "licenseId",
+            "dateFrom",
+            "dateTo",
+            "saleStatus",
+            "buyerType",
+            "buyerSiteId",
+            "isMarkedPaid",
+            "isApproved",
+            "minAmount",
+            "maxAmount",
+          ]}
+          values={filters}
+          onChange={(next) => {
+            setFilters(next);
+            setMatPage(1);
+            setSelectedSales(new Set());
+          }}
+        />
+      </ListToolbar>
       <div className="mb-8">
         {selectedSales.size > 0 && canMutate ? (
           <div className="mb-3 flex flex-wrap items-center gap-3 border border-black/10 bg-paper/40 p-3 text-sm">

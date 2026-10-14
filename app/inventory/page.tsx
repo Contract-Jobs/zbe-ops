@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { ListToolbar } from "@/components/ListToolbar";
 import { SortSelect, type SortState } from "@/components/SortSelect";
 
 type InventorySortBy = "createdAt" | "name" | "inventoryType" | "updatedAt";
@@ -81,15 +82,17 @@ export default function InventoryPage() {
         <p className="mb-4 text-sm text-black/60">Site desk shows only stock on your jobs — not central warehouses.</p>
       ) : null}
       {rebuildMsg ? <p className="mb-4 text-sm text-black/60">{rebuildMsg}</p> : null}
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end">
-        <input
-          className="field w-full sm:max-w-sm"
-          placeholder="Search locations"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-        <SortSelect options={INVENTORY_SORT_OPTIONS} value={sort} onChange={setSort} />
-      </div>
+      <ListToolbar sort={<SortSelect options={INVENTORY_SORT_OPTIONS} value={sort} onChange={setSort} />}>
+        <div className="w-full sm:w-64">
+          <input
+            className="field"
+            placeholder="Search locations"
+            aria-label="Search locations"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+      </ListToolbar>
       {isLoading && !nodesData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading inventory locations...</div>
       ) : (

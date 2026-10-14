@@ -10,6 +10,7 @@ import { useLicenses } from "@/hooks/use-licenses";
 import { useSites } from "@/hooks/use-sites";
 import { useUsers } from "@/hooks/use-users";
 import { useWarehouses } from "@/hooks/use-warehouses";
+import { QUANTITY_MOVEMENT_LABELS } from "@/lib/movement-labels";
 import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
 import type {
   EquipmentAssignmentStatus,
@@ -52,7 +53,8 @@ export type QueryFilterKey =
   | "loggedBy"
   | "isReversed"
   | "buyerType"
-  | "isMarkedPaid";
+  | "isMarkedPaid"
+  | "movementType";
 
 export type QueryFilterValues = Partial<Record<QueryFilterKey, string>>;
 
@@ -120,6 +122,8 @@ const INTERNAL = [
 ];
 
 const INCLUDE_REVERSED = [{ value: "true", label: "Show reversed and reversals" }];
+
+const MOVEMENT_TYPE = Object.entries(QUANTITY_MOVEMENT_LABELS).map(([value, label]) => ({ value, label }));
 
 const BUYER_TYPE = [
   { value: "site", label: "Sites" },
@@ -453,6 +457,7 @@ function FilterControl({
   }
 
   if (field === "approvalType") return <StaticSelect label="Request type" empty="All types" value={value} options={APPROVAL_TYPE} onChange={onChange} />;
+  if (field === "movementType") return <StaticSelect label="Movement" empty="All movement types" value={value} options={MOVEMENT_TYPE} onChange={onChange} />;
   if (field === "buyerType") return <StaticSelect label="Buyer type" empty="All buyers" value={value} options={BUYER_TYPE} onChange={onChange} />;
   if (field === "isMarkedPaid") return <StaticSelect label="Paid label" empty="Any paid label" value={value} options={MARKED_PAID} onChange={onChange} />;
   if (field === "isReversed") return <StaticSelect label="Reversal" empty="Reversed or not" value={value} options={REVERSED} onChange={onChange} />;

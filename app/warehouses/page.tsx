@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { ListToolbar } from "@/components/ListToolbar";
 import { SortSelect, type SortState } from "@/components/SortSelect";
 
 type WarehouseSortBy = "name" | "location" | "createdAt" | "updatedAt" | "totalMaterials" | "totalEquipment";
@@ -90,16 +91,18 @@ export default function WarehousesPage() {
           <WarehouseForm initial={mode.record} onCancel={() => setMode(closedMode())} onDone={() => setMode(closedMode())} />
         </FormPanel>
       ) : null}
-      <div className="mb-5">
-        <SortSelect
-          options={WAREHOUSE_SORT_OPTIONS}
-          value={sort}
-          onChange={(next) => {
-            setSort(next);
-            setPage(1);
-          }}
-        />
-      </div>
+      <ListToolbar
+        sort={
+          <SortSelect
+            options={WAREHOUSE_SORT_OPTIONS}
+            value={sort}
+            onChange={(next) => {
+              setSort(next);
+              setPage(1);
+            }}
+          />
+        }
+      />
       {isLoading ? (
         <div className="p-8 text-center text-sm text-black/50">Loading warehouses...</div>
       ) : (

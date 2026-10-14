@@ -9,6 +9,7 @@ import { useInventoryItemsInBulk } from "@/hooks/use-inventory-items";
 import { useInventoriesInBulk } from "@/hooks/use-inventories";
 import { QUANTITY_MOVEMENT_LABELS } from "@/lib/movement-labels";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
+import { ListToolbar } from "@/components/ListToolbar";
 import { SortSelect, type SortState } from "@/components/SortSelect";
 import type { QuantityMovementType } from "@/types/api";
 
@@ -33,14 +34,9 @@ const MOVEMENT_SORT_OPTIONS: { value: MovementSortBy; label: string }[] = [
   { value: "clientName", label: "Buyer" },
 ];
 
-const MOVEMENT_TYPES = Object.keys(QUANTITY_MOVEMENT_LABELS) as QuantityMovementType[];
-
 export default function InventoryMovementsPage() {
   const [page, setPage] = useState(1);
-  const [movementType, setMovementType] = useState<string>("");
-  const [isInternal, setIsInternal] = useState<string>("");
-  const [isMarkedPaid, setIsMarkedPaid] = useState<string>("");
-  const [siteFilter, setSiteFilter] = useState<QueryFilterValues>({});
+  const [filters, setFilters] = useState<QueryFilterValues>({});
 
   const [sort, setSort] = useState<SortState<MovementSortBy>>({ sortBy: "movementDate", sortOrder: "desc" });
 
@@ -48,10 +44,10 @@ export default function InventoryMovementsPage() {
     page,
     limit: 10,
     ...sort,
-    movementType: (movementType || undefined) as QuantityMovementType | undefined,
-    isInternal: isInternal || undefined,
-    isMarkedPaid: isMarkedPaid || undefined,
-    buyerSiteId: siteFilter.buyerSiteId || undefined,
+    movementType: (filters.movementType || undefined) as QuantityMovementType | undefined,
+    isInternal: filters.isInternal || undefined,
+    isMarkedPaid: filters.isMarkedPaid || undefined,
+    buyerSiteId: filters.buyerSiteId || undefined,
   });
 
   const movements = movementsData?.data ?? [];
@@ -96,65 +92,30 @@ export default function InventoryMovementsPage() {
         Every material and bulk-equipment movement across the whole catalog — flat, not scoped to one item.
       </p>
 
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row">
-        <select
-          className="field w-full sm:max-w-sm"
-          value={movementType}
-          onChange={(e) => {
-            setMovementType(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">All movement types</option>
-          {MOVEMENT_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {QUANTITY_MOVEMENT_LABELS[t]}
-            </option>
-          ))}
-        </select>
-        <select
-          className="field w-full sm:max-w-xs"
-          value={isInternal}
-          onChange={(e) => {
-            setIsInternal(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">All buyers</option>
-          <option value="true">Sold to a site</option>
-          <option value="false">Not sold to a site</option>
-        </select>
-        <select
-          className="field w-full sm:max-w-xs"
-          value={isMarkedPaid}
-          aria-label="Paid label on sales to sites"
-          onChange={(e) => {
-            setIsMarkedPaid(e.target.value);
-            setPage(1);
-          }}
-        >
-          <option value="">Any paid label</option>
-          <option value="true">Marked paid (site sales)</option>
-          <option value="false">Not marked paid (site sales)</option>
-        </select>
+      <ListToolbar
+        sort={
+          <SortSelect
+            options={MOVEMENT_SORT_OPTIONS}
+            value={sort}
+            onChange={(next) => {
+              setSort(next);
+              setPage(1);
+            }}
+          />
+        }
+      >
         <QueryFilters
-          className=""
-          fields={["buyerSiteId"]}
-          values={siteFilter}
+          className="contents"
+          popover
+          pinned={["movementType"]}
+          fields={["movementType", "isInternal", "buyerSiteId", "isMarkedPaid"]}
+          values={filters}
           onChange={(next) => {
-            setSiteFilter(next);
+            setFilters(next);
             setPage(1);
           }}
         />
-        <SortSelect
-          options={MOVEMENT_SORT_OPTIONS}
-          value={sort}
-          onChange={(next) => {
-            setSort(next);
-            setPage(1);
-          }}
-        />
-      </div>
+      </ListToolbar>
 
       {isLoading && !movementsData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading inventory movements...</div>

@@ -14,6 +14,7 @@ import { useLicensesInBulk } from "@/hooks/use-licenses";
 import { useEquipmentInBulk } from "@/hooks/use-equipment";
 import { useInventoryItemsInBulk } from "@/hooks/use-inventory-items";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
+import { ListToolbar } from "@/components/ListToolbar";
 import { SortSelect, type SortState } from "@/components/SortSelect";
 import type { TransactionSortBy } from "@/lib/api/transactions";
 import type { Transaction, TransactionCategory, Site, Warehouse } from "@/types/api";
@@ -229,8 +230,20 @@ export default function TransactionsPage() {
         </FormPanel>
       ) : null}
 
+      <ListToolbar
+        sort={
+          <SortSelect
+            options={TRANSACTION_SORT_OPTIONS}
+            value={sort}
+            onChange={(next) => {
+              setSort(next);
+              setPage(1);
+            }}
+          />
+        }
+      >
       <QueryFilters
-        className="mb-3"
+        className="contents"
         searchPlaceholder="Description or note"
         itemCategory="material"
         popover
@@ -259,16 +272,7 @@ export default function TransactionsPage() {
           setPage(1);
         }}
       />
-      <div className="mb-5">
-        <SortSelect
-          options={TRANSACTION_SORT_OPTIONS}
-          value={sort}
-          onChange={(next) => {
-            setSort(next);
-            setPage(1);
-          }}
-        />
-      </div>
+      </ListToolbar>
 
       {isTxLoading && !transactionsData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading transactions...</div>

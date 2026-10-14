@@ -7,6 +7,7 @@ import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
 import { useLedgers } from "@/hooks/use-ledgers";
 import { useSitesInBulk } from "@/hooks/use-sites";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
+import { ListToolbar } from "@/components/ListToolbar";
 import { SortSelect, type SortState } from "@/components/SortSelect";
 import type { LedgerSortBy } from "@/lib/api/ledgers";
 
@@ -72,8 +73,20 @@ export default function LedgerPage() {
         title="Project Ledger"
       />
 
+      <ListToolbar
+        sort={
+          <SortSelect
+            options={LEDGER_SORT_OPTIONS}
+            value={sort}
+            onChange={(next) => {
+              setSort(next);
+              setPage(1);
+            }}
+          />
+        }
+      >
       <QueryFilters
-        className="mb-3"
+        className="contents"
         searchPlaceholder="Description or note"
         popover
         pinned={["search", "dateFrom", "dateTo"]}
@@ -98,16 +111,7 @@ export default function LedgerPage() {
           setPage(1);
         }}
       />
-      <div className="mb-6">
-        <SortSelect
-          options={LEDGER_SORT_OPTIONS}
-          value={sort}
-          onChange={(next) => {
-            setSort(next);
-            setPage(1);
-          }}
-        />
-      </div>
+      </ListToolbar>
 
       {isLedgerLoading && !ledgersData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading ledger entries...</div>

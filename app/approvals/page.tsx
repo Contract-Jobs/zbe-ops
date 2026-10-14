@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
+import { ListToolbar } from "@/components/ListToolbar";
 import { SortSelect, type SortState } from "@/components/SortSelect";
 import { ConfirmDialog, PageHead, Stamp, TableWrap, Username, statusTone } from "@/components/ui";
 import { day } from "@/lib/format";
@@ -142,8 +143,20 @@ export default function ApprovalsPage() {
         ))}
       </div>
 
+      <ListToolbar
+        sort={
+          <SortSelect
+            options={APPROVAL_SORT_OPTIONS}
+            value={sort}
+            onChange={(next) => {
+              setSort(next);
+              setPage(1);
+            }}
+          />
+        }
+      >
       <QueryFilters
-        className="mb-3"
+        className="contents"
         searchPlaceholder="Search notes"
         popover
         pinned={["search", "dateFrom", "dateTo"]}
@@ -163,16 +176,7 @@ export default function ApprovalsPage() {
           setPage(1);
         }}
       />
-      <div className="mb-5">
-        <SortSelect
-          options={APPROVAL_SORT_OPTIONS}
-          value={sort}
-          onChange={(next) => {
-            setSort(next);
-            setPage(1);
-          }}
-        />
-      </div>
+      </ListToolbar>
 
       {outcome ? (
         <div className="mb-5 border border-black/10 bg-paper/40 p-4 text-sm">

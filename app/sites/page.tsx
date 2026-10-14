@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { ListToolbar } from "@/components/ListToolbar";
 import { SortSelect, type SortState } from "@/components/SortSelect";
 
 type SiteSortBy = "name" | "location" | "status" | "createdAt" | "updatedAt" | "laborBudget" | "materialBudget" | "otherBudget";
@@ -129,16 +130,18 @@ export default function SitesPage() {
           />
         </FormPanel>
       ) : null}
-      <div className="mb-5">
-        <SortSelect
-          options={SITE_SORT_OPTIONS}
-          value={sort}
-          onChange={(next) => {
-            setSort(next);
-            setPage(1);
-          }}
-        />
-      </div>
+      <ListToolbar
+        sort={
+          <SortSelect
+            options={SITE_SORT_OPTIONS}
+            value={sort}
+            onChange={(next) => {
+              setSort(next);
+              setPage(1);
+            }}
+          />
+        }
+      />
       {isLoading && !sitesData ? (
         <div className="p-8 text-center text-sm text-black/50">Loading sites...</div>
       ) : (

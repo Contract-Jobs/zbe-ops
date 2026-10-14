@@ -11,6 +11,7 @@ import { useInventoryNodeId } from "@/hooks/use-inventories";
 import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
 import { MarketValueCells, SetMarketValueButton } from "@/components/MarketValue";
+import { ListToolbar } from "@/components/ListToolbar";
 import { BulkEquipmentMovementForm } from "@/components/forms/bulk-equipment-movement";
 import { InventoryAdjustForm } from "@/components/forms/inventory-adjust";
 import { BalanceHistoryPanel } from "@/components/BalanceHistory";
@@ -50,6 +51,21 @@ export default function WarehouseDetailPage() {
     search: materialFilters.search || undefined,
     licenseId,
   });
+
+  // One license filter for the three stock tabs; it sits above each table.
+  const licenseFilterControl = (
+    <QueryFilters
+      className="contents"
+      fields={["licenseId"]}
+      values={licenseFilter}
+      onChange={(next) => {
+        setLicenseFilter(next);
+        setBalPage(1);
+        setBulkEquipPage(1);
+        setEquipPage(1);
+      }}
+    />
+  );
 
   const warehouse = warehouseData?.data ?? (store.warehouses.find((w) => w.id === id) as unknown as Warehouse | undefined);
 
@@ -125,18 +141,6 @@ export default function WarehouseDetailPage() {
         </div>
       </div>}
 
-      <QueryFilters
-        fields={["licenseId"]}
-        values={licenseFilter}
-        onChange={(next) => {
-          setLicenseFilter(next);
-          setBalPage(1);
-          setBulkEquipPage(1);
-          setEquipPage(1);
-        }}
-        className="mb-4"
-      />
-
       <Tabs
         tabs={[
           { id: "materials", label: "Materials", count: materialsData?.pagination?.total },
@@ -153,15 +157,19 @@ export default function WarehouseDetailPage() {
           <h2 className="font-mono text-[0.8rem] uppercase tracking-wider text-black/50">Inventory Balances</h2>
           <button className="btn btn-ghost" onClick={() => setPurchaseMaterialOpen(true)}>Purchase material</button>
         </div>
-        <QueryFilters
-          fields={["search"]}
-          searchPlaceholder="Search material"
-          values={materialFilters}
-          onChange={(next) => {
-            setMaterialFilters(next);
-            setBalPage(1);
-          }}
-        />
+        <ListToolbar>
+          <QueryFilters
+            className="contents"
+            fields={["search"]}
+            searchPlaceholder="Search material"
+            values={materialFilters}
+            onChange={(next) => {
+              setMaterialFilters(next);
+              setBalPage(1);
+            }}
+          />
+          {licenseFilterControl}
+        </ListToolbar>
         {materials.length > 0 ? (
           <TableWrap pagination={materialsData?.pagination} onPageChange={setBalPage}>
             <table className="data w-full text-left">
@@ -244,6 +252,7 @@ export default function WarehouseDetailPage() {
           <h2 className="font-mono text-[0.8rem] uppercase tracking-wider text-black/50">Bulk Equipment</h2>
           <button className="btn btn-ghost" onClick={() => setPurchaseBulkEquipmentOpen(true)}>Purchase Bulk Equipment</button>
         </div>
+        <ListToolbar>{licenseFilterControl}</ListToolbar>
         {bulkEquipment.length > 0 ? (
           <TableWrap pagination={bulkEquipData?.pagination} onPageChange={setBulkEquipPage}>
             <table className="data w-full text-left">
@@ -310,6 +319,7 @@ export default function WarehouseDetailPage() {
           <h2 className="font-mono text-[0.8rem] uppercase tracking-wider text-black/50">Parked Equipment</h2>
           <button className="btn btn-ghost" onClick={() => setPurchaseEquipmentOpen(true)}>Purchase equipment</button>
         </div>
+        <ListToolbar>{licenseFilterControl}</ListToolbar>
         {equipment.length > 0 ? (
           <TableWrap pagination={equipData?.pagination} onPageChange={setEquipPage}>
             <table className="data w-full text-left">

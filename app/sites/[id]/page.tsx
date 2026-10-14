@@ -59,7 +59,8 @@ import { TransactionForm } from "@/components/forms/transaction";
 import { InventoryAdjustForm } from "@/components/forms/inventory-adjust";
 import { BalanceHistoryPanel } from "@/components/BalanceHistory";
 import { LedgerToolsPanel } from "@/components/LedgerTools";
-import { MarketValueCells, SetMarketValueButton } from "@/components/MarketValue";import type { Site, SiteTask, License, Transaction, TransactionCategory } from "@/types/api";
+import { MarketValueCells, SetMarketValueButton } from "@/components/MarketValue";
+import { ListToolbar } from "@/components/ListToolbar";import type { Site, SiteTask, License, Transaction, TransactionCategory } from "@/types/api";
 import { BulkEquipmentMovementForm } from "@/components/forms/bulk-equipment-movement";
 
 const getTaskStatus = (task: SiteTask) => {
@@ -107,6 +108,25 @@ export default function SiteDetailPage() {
   const { data: bulkEquipData } = useSiteBulkEquipment(id, { page: bulkEquipPage, limit: 10, licenseId });
   const [balPage, setBalPage] = useState(1);
   const { data: materialsData } = useSiteMaterials(id, { page: balPage, limit: 10, licenseId });
+
+  // Filters the Materials, Bulk Equipment and Equipment tabs, so it sits above
+  // each of those tables (not above the tab row, where tasks and transactions
+  // would look filtered too).
+  const licenseToolbar = (
+    <ListToolbar>
+      <QueryFilters
+        className="contents"
+        fields={["licenseId"]}
+        values={licenseFilter}
+        onChange={(next) => {
+          setLicenseFilter(next);
+          setBalPage(1);
+          setBulkEquipPage(1);
+          setEquipPage(1);
+        }}
+      />
+    </ListToolbar>
+  );
   const { data: lifecycleData } = useSiteLifecycle(id);
   const { data: summaryData } = useSiteSummary(id);
   const { data: budgetData } = useBudgetOverview({ siteId: id });
@@ -423,18 +443,6 @@ export default function SiteDetailPage() {
         </div>
       </div>
 
-      <QueryFilters
-        fields={["licenseId"]}
-        values={licenseFilter}
-        onChange={(next) => {
-          setLicenseFilter(next);
-          setBalPage(1);
-          setBulkEquipPage(1);
-          setEquipPage(1);
-        }}
-        className="mb-4"
-      />
-
       <Tabs
         tabs={[
           { id: "materials", label: "Materials", count: materialsData?.pagination?.total },
@@ -634,6 +642,7 @@ export default function SiteDetailPage() {
                 <button className="btn btn-ghost" onClick={() => setPurchaseMaterialOpen(true)}>Purchase material</button>
               )}
             </div>
+            {licenseToolbar}
             {mats.length > 0 ? (
               <TableWrap pagination={materialsData?.pagination} onPageChange={setBalPage}>
                 <table className="data w-full text-left">
@@ -720,6 +729,7 @@ export default function SiteDetailPage() {
                 <button className="btn btn-ghost" onClick={() => setPurchaseBulkEquipmentOpen(true)}>Purchase Bulk Equipment</button>
               )}
             </div>
+            {licenseToolbar}
             {bulkEqs.length > 0 ? (
               <TableWrap pagination={bulkEquipData?.pagination} onPageChange={setBulkEquipPage}>
                 <table className="data w-full text-left">
@@ -794,6 +804,7 @@ export default function SiteDetailPage() {
                 <button className="btn btn-ghost" onClick={() => setPurchaseEquipmentOpen(true)}>Purchase equipment</button>
               )}
             </div>
+            {licenseToolbar}
             {eqs.length > 0 ? (
               <TableWrap pagination={equipData?.pagination} onPageChange={setEquipPage}>
                 <table className="data w-full text-left">
