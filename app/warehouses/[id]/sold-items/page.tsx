@@ -15,12 +15,15 @@ import {
   statusTone,
 } from "@/components/ui";
 import { useStore, isSiteManager } from "@/lib/store";
+import { toast } from "sonner";
 import {
   useWarehouseSoldOverview,
   useWarehouseSoldEquipment,
   useWarehouseSoldMaterials,
   useWarehouse,
+  useMarkSoldItemsPaid,
 } from "@/hooks/use-warehouses";
+import { SiteAccountsSection } from "@/components/SiteAccounts";
 import { useLicensesInBulk } from "@/hooks/use-licenses";
 import { useReverseInventoryMovement } from "@/hooks/use-inventory-movements";
 import { useReverseEquipmentMovement } from "@/hooks/use-equipment-movements";
@@ -90,6 +93,11 @@ export default function WarehouseSoldItemsPage() {
 
   const reverseMaterialMutation = useReverseInventoryMovement();
   const reverseEquipmentMutation = useReverseEquipmentMovement();
+  const markPaidMutation = useMarkSoldItemsPaid();
+
+  // Sales to sites ticked for the paid label. Cleared whenever the page of
+  // rows changes so a tick never refers to a row the user can't see.
+  const [selectedSales, setSelectedSales] = useState<Set<string>>(new Set());
 
   const [reverseTarget, setReverseTarget] = useState<ReverseTarget | null>(null);
   const [detailModal, setDetailModal] = useState<DetailModalState>(null);
@@ -110,6 +118,36 @@ export default function WarehouseSoldItemsPage() {
   const overview = overviewData?.data ?? fallbackOverview;
   const soldEquip: SoldEquipRow[] = useMemo(() => equipmentData?.data ?? [], [equipmentData?.data]);
   const soldMats: SoldMatRow[] = useMemo(() => materialsData?.data ?? [], [materialsData?.data]);
+
+  // Only an approved, live sale to a site can carry the paid label.
+  const canTick = (m: SoldMatRow) => Boolean(m.isInternal) && m.isApproved && !m.isReversed && !m.isReversal;
+  const tickable = soldMats.filter(canTick);
+  const allTicked = tickable.length > 0 && tickable.every((m) => selectedSales.has(m.id));
+
+  const selectedBySite = new Map<string, string[]>();
+  for (const m of soldMats) {
+    if (m.buyerSiteId && selectedSales.has(m.id)) {
+      selectedBySite.set(m.buyerSiteId, [...(selectedBySite.get(m.buyerSiteId) ?? []), m.id]);
+    }
+  }
+
+  const toggleSale = (saleId: string) =>
+    setSelectedSales((prev) => {
+      const next = new Set(prev);
+      if (next.has(saleId)) next.delete(saleId);
+      else next.add(saleId);
+      return next;
+    });
+
+  const applyPaidLabel = async (paid: boolean) => {
+    try {
+      await markPaidMutation.mutateAsync({ warehouseId: id, movementIds: Array.from(selectedSales), paid });
+      toast.success(paid ? "Marked as paid." : "Paid label removed.");
+      setSelectedSales(new Set());
+    } catch {
+      // The API client already toasts the failure; nothing changed (all-or-nothing).
+    }
+  };
 
   const totalRevenue = Number(overview.totalRevenue ?? 0);
   const totalCash = Number(overview.totalCashCollected ?? overview.totalRevenue ?? 0);
@@ -184,6 +222,7 @@ export default function WarehouseSoldItemsPage() {
           setFilters(next);
           setEquipPage(1);
           setMatPage(1);
+          setSelectedSales(new Set());
         }}
       />
 
@@ -238,6 +277,16 @@ export default function WarehouseSoldItemsPage() {
         </div>
       </div>
 
+      {canMutate ? (
+        <SiteAccountsSection
+          warehouseId={id}
+          accounts={overview.bySite ?? []}
+          canMutate={canMutate}
+          selectedSaleIdsBySite={selectedBySite}
+          onPaymentRegistered={() => setSelectedSales(new Set())}
+        />
+      ) : null}
+
       <Tabs
         tabs={[
           { id: "all", label: "All Sales", count: overview.totalCount },
@@ -254,6 +303,7 @@ export default function WarehouseSoldItemsPage() {
           setStatusTab(next as typeof statusTab);
           setEquipPage(1);
           setMatPage(1);
+          setSelectedSales(new Set());
         }}
       />
 
@@ -369,11 +419,55 @@ export default function WarehouseSoldItemsPage() {
 
       <div className="mb-8">
         <h2 className="mb-4 font-mono text-[0.8rem] uppercase tracking-wider text-black/50">Sold Materials</h2>
+        {selectedSales.size > 0 && canMutate ? (
+          <div className="mb-3 flex flex-wrap items-center gap-3 border border-black/10 bg-paper/40 p-3 text-sm">
+            <span>{selectedSales.size} selected</span>
+            <button
+              type="button"
+              className="btn px-2 py-0.5 text-xs"
+              disabled={markPaidMutation.isPending}
+              onClick={() => applyPaidLabel(true)}
+            >
+              Mark paid
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost px-2 py-0.5 text-xs"
+              disabled={markPaidMutation.isPending}
+              onClick={() => applyPaidLabel(false)}
+            >
+              Unmark paid
+            </button>
+            <button type="button" className="text-xs text-black/50 hover:underline" onClick={() => setSelectedSales(new Set())}>
+              Clear
+            </button>
+            <span className="text-xs text-black/50">A tracking label only; it does not change what a site owes.</span>
+          </div>
+        ) : null}
         {soldMats.length > 0 ? (
-          <TableWrap pagination={materialsData?.pagination} onPageChange={setMatPage}>
+          <TableWrap
+            pagination={materialsData?.pagination}
+            onPageChange={(next) => {
+              setSelectedSales(new Set());
+              setMatPage(next);
+            }}
+          >
             <table className="data w-full text-left">
               <thead>
                 <tr>
+                  {canMutate ? (
+                    <th className="w-8">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all sales to sites on this page"
+                        disabled={tickable.length === 0}
+                        checked={allTicked}
+                        onChange={(e) =>
+                          setSelectedSales(e.target.checked ? new Set(tickable.map((m) => m.id)) : new Set())
+                        }
+                      />
+                    </th>
+                  ) : null}
                   <th>Date</th>
                   <th>Material</th>
                   <th>Quantity</th>
@@ -390,6 +484,9 @@ export default function WarehouseSoldItemsPage() {
                 {soldMats.map((l) => {
                   const canReverse = !l.isReversal && !l.isReversed;
                   const total = Number(l.totalCost) || Number(l.unitCost) * l.quantity;
+                  // A sale to a site has no per-sale payment (saleStatus and
+                  // paidAmount are null) — its money lives in the site account.
+                  const isSiteSale = Boolean(l.isInternal);
                   const currentSaleStatus = l.saleStatus ?? "paid";
                   const paid = Number(l.paidAmount ?? (currentSaleStatus === "unpaid" ? 0 : total));
                   return (
@@ -406,6 +503,18 @@ export default function WarehouseSoldItemsPage() {
                         }
                       }}
                     >
+                      {canMutate ? (
+                        <td onClick={(e) => e.stopPropagation()}>
+                          {canTick(l) ? (
+                            <input
+                              type="checkbox"
+                              aria-label={`Select ${l.item?.name ?? "sale"}`}
+                              checked={selectedSales.has(l.id)}
+                              onChange={() => toggleSale(l.id)}
+                            />
+                          ) : null}
+                        </td>
+                      ) : null}
                       <td className="whitespace-nowrap">{day(l.movementDate)}</td>
                       <td className="min-w-0">
                         <div className="font-medium">{l.item?.name ?? "Unknown material"}</div>
@@ -425,7 +534,18 @@ export default function WarehouseSoldItemsPage() {
                         ) : null}
                       </td>
                       <td>
-                        <Stamp value={currentSaleStatus} tone={statusTone(currentSaleStatus)} />
+                        {isSiteSale ? (
+                          <>
+                            <Stamp value="site account" tone="yellow" />
+                            {l.isMarkedPaid ? (
+                              <div className="mt-1">
+                                <Stamp value="marked paid" tone="ok" />
+                              </div>
+                            ) : null}
+                          </>
+                        ) : (
+                          <Stamp value={currentSaleStatus} tone={statusTone(currentSaleStatus)} />
+                        )}
                       </td>
                       <td
                         className="max-w-[12rem] truncate text-sm text-black/70"
@@ -436,29 +556,31 @@ export default function WarehouseSoldItemsPage() {
                       <td className="whitespace-nowrap font-mono">{etb(l.unitCost)}</td>
                       <td className="whitespace-nowrap font-mono">
                         <div>{etb(total)}</div>
-                        {currentSaleStatus !== "paid" ? (
+                        {!isSiteSale && currentSaleStatus !== "paid" ? (
                           <div className="text-xs text-black/50">Paid: {etb(paid)}</div>
                         ) : null}
                       </td>
                       <td><Username userId={l.loggedBy ?? ""} /></td>
                       <td className="whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                         <span className="inline-block text-right">
-                          <button
-                            type="button"
-                            className="text-xs text-black/50 hover:text-black hover:underline"
-                            onClick={() =>
-                              setPaymentTarget({
-                                id: l.id,
-                                kind: "material",
-                                title: l.item?.name ?? "Material sale",
-                                totalCost: total,
-                                paidAmount: paid,
-                                saleStatus: currentSaleStatus,
-                              })
-                            }
-                          >
-                            Payments
-                          </button>
+                          {isSiteSale ? null : (
+                            <button
+                              type="button"
+                              className="text-xs text-black/50 hover:text-black hover:underline"
+                              onClick={() =>
+                                setPaymentTarget({
+                                  id: l.id,
+                                  kind: "material",
+                                  title: l.item?.name ?? "Material sale",
+                                  totalCost: total,
+                                  paidAmount: paid,
+                                  saleStatus: currentSaleStatus,
+                                })
+                              }
+                            >
+                              Payments
+                            </button>
+                          )}
                           {canReverse && canMutate ? (
                             <button
                               type="button"
@@ -561,21 +683,25 @@ export default function WarehouseSoldItemsPage() {
             warehouseName={warehouse.name}
             licensesMap={licensesMap}
             canReverse={!detailModal.record.isReversal && !detailModal.record.isReversed && canMutate}
-            onOpenPayments={() => {
-              const rec = detailModal.record;
-              const total = Number(rec.totalCost) || Number(rec.unitCost) * rec.quantity;
-              const currentSaleStatus = rec.saleStatus ?? "paid";
-              const paid = Number(rec.paidAmount ?? (currentSaleStatus === "unpaid" ? 0 : total));
-              setDetailModal(null);
-              setPaymentTarget({
-                id: rec.id,
-                kind: "material",
-                title: rec.item?.name ?? "Material sale",
-                totalCost: total,
-                paidAmount: paid,
-                saleStatus: currentSaleStatus,
-              });
-            }}
+            onOpenPayments={
+              detailModal.record.isInternal
+                ? undefined
+                : () => {
+                    const rec = detailModal.record;
+                    const total = Number(rec.totalCost) || Number(rec.unitCost) * rec.quantity;
+                    const currentSaleStatus = rec.saleStatus ?? "paid";
+                    const paid = Number(rec.paidAmount ?? (currentSaleStatus === "unpaid" ? 0 : total));
+                    setDetailModal(null);
+                    setPaymentTarget({
+                      id: rec.id,
+                      kind: "material",
+                      title: rec.item?.name ?? "Material sale",
+                      totalCost: total,
+                      paidAmount: paid,
+                      saleStatus: currentSaleStatus,
+                    });
+                  }
+            }
             onReverse={() => {
               const rec = detailModal.record;
               const total = Number(rec.totalCost) || Number(rec.unitCost) * rec.quantity;
@@ -643,7 +769,8 @@ function SoldEquipmentDetailModal({
   warehouseName: string;
   licensesMap: Map<string, License>;
   canReverse: boolean;
-  onOpenPayments: () => void;
+  // Absent when the sale has no per-sale payments (a sale to a site).
+  onOpenPayments?: () => void;
   onReverse: () => void;
   onClose: () => void;
 }) {
@@ -776,13 +903,15 @@ function SoldEquipmentDetailModal({
               Reverse sale
             </button>
           ) : null}
-          <button
-            type="button"
-            className="btn btn-ghost text-xs"
-            onClick={onOpenPayments}
-          >
-            Payments
-          </button>
+          {onOpenPayments ? (
+            <button
+              type="button"
+              className="btn btn-ghost text-xs"
+              onClick={onOpenPayments}
+            >
+              Payments
+            </button>
+          ) : null}
         </div>
         <button
           type="button"
@@ -809,7 +938,8 @@ function SoldMaterialDetailModal({
   warehouseName: string;
   licensesMap: Map<string, License>;
   canReverse: boolean;
-  onOpenPayments: () => void;
+  // Absent when the sale has no per-sale payments (a sale to a site).
+  onOpenPayments?: () => void;
   onReverse: () => void;
   onClose: () => void;
 }) {
@@ -819,6 +949,7 @@ function SoldMaterialDetailModal({
     ? license?.name ?? store.licenses.find((lic) => lic.id === l.licenseId)?.name ?? l.licenseId
     : "—";
   const total = Number(l.totalCost) || Number(l.unitCost) * l.quantity;
+  const isSiteSale = Boolean(l.isInternal);
   const currentSaleStatus = l.saleStatus ?? "paid";
   const paid = Number(l.paidAmount ?? (currentSaleStatus === "unpaid" ? 0 : total));
   const remaining = Math.max(0, total - paid);
@@ -830,7 +961,11 @@ function SoldMaterialDetailModal({
           value={l.isApproved ? "approved" : "pending"}
           tone={l.isApproved ? "ok" : "yellow"}
         />
-        <Stamp value={currentSaleStatus} tone={statusTone(currentSaleStatus)} />
+        {isSiteSale ? (
+          <Stamp value="site account" tone="yellow" />
+        ) : (
+          <Stamp value={currentSaleStatus} tone={statusTone(currentSaleStatus)} />
+        )}
         {l.isReversal ? <Stamp value="reversal" tone="bad" /> : null}
         {l.isReversed ? <Stamp value="reversed" tone="bad" /> : null}
         <Stamp value="material sale" tone="ok" />
@@ -880,20 +1015,42 @@ function SoldMaterialDetailModal({
           label="Total price"
           value={<span className="font-mono text-xs">{etb(total)}</span>}
         />
-        <DetailRow
-          label="Payment status"
-          value={<Stamp value={currentSaleStatus} tone={statusTone(currentSaleStatus)} />}
-        />
-        <DetailRow
-          label="Cash collected"
-          value={<span className="font-mono text-xs text-ok">{etb(paid)}</span>}
-        />
-        {remaining > 0 ? (
+        {isSiteSale ? (
           <DetailRow
-            label="Outstanding balance"
-            value={<span className="font-mono text-xs text-bad">{etb(remaining)}</span>}
+            label="Paid label"
+            value={
+              l.isMarkedPaid ? (
+                <span className="text-xs">
+                  Marked paid{l.markedPaidAt ? ` on ${day(l.markedPaidAt)}` : ""}
+                  {l.markedPaidBy ? (
+                    <>
+                      {" "}by <Username userId={l.markedPaidBy} fallback={l.markedPaidBy} />
+                    </>
+                  ) : null}
+                </span>
+              ) : (
+                <span className="text-xs text-black/60">Not marked</span>
+              )
+            }
           />
-        ) : null}
+        ) : (
+          <>
+            <DetailRow
+              label="Payment status"
+              value={<Stamp value={currentSaleStatus} tone={statusTone(currentSaleStatus)} />}
+            />
+            <DetailRow
+              label="Cash collected"
+              value={<span className="font-mono text-xs text-ok">{etb(paid)}</span>}
+            />
+            {remaining > 0 ? (
+              <DetailRow
+                label="Outstanding balance"
+                value={<span className="font-mono text-xs text-bad">{etb(remaining)}</span>}
+              />
+            ) : null}
+          </>
+        )}
         <DetailRow label="Warehouse" value={warehouseName} />
         <DetailRow label="License" value={licenseName} />
         <DetailRow
@@ -962,13 +1119,15 @@ function SoldMaterialDetailModal({
               Reverse sale
             </button>
           ) : null}
-          <button
-            type="button"
-            className="btn btn-ghost text-xs"
-            onClick={onOpenPayments}
-          >
-            Payments
-          </button>
+          {onOpenPayments ? (
+            <button
+              type="button"
+              className="btn btn-ghost text-xs"
+              onClick={onOpenPayments}
+            >
+              Payments
+            </button>
+          ) : null}
         </div>
         <button
           type="button"
