@@ -47,7 +47,9 @@ export type QueryFilterKey =
   | "submittedBy"
   | "approvedBy"
   | "resolvedFrom"
-  | "resolvedTo";
+  | "resolvedTo"
+  | "loggedBy"
+  | "isReversed";
 
 export type QueryFilterValues = Partial<Record<QueryFilterKey, string>>;
 
@@ -115,6 +117,11 @@ const INTERNAL = [
 ];
 
 const INCLUDE_REVERSED = [{ value: "true", label: "Show reversed and reversals" }];
+
+const REVERSED = [
+  { value: "false", label: "Not reversed" },
+  { value: "true", label: "Reversed" },
+];
 
 const APPROVAL_TYPE = [
   { value: "inventory_movement", label: "Inventory movement" },
@@ -217,6 +224,8 @@ function FilterControl({
   }
 
   if (field === "approvalType") return <StaticSelect label="Request type" empty="All types" value={value} options={APPROVAL_TYPE} onChange={onChange} />;
+  if (field === "isReversed") return <StaticSelect label="Reversal" empty="Reversed or not" value={value} options={REVERSED} onChange={onChange} />;
+  if (field === "loggedBy") return <UserSelect label={label ?? "Logged by"} empty="Anyone" value={value} onChange={onChange} />;
   if (field === "submittedBy") return <UserSelect label={label ?? "Submitted by"} empty="Anyone" value={value} onChange={onChange} />;
   if (field === "approvedBy") return <UserSelect label={label ?? "Resolved by"} empty="Anyone" value={value} onChange={onChange} />;
   if (field === "category") return <StaticSelect label="Category" empty="All categories" value={value} options={CATEGORY} onChange={onChange} />;

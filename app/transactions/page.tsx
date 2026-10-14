@@ -53,6 +53,7 @@ export default function TransactionsPage() {
     minAmount: filters.minAmount || undefined,
     maxAmount: filters.maxAmount || undefined,
     includeReversed: filters.includeReversed || undefined,
+    loggedBy: filters.loggedBy || undefined,
     search: filters.search || undefined,
     sortBy: sort.sortBy,
     sortOrder: sort.sortOrder,
@@ -246,6 +247,8 @@ export default function TransactionsPage() {
           "dateTo",
           "minAmount",
           "maxAmount",
+          // Listing users is an admin call.
+          ...(manager ? [] : (["loggedBy"] as const)),
           "includeReversed",
         ]}
         values={filters}

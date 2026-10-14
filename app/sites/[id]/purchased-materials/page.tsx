@@ -3,6 +3,14 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
+import {
+  PAYMENT_FILTER_FIELDS,
+  PAYMENT_SORT_OPTIONS,
+  toPaymentParams,
+  type PaymentSortBy,
+} from "@/components/SiteAccounts";
+import { SortSelect, type SortState } from "@/components/SortSelect";
 import { Field, PageHead, Stamp, TableWrap, Username } from "@/components/ui";
 import { useInventoriesInBulk } from "@/hooks/use-inventories";
 import { useInventoryItemsInBulk } from "@/hooks/use-inventory-items";
@@ -10,6 +18,14 @@ import { useInventoryMovements } from "@/hooks/use-inventory-movements";
 import { useSite, useSitePayablePayments, useSitePayables } from "@/hooks/use-sites";
 import { day, etb } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
+
+type SalesSortBy = "movementDate" | "totalCost" | "quantity";
+
+const SALES_SORT_OPTIONS: { value: SalesSortBy; label: string }[] = [
+  { value: "movementDate", label: "Date" },
+  { value: "totalCost", label: "Total" },
+  { value: "quantity", label: "Quantity" },
+];
 
 // Read side of the site's warehouse accounts. A site pays each warehouse in
 // bulk against a running balance; payments are registered from the warehouse's
@@ -23,27 +39,41 @@ export default function SitePurchasedMaterialsPage() {
   const { data: siteData } = useSite(id);
   const siteName = siteData?.data?.name ?? "Site";
 
-  const { data: payablesData, isLoading: isAccountsLoading } = useSitePayables(id);
+  // Narrows the accounts and the payments to one warehouse. (The items list
+  // can't be narrowed by warehouse: the movements API has no such filter.)
+  const [accountFilter, setAccountFilter] = useState<QueryFilterValues>({});
+  const warehouseId = accountFilter.warehouseId || undefined;
+  const { data: payablesData, isLoading: isAccountsLoading } = useSitePayables(id, { warehouseId });
   const summary = payablesData?.summary;
   const accounts = payablesData?.byWarehouse ?? [];
 
   const [salesPage, setSalesPage] = useState(1);
   const [markedFilter, setMarkedFilter] = useState("");
+  const [salesRange, setSalesRange] = useState<QueryFilterValues>({});
+  const [salesSort, setSalesSort] = useState<SortState<SalesSortBy>>({ sortBy: "movementDate", sortOrder: "desc" });
   const { data: salesData, isLoading: isSalesLoading } = useInventoryMovements({
     buyerSiteId: id,
     movementType: "sale",
     isMarkedPaid: markedFilter || undefined,
+    fromDate: salesRange.dateFrom || undefined,
+    toDate: salesRange.dateTo || undefined,
     page: salesPage,
     limit: 10,
-    sortBy: "movementDate",
-    sortOrder: "desc",
+    ...salesSort,
   });
   const sales = useMemo(() => salesData?.data ?? [], [salesData?.data]);
 
   const [paymentsPage, setPaymentsPage] = useState(1);
+  const [paymentFilters, setPaymentFilters] = useState<QueryFilterValues>({});
+  const [paymentSort, setPaymentSort] = useState<SortState<PaymentSortBy>>({
+    sortBy: "paymentDate",
+    sortOrder: "desc",
+  });
   const { data: paymentsData, isLoading: isPaymentsLoading } = useSitePayablePayments(id, {
     page: paymentsPage,
     limit: 10,
+    warehouseId,
+    ...toPaymentParams(paymentFilters, paymentSort),
   });
   const payments = paymentsData?.data ?? [];
 
@@ -96,6 +126,15 @@ export default function SitePurchasedMaterialsPage() {
 
       <section className="mb-10">
         <p className="kicker mb-3">Accounts by warehouse</p>
+        <QueryFilters
+          className="mb-3"
+          fields={["warehouseId"]}
+          values={accountFilter}
+          onChange={(next) => {
+            setAccountFilter(next);
+            setPaymentsPage(1);
+          }}
+        />
         {isAccountsLoading && !payablesData ? (
           <div className="p-6 text-center text-sm text-black/40">Loading accounts...</div>
         ) : accounts.length === 0 ? (
@@ -168,6 +207,25 @@ export default function SitePurchasedMaterialsPage() {
             </Field>
           </div>
         </div>
+        <QueryFilters
+          className="mb-3"
+          fields={["dateFrom", "dateTo"]}
+          values={salesRange}
+          onChange={(next) => {
+            setSalesRange(next);
+            setSalesPage(1);
+          }}
+        />
+        <div className="mb-4">
+          <SortSelect
+            options={SALES_SORT_OPTIONS}
+            value={salesSort}
+            onChange={(next) => {
+              setSalesSort(next);
+              setSalesPage(1);
+            }}
+          />
+        </div>
         {isSalesLoading && !salesData ? (
           <div className="p-6 text-center text-sm text-black/40">Loading items...</div>
         ) : (
@@ -225,6 +283,25 @@ export default function SitePurchasedMaterialsPage() {
 
       <section>
         <p className="kicker mb-3">Payments made</p>
+        <QueryFilters
+          className="mb-3"
+          fields={[...PAYMENT_FILTER_FIELDS]}
+          values={paymentFilters}
+          onChange={(next) => {
+            setPaymentFilters(next);
+            setPaymentsPage(1);
+          }}
+        />
+        <div className="mb-4">
+          <SortSelect
+            options={PAYMENT_SORT_OPTIONS}
+            value={paymentSort}
+            onChange={(next) => {
+              setPaymentSort(next);
+              setPaymentsPage(1);
+            }}
+          />
+        </div>
         {isPaymentsLoading && !paymentsData ? (
           <div className="p-6 text-center text-sm text-black/40">Loading payments...</div>
         ) : (

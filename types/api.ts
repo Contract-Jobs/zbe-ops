@@ -555,6 +555,8 @@ export interface SiteSummary {
     itemName: string;
     quantity: number;
     averageUnitValue: string | null;
+    // Per-unit market price; null = not set.
+    marketValue?: string | null;
   }[];
   pendingApprovals: number;
   recentTasks: SiteTask[];

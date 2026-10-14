@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
+import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
+import { SortSelect, type SortState } from "@/components/SortSelect";
 import { ConfirmDialog, Field, FormActions, ModalPanel, Stamp, TableWrap, Username } from "@/components/ui";
 import { useCategories } from "@/hooks/use-categories";
 import {
@@ -12,6 +14,30 @@ import {
 } from "@/hooks/use-warehouses";
 import { day, etb } from "@/lib/format";
 import type { AccountRow, SitePayment } from "@/types/api";
+
+export type PaymentSortBy = "paymentDate" | "amount" | "createdAt";
+
+export const PAYMENT_SORT_OPTIONS: { value: PaymentSortBy; label: string }[] = [
+  { value: "paymentDate", label: "Payment date" },
+  { value: "amount", label: "Amount" },
+  { value: "createdAt", label: "Recorded" },
+];
+
+export const PAYMENT_FILTER_FIELDS = ["isReversed", "dateFrom", "dateTo", "minAmount", "maxAmount"] as const;
+
+// Query params shared by both payments lists (the warehouse's received and
+// the site's made): the filter bar values plus the chosen sort.
+export function toPaymentParams(filters: QueryFilterValues, sort: SortState<PaymentSortBy>) {
+  return {
+    isReversed: filters.isReversed || undefined,
+    dateFrom: filters.dateFrom || undefined,
+    dateTo: filters.dateTo || undefined,
+    minAmount: filters.minAmount || undefined,
+    maxAmount: filters.maxAmount || undefined,
+    sortBy: sort.sortBy,
+    sortOrder: sort.sortOrder,
+  };
+}
 
 // What each site owes this warehouse. A site pays in bulk against a running
 // balance (sold − paid); a payment is never allocated to individual sales.
@@ -255,7 +281,14 @@ function AccountPayments({
   canMutate: boolean;
 }) {
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useWarehouseSitePayments(warehouseId, { siteId: account.id, page, limit: 10 });
+  const [filters, setFilters] = useState<QueryFilterValues>({});
+  const [sort, setSort] = useState<SortState<PaymentSortBy>>({ sortBy: "paymentDate", sortOrder: "desc" });
+  const { data, isLoading } = useWarehouseSitePayments(warehouseId, {
+    siteId: account.id,
+    page,
+    limit: 10,
+    ...toPaymentParams(filters, sort),
+  });
   const reverse = useReverseSitePayment();
   const [target, setTarget] = useState<SitePayment | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -280,6 +313,25 @@ function AccountPayments({
         <span className="font-mono">{etb(account.paid)}</span> of{" "}
         <span className="font-mono">{etb(account.sold)}</span>
       </p>
+      <QueryFilters
+        className="mb-3"
+        fields={[...PAYMENT_FILTER_FIELDS]}
+        values={filters}
+        onChange={(next) => {
+          setFilters(next);
+          setPage(1);
+        }}
+      />
+      <div className="mb-4">
+        <SortSelect
+          options={PAYMENT_SORT_OPTIONS}
+          value={sort}
+          onChange={(next) => {
+            setSort(next);
+            setPage(1);
+          }}
+        />
+      </div>
       {isLoading && !data ? (
         <div className="p-6 text-center text-sm text-black/40">Loading payments...</div>
       ) : (

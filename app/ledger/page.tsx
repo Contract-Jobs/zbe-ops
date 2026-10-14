@@ -37,6 +37,8 @@ export default function LedgerPage() {
     minAmount: filters.minAmount || undefined,
     maxAmount: filters.maxAmount || undefined,
     includeReversed: filters.includeReversed || undefined,
+    isReversed: filters.isReversed || undefined,
+    loggedBy: filters.loggedBy ? [filters.loggedBy] : undefined,
     categoryId: filters.categoryId || undefined,
     search: filters.search || undefined,
     sortBy: sort.sortBy,
@@ -84,6 +86,8 @@ export default function LedgerPage() {
           "dateTo",
           "minAmount",
           "maxAmount",
+          ...(manager ? [] : (["loggedBy"] as const)),
+          "isReversed",
           "includeReversed",
         ]}
         values={filters}

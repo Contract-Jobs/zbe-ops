@@ -8,6 +8,7 @@ import { useInventoryMovements } from "@/hooks/use-inventory-movements";
 import { useInventoryItemsInBulk } from "@/hooks/use-inventory-items";
 import { useInventoriesInBulk } from "@/hooks/use-inventories";
 import { QUANTITY_MOVEMENT_LABELS } from "@/lib/movement-labels";
+import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { SortSelect, type SortState } from "@/components/SortSelect";
 import type { QuantityMovementType } from "@/types/api";
 
@@ -39,6 +40,7 @@ export default function InventoryMovementsPage() {
   const [movementType, setMovementType] = useState<string>("");
   const [isInternal, setIsInternal] = useState<string>("");
   const [isMarkedPaid, setIsMarkedPaid] = useState<string>("");
+  const [siteFilter, setSiteFilter] = useState<QueryFilterValues>({});
 
   const [sort, setSort] = useState<SortState<MovementSortBy>>({ sortBy: "movementDate", sortOrder: "desc" });
 
@@ -49,6 +51,7 @@ export default function InventoryMovementsPage() {
     movementType: (movementType || undefined) as QuantityMovementType | undefined,
     isInternal: isInternal || undefined,
     isMarkedPaid: isMarkedPaid || undefined,
+    buyerSiteId: siteFilter.buyerSiteId || undefined,
   });
 
   const movements = movementsData?.data ?? [];
@@ -134,6 +137,15 @@ export default function InventoryMovementsPage() {
           <option value="true">Marked paid (site sales)</option>
           <option value="false">Not marked paid (site sales)</option>
         </select>
+        <QueryFilters
+          className=""
+          fields={["buyerSiteId"]}
+          values={siteFilter}
+          onChange={(next) => {
+            setSiteFilter(next);
+            setPage(1);
+          }}
+        />
         <SortSelect
           options={MOVEMENT_SORT_OPTIONS}
           value={sort}

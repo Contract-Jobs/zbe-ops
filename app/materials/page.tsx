@@ -7,6 +7,7 @@ import { MaterialMovementForm } from "@/components/forms/material-movement";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { closedMode, DeleteConfirm, FormPanel, ModalPanel, PageHead, RecordActions, Stamp, TableWrap, type RecordMode } from "@/components/ui";
 import type { InventoryItemCategory, InventoryItemTracking } from "@/types/api";
+import { etb } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
 import { useInventoryItems, useDeleteInventoryItem, useRestoreInventoryItem } from "@/hooks/use-inventory-items";
 import type { InventoryItem } from "@/types/api";
@@ -123,6 +124,8 @@ export default function MaterialsPage() {
               <tr>
                 <th>Name</th>
                 <th>Total</th>
+                <th className="hidden md:table-cell">Market Value</th>
+                <th className="hidden lg:table-cell">Total Market Value</th>
                 <th className="hidden sm:table-cell">Type</th>
                 {canMutate ? <th></th> : null}
               </tr>
@@ -136,6 +139,13 @@ export default function MaterialsPage() {
                     </Link>
                   </td>
                   <td className="font-mono text-sm">{m.totalQuantity} {m.unit}</td>
+                  {/* null means "not set", never 0 */}
+                  <td className="hidden font-mono text-sm md:table-cell">
+                    {m.marketValue != null ? etb(m.marketValue) : "—"}
+                  </td>
+                  <td className="hidden font-mono text-sm lg:table-cell">
+                    {m.totalMarketValue != null ? etb(m.totalMarketValue) : "—"}
+                  </td>
                   <td className="hidden sm:table-cell">
                     <Stamp value={m.compositionType} />
                   </td>
