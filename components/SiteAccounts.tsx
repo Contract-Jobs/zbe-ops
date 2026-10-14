@@ -215,30 +215,26 @@ function RegisterPaymentForm({
   }
 
   return (
-    <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
+    <form className="grid gap-4" onSubmit={submit}>
       {error ? (
-        <p className="border border-[var(--bad)] bg-[var(--white)] p-2 text-sm text-[var(--bad)] sm:col-span-2">
-          {error}
-        </p>
+        <p className="border border-[var(--bad)] bg-[var(--white)] p-2 text-sm text-[var(--bad)]">{error}</p>
       ) : null}
 
       {/* Where the account stands before this payment. */}
-      <div className="grid grid-cols-3 gap-px bg-black/10 sm:col-span-2">
-        <div className="bg-white p-3">
-          <p className="kicker">Sold</p>
-          <p className="mt-1 break-words font-mono text-sm">{etb(account.sold)}</p>
+      <dl className="border border-black/10 text-sm">
+        <div className="flex items-center justify-between gap-3 border-b border-black/10 px-3 py-2">
+          <dt className="text-black/60">Sold</dt>
+          <dd className="font-mono">{etb(account.sold)}</dd>
         </div>
-        <div className="bg-white p-3">
-          <p className="kicker">Paid</p>
-          <p className="mt-1 break-words font-mono text-sm">{etb(account.paid)}</p>
+        <div className="flex items-center justify-between gap-3 border-b border-black/10 px-3 py-2">
+          <dt className="text-black/60">Paid</dt>
+          <dd className="font-mono">{etb(account.paid)}</dd>
         </div>
-        <div className="bg-white p-3">
-          <p className="kicker">Owes</p>
-          <p className={`mt-1 break-words font-mono text-sm ${outstanding > 0 ? "text-bad" : ""}`}>
-            {etb(account.outstanding)}
-          </p>
+        <div className="flex items-center justify-between gap-3 px-3 py-2">
+          <dt className="font-medium">Owes</dt>
+          <dd className={`font-mono font-medium ${outstanding > 0 ? "text-bad" : ""}`}>{etb(account.outstanding)}</dd>
         </div>
-      </div>
+      </dl>
 
       <Field label="Amount (ETB)">
         <input
@@ -252,7 +248,7 @@ function RegisterPaymentForm({
           disabled={mutation.isPending}
           required
         />
-        <div className="mt-1 flex items-center justify-between gap-2 text-xs">
+        <div className="mt-1 flex flex-col items-start gap-1 text-xs">
           <span className={balanceAfter < -0.005 ? "text-bad" : "text-black/50"}>
             {balanceAfter < -0.005 ? `Over by ${etb(-balanceAfter)}` : `Owes after: ${etb(Math.max(0, balanceAfter))}`}
           </span>
@@ -294,7 +290,7 @@ function RegisterPaymentForm({
         <input className="field" value={note} onChange={(e) => setNote(e.target.value)} disabled={mutation.isPending} />
       </Field>
       {selectedSaleIds.length > 0 ? (
-        <label className="flex items-start gap-2 border border-black/10 bg-paper/40 p-3 text-sm text-black/70 sm:col-span-2">
+        <label className="flex items-start gap-2 border border-black/10 bg-paper/40 p-3 text-sm text-black/70">
           <input
             type="checkbox"
             className="mt-0.5"
