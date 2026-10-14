@@ -178,6 +178,8 @@ function RegisterPaymentForm({
 
   const outstanding = Number(account.outstanding);
   const [amount, setAmount] = useState(outstanding > 0 ? outstanding.toFixed(2) : "");
+  // What the site would still owe if this payment went through.
+  const balanceAfter = outstanding - (Number(amount) || 0);
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [note, setNote] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -213,14 +215,31 @@ function RegisterPaymentForm({
   }
 
   return (
-    <form className="grid gap-3" onSubmit={submit}>
+    <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
       {error ? (
-        <p className="border border-[var(--bad)] bg-[var(--white)] p-2 text-sm text-[var(--bad)]">{error}</p>
+        <p className="border border-[var(--bad)] bg-[var(--white)] p-2 text-sm text-[var(--bad)] sm:col-span-2">
+          {error}
+        </p>
       ) : null}
-      <p className="text-sm text-black/60">
-        {account.name} owes <span className="font-mono">{etb(account.outstanding)}</span> of{" "}
-        <span className="font-mono">{etb(account.sold)}</span> sold.
-      </p>
+
+      {/* Where the account stands before this payment. */}
+      <div className="grid grid-cols-3 gap-px bg-black/10 sm:col-span-2">
+        <div className="bg-white p-3">
+          <p className="kicker">Sold</p>
+          <p className="mt-1 break-words font-mono text-sm">{etb(account.sold)}</p>
+        </div>
+        <div className="bg-white p-3">
+          <p className="kicker">Paid</p>
+          <p className="mt-1 break-words font-mono text-sm">{etb(account.paid)}</p>
+        </div>
+        <div className="bg-white p-3">
+          <p className="kicker">Owes</p>
+          <p className={`mt-1 break-words font-mono text-sm ${outstanding > 0 ? "text-bad" : ""}`}>
+            {etb(account.outstanding)}
+          </p>
+        </div>
+      </div>
+
       <Field label="Amount (ETB)">
         <input
           className="field"
@@ -233,6 +252,19 @@ function RegisterPaymentForm({
           disabled={mutation.isPending}
           required
         />
+        <div className="mt-1 flex items-center justify-between gap-2 text-xs">
+          <span className={balanceAfter < -0.005 ? "text-bad" : "text-black/50"}>
+            {balanceAfter < -0.005 ? `Over by ${etb(-balanceAfter)}` : `Owes after: ${etb(Math.max(0, balanceAfter))}`}
+          </span>
+          <button
+            type="button"
+            className="text-blue-600/80 hover:text-black hover:underline"
+            onClick={() => setAmount(outstanding.toFixed(2))}
+            disabled={mutation.isPending || outstanding <= 0}
+          >
+            Pay full balance
+          </button>
+        </div>
       </Field>
       <Field label="Payment date">
         <input
@@ -262,9 +294,17 @@ function RegisterPaymentForm({
         <input className="field" value={note} onChange={(e) => setNote(e.target.value)} disabled={mutation.isPending} />
       </Field>
       {selectedSaleIds.length > 0 ? (
-        <label className="flex items-center gap-2 text-sm text-black/70">
-          <input type="checkbox" checked={markSelected} onChange={(e) => setMarkSelected(e.target.checked)} />
-          Also mark the {selectedSaleIds.length} selected {selectedSaleIds.length === 1 ? "sale" : "sales"} as paid
+        <label className="flex items-start gap-2 border border-black/10 bg-paper/40 p-3 text-sm text-black/70 sm:col-span-2">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={markSelected}
+            onChange={(e) => setMarkSelected(e.target.checked)}
+          />
+          <span>
+            Also mark the {selectedSaleIds.length} selected {selectedSaleIds.length === 1 ? "sale" : "sales"} as paid
+            <span className="block text-xs text-black/50">A tracking label only; it doesn&apos;t change the balance.</span>
+          </span>
         </label>
       ) : null}
       <FormActions onCancel={onCancel} loading={mutation.isPending} saveLabel="Register payment" />
