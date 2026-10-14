@@ -11,7 +11,7 @@ import {
   type PaymentSortBy,
 } from "@/components/SiteAccounts";
 import { SortSelect, type SortState } from "@/components/SortSelect";
-import { Field, PageHead, Stamp, TableWrap, Username } from "@/components/ui";
+import { Field, PageHead, Stamp, Tabs, TableWrap, Username } from "@/components/ui";
 import { useInventoriesInBulk } from "@/hooks/use-inventories";
 import { useInventoryItemsInBulk } from "@/hooks/use-inventory-items";
 import { useInventoryMovements } from "@/hooks/use-inventory-movements";
@@ -91,6 +91,7 @@ export default function SitePurchasedMaterialsPage() {
   );
 
   const outstanding = Number(summary?.outstanding ?? 0);
+  const [tab, setTab] = useState<"accounts" | "items" | "payments">("accounts");
 
   return (
     <div>
@@ -124,7 +125,17 @@ export default function SitePurchasedMaterialsPage() {
         </div>
       </div>
 
-      <section className="mb-10">
+      <Tabs
+        tabs={[
+          { id: "accounts", label: "Accounts", count: accounts.length },
+          { id: "items", label: "Items Bought", count: salesData?.pagination?.total },
+          { id: "payments", label: "Payments Made", count: paymentsData?.pagination?.total },
+        ]}
+        active={tab}
+        onChange={(next) => setTab(next as typeof tab)}
+      />
+
+      <section className={tab === "accounts" ? "mb-10" : "hidden"}>
         <p className="kicker mb-3">Accounts by warehouse</p>
         <QueryFilters
           className="mb-3"
@@ -187,7 +198,7 @@ export default function SitePurchasedMaterialsPage() {
         </p>
       </section>
 
-      <section className="mb-10">
+      <section className={tab === "items" ? "mb-10" : "hidden"}>
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <p className="kicker">Items bought</p>
           <div className="w-full sm:w-52">
@@ -281,7 +292,7 @@ export default function SitePurchasedMaterialsPage() {
         )}
       </section>
 
-      <section>
+      <section className={tab === "payments" ? "" : "hidden"}>
         <p className="kicker mb-3">Payments made</p>
         <QueryFilters
           className="mb-3"
