@@ -58,6 +58,17 @@ export type SoldMaterialsParams = ListParams<SoldItemsDateParams & {
     licenseId?: string
     buyerName?: string
     isReversal?: string
+    // Only sales to sites, or only to outside buyers.
+    buyerType?: "site" | "external"
+    buyerSiteId?: string
+    // Ticked / not ticked as paid (tracking label, sales to sites).
+    isMarkedPaid?: string
+    // Range on the sale total, inclusive.
+    minAmount?: string
+    maxAmount?: string
+    // "false" = staged sales awaiting approval. `search` (base param) matches
+    // the buyer name — client or site — or the item name.
+    isApproved?: string
 }>
 
 export async function getWarehouseSoldMaterials(id: string, params: SoldMaterialsParams = {}) {

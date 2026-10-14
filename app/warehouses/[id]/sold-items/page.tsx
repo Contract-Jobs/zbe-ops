@@ -83,6 +83,13 @@ export default function WarehouseSoldItemsPage() {
     dateTo: filters.dateTo || undefined,
     // Sales to a site have no per-sale status, so this leaves them out.
     saleStatus: (filters.saleStatus as SaleStatus | undefined) || undefined,
+    buyerType: (filters.buyerType as "site" | "external" | undefined) || undefined,
+    buyerSiteId: filters.buyerSiteId || undefined,
+    isMarkedPaid: filters.isMarkedPaid || undefined,
+    isApproved: filters.isApproved || undefined,
+    minAmount: filters.minAmount || undefined,
+    maxAmount: filters.maxAmount || undefined,
+    search: filters.search || undefined,
   };
 
   const { data: warehouseData, isLoading: isWhLoading } = useWarehouse(id);
@@ -221,9 +228,26 @@ export default function WarehouseSoldItemsPage() {
       />
 
       <QueryFilters
-        // Payment status only means something for the sold items, so it is
+        // The sold-item filters only mean something for that list, so they are
         // offered there and not on the account balances.
-        fields={view === "sold" ? ["licenseId", "dateFrom", "dateTo", "saleStatus"] : ["licenseId", "dateFrom", "dateTo"]}
+        fields={
+          view === "sold"
+            ? [
+                "search",
+                "licenseId",
+                "dateFrom",
+                "dateTo",
+                "saleStatus",
+                "buyerType",
+                "buyerSiteId",
+                "isMarkedPaid",
+                "isApproved",
+                "minAmount",
+                "maxAmount",
+              ]
+            : ["licenseId", "dateFrom", "dateTo"]
+        }
+        searchPlaceholder="Buyer or item"
         values={filters}
         onChange={(next) => {
           setFilters(next);

@@ -49,7 +49,9 @@ export type QueryFilterKey =
   | "resolvedFrom"
   | "resolvedTo"
   | "loggedBy"
-  | "isReversed";
+  | "isReversed"
+  | "buyerType"
+  | "isMarkedPaid";
 
 export type QueryFilterValues = Partial<Record<QueryFilterKey, string>>;
 
@@ -117,6 +119,16 @@ const INTERNAL = [
 ];
 
 const INCLUDE_REVERSED = [{ value: "true", label: "Show reversed and reversals" }];
+
+const BUYER_TYPE = [
+  { value: "site", label: "Sites" },
+  { value: "external", label: "Outside clients" },
+];
+
+const MARKED_PAID = [
+  { value: "true", label: "Marked paid" },
+  { value: "false", label: "Not marked paid" },
+];
 
 const REVERSED = [
   { value: "false", label: "Not reversed" },
@@ -224,6 +236,8 @@ function FilterControl({
   }
 
   if (field === "approvalType") return <StaticSelect label="Request type" empty="All types" value={value} options={APPROVAL_TYPE} onChange={onChange} />;
+  if (field === "buyerType") return <StaticSelect label="Buyer type" empty="All buyers" value={value} options={BUYER_TYPE} onChange={onChange} />;
+  if (field === "isMarkedPaid") return <StaticSelect label="Paid label" empty="Any paid label" value={value} options={MARKED_PAID} onChange={onChange} />;
   if (field === "isReversed") return <StaticSelect label="Reversal" empty="Reversed or not" value={value} options={REVERSED} onChange={onChange} />;
   if (field === "loggedBy") return <UserSelect label={label ?? "Logged by"} empty="Anyone" value={value} onChange={onChange} />;
   if (field === "submittedBy") return <UserSelect label={label ?? "Submitted by"} empty="Anyone" value={value} onChange={onChange} />;
