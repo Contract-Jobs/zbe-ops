@@ -221,18 +221,20 @@ function RegisterPaymentForm({
       ) : null}
 
       {/* Where the account stands before this payment. */}
-      <dl className="border border-black/10 text-sm">
-        <div className="flex items-center justify-between gap-3 border-b border-black/10 px-3 py-2">
-          <dt className="text-black/60">Sold</dt>
-          <dd className="font-mono">{etb(account.sold)}</dd>
+      <dl className="border border-black/10">
+        <div className="border-b border-black/10 px-3 py-2">
+          <dt className="kicker">Sold</dt>
+          <dd className="mt-0.5 font-mono text-sm">{etb(account.sold)}</dd>
         </div>
-        <div className="flex items-center justify-between gap-3 border-b border-black/10 px-3 py-2">
-          <dt className="text-black/60">Paid</dt>
-          <dd className="font-mono">{etb(account.paid)}</dd>
+        <div className="border-b border-black/10 px-3 py-2">
+          <dt className="kicker">Paid</dt>
+          <dd className="mt-0.5 font-mono text-sm">{etb(account.paid)}</dd>
         </div>
-        <div className="flex items-center justify-between gap-3 px-3 py-2">
-          <dt className="font-medium">Owes</dt>
-          <dd className={`font-mono font-medium ${outstanding > 0 ? "text-bad" : ""}`}>{etb(account.outstanding)}</dd>
+        <div className="px-3 py-2">
+          <dt className="kicker">Owes</dt>
+          <dd className={`mt-0.5 font-mono text-sm font-medium ${outstanding > 0 ? "text-bad" : ""}`}>
+            {etb(account.outstanding)}
+          </dd>
         </div>
       </dl>
 
