@@ -328,18 +328,64 @@ function FilterPopover({
           className="fixed inset-x-4 top-28 z-40 max-h-[75vh] overflow-y-auto border border-black bg-white p-4 sm:absolute sm:inset-x-auto sm:left-0 sm:top-full sm:mt-1 sm:w-[44rem] sm:max-w-[calc(100vw-3rem)]"
         >
           <div className="flex flex-wrap items-end gap-3">
-            {fields.map((key) => (
-              <FilterControl
-                key={key}
-                field={key}
-                value={draft[key] ?? ""}
-                searchPlaceholder={searchPlaceholder}
-                itemCategory={itemCategory}
-                label={labels?.[key]}
-                onChange={(value) => setDraft((prev) => ({ ...prev, [key]: value }))}
-              />
-            ))}
+            {fields.map((key) => {
+              const applied = values[key] ?? "";
+              const current = draft[key] ?? "";
+              // Solid = applied and untouched. Hollow = changed here and not
+              // applied yet (including a filter about to be removed).
+              const state: "none" | "applied" | "changed" =
+                current === applied ? (applied ? "applied" : "none") : "changed";
+              return (
+                <div
+                  key={key}
+                  className={`relative border-l-2 pl-3 ${
+                    state === "applied"
+                      ? "border-yellow [&_label]:text-yellow"
+                      : state === "changed"
+                        ? "border-dashed border-yellow [&_label]:text-yellow"
+                        : "border-transparent"
+                  }`}
+                >
+                  {state !== "none" ? (
+                    <span
+                      aria-hidden
+                      className={`absolute left-1 top-[0.42rem] h-1.5 w-1.5 border border-yellow ${
+                        state === "applied" ? "bg-yellow" : "bg-transparent"
+                      }`}
+                    />
+                  ) : null}
+                  {current ? (
+                    <button
+                      type="button"
+                      aria-label={`Clear ${labels?.[key] ?? key}`}
+                      className="absolute right-0 top-0 px-1 text-sm leading-none text-black/50 hover:text-black"
+                      onClick={() => setDraft((prev) => ({ ...prev, [key]: "" }))}
+                    >
+                      ×
+                    </button>
+                  ) : null}
+                  <FilterControl
+                    field={key}
+                    value={current}
+                    searchPlaceholder={searchPlaceholder}
+                    itemCategory={itemCategory}
+                    label={labels?.[key]}
+                    onChange={(value) => setDraft((prev) => ({ ...prev, [key]: value }))}
+                  />
+                </div>
+              );
+            })}
           </div>
+          {appliedCount > 0 || draftCount > 0 ? (
+            <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-black/50">
+              <span className="flex items-center gap-1.5">
+                <span aria-hidden className="h-1.5 w-1.5 border border-yellow bg-yellow" /> Applied
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span aria-hidden className="h-1.5 w-1.5 border border-yellow" /> Changed, not applied yet
+              </span>
+            </p>
+          ) : null}
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-black/10 pt-3">
             <button
               type="button"
