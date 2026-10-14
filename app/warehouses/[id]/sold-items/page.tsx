@@ -40,6 +40,11 @@ import type {
   SaleStatus,
 } from "@/types/api";
 
+// A sale to a site is paid through the site's account, never per sale. Go by
+// the buyer site as well as the flag, so a row missing `isInternal` is not
+// mistaken for an ordinary sale with its own payments.
+const soldToSite = (m: { isInternal?: boolean; buyerSiteId?: string | null }) => Boolean(m.isInternal || m.buyerSiteId);
+
 type SoldEquipRow = IndividualEquipmentMovement & { equipment: IndividualEquipmentItem | null };
 type SoldMatRow = InventoryMovement & { item: InventoryItem | null };
 
@@ -80,14 +85,17 @@ export default function WarehouseSoldItemsPage() {
 
   const [equipPage, setEquipPage] = useState(1);
   const [matPage, setMatPage] = useState(1);
-  const [statusTab, setStatusTab] = useState<"all" | SaleStatus>("all");
+  // Which sold table the Sold Items tab shows. Payment status is a filter in
+  // the bar above (filters.saleStatus), not a second row of tabs.
+  const [soldKind, setSoldKind] = useState<"materials" | "equipment">("materials");
   const [filters, setFilters] = useState<QueryFilterValues>({});
 
   const soldParams = {
     licenseId: filters.licenseId || undefined,
     dateFrom: filters.dateFrom || undefined,
     dateTo: filters.dateTo || undefined,
-    saleStatus: statusTab === "all" ? undefined : statusTab,
+    // Sales to a site have no per-sale status, so this leaves them out.
+    saleStatus: (filters.saleStatus as SaleStatus | undefined) || undefined,
   };
 
   const { data: warehouseData, isLoading: isWhLoading } = useWarehouse(id);
@@ -128,7 +136,7 @@ export default function WarehouseSoldItemsPage() {
   const soldMats: SoldMatRow[] = useMemo(() => materialsData?.data ?? [], [materialsData?.data]);
 
   // Only an approved, live sale to a site can carry the paid label.
-  const canTick = (m: SoldMatRow) => Boolean(m.isInternal) && m.isApproved && !m.isReversed && !m.isReversal;
+  const canTick = (m: SoldMatRow) => soldToSite(m) && m.isApproved && !m.isReversed && !m.isReversal;
   const tickable = soldMats.filter(canTick);
   const allTicked = tickable.length > 0 && tickable.every((m) => selectedSales.has(m.id));
 
@@ -230,7 +238,9 @@ export default function WarehouseSoldItemsPage() {
       />
 
       <QueryFilters
-        fields={["licenseId", "dateFrom", "dateTo"]}
+        // Payment status only means something for the sold items, so it is
+        // offered there and not on the account balances.
+        fields={view === "sold" ? ["licenseId", "dateFrom", "dateTo", "saleStatus"] : ["licenseId", "dateFrom", "dateTo"]}
         values={filters}
         onChange={(next) => {
           setFilters(next);
@@ -319,26 +329,18 @@ export default function WarehouseSoldItemsPage() {
       <>
       <Tabs
         tabs={[
-          { id: "all", label: "All Sales", count: overview.totalCount },
-          { id: "unpaid", label: "Unpaid", count: overview.revenueVsCash?.byStatus?.unpaid?.count },
-          {
-            id: "partially_paid",
-            label: "Partially Paid",
-            count: overview.revenueVsCash?.byStatus?.partiallyPaid?.count,
-          },
-          { id: "paid", label: "Fully Paid", count: overview.revenueVsCash?.byStatus?.paid?.count },
+          { id: "materials", label: "Materials", count: overview.soldMaterialCount },
+          { id: "equipment", label: "Equipment", count: overview.soldEquipmentCount },
         ]}
-        active={statusTab}
+        active={soldKind}
         onChange={(next) => {
-          setStatusTab(next as typeof statusTab);
-          setEquipPage(1);
-          setMatPage(1);
+          setSoldKind(next as typeof soldKind);
           setSelectedSales(new Set());
         }}
       />
 
+      {soldKind === "equipment" ? (
       <div className="mb-8">
-        <h2 className="mb-4 font-mono text-[0.8rem] uppercase tracking-wider text-black/50">Sold Equipment</h2>
         {soldEquip.length > 0 ? (
           <TableWrap pagination={equipmentData?.pagination} onPageChange={setEquipPage}>
             <table className="data w-full text-left">
@@ -446,9 +448,8 @@ export default function WarehouseSoldItemsPage() {
           </div>
         )}
       </div>
-
+      ) : (
       <div className="mb-8">
-        <h2 className="mb-4 font-mono text-[0.8rem] uppercase tracking-wider text-black/50">Sold Materials</h2>
         {selectedSales.size > 0 && canMutate ? (
           <div className="mb-3 flex flex-wrap items-center gap-3 border border-black/10 bg-paper/40 p-3 text-sm">
             <span>{selectedSales.size} selected</span>
@@ -516,7 +517,7 @@ export default function WarehouseSoldItemsPage() {
                   const total = Number(l.totalCost) || Number(l.unitCost) * l.quantity;
                   // A sale to a site has no per-sale payment (saleStatus and
                   // paidAmount are null) — its money lives in the site account.
-                  const isSiteSale = Boolean(l.isInternal);
+                  const isSiteSale = soldToSite(l);
                   const currentSaleStatus = l.saleStatus ?? "paid";
                   const paid = Number(l.paidAmount ?? (currentSaleStatus === "unpaid" ? 0 : total));
                   return (
@@ -641,6 +642,7 @@ export default function WarehouseSoldItemsPage() {
           </div>
         )}
       </div>
+      )}
       </>
       )}
 
@@ -716,7 +718,7 @@ export default function WarehouseSoldItemsPage() {
             licensesMap={licensesMap}
             canReverse={!detailModal.record.isReversal && !detailModal.record.isReversed && canMutate}
             onOpenPayments={
-              detailModal.record.isInternal
+              soldToSite(detailModal.record)
                 ? undefined
                 : () => {
                     const rec = detailModal.record;
@@ -981,7 +983,7 @@ function SoldMaterialDetailModal({
     ? license?.name ?? store.licenses.find((lic) => lic.id === l.licenseId)?.name ?? l.licenseId
     : "—";
   const total = Number(l.totalCost) || Number(l.unitCost) * l.quantity;
-  const isSiteSale = Boolean(l.isInternal);
+  const isSiteSale = soldToSite(l);
   const currentSaleStatus = l.saleStatus ?? "paid";
   const paid = Number(l.paidAmount ?? (currentSaleStatus === "unpaid" ? 0 : total));
   const remaining = Math.max(0, total - paid);
