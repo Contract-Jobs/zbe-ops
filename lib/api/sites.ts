@@ -137,8 +137,7 @@ export function getSiteBulkEquipment(siteId: string, params: MaterialsAtSitePara
 // warehouse side (see lib/api/warehouses.ts); this is the read side. ----
 
 export function getSitePayables(siteId: string, params: { warehouseId?: string } = {}) {
-  // No `data` key: summary/byWarehouse sit at the top level of the response.
-  return apiClient.getWithExtras<unknown, SitePayables>(`/api/sites/${siteId}/payables`, buildListParams(params));
+  return apiClient.get<SitePayables>(`/api/sites/${siteId}/payables`, buildListParams(params));
 }
 
 // Shared by GET /api/sites/:id/payables/payments and

@@ -45,8 +45,8 @@ export default function SitePurchasedMaterialsPage() {
   const [accountFilter, setAccountFilter] = useState<QueryFilterValues>({});
   const warehouseId = accountFilter.warehouseId || undefined;
   const { data: payablesData, isLoading: isAccountsLoading } = useSitePayables(id, { warehouseId });
-  const summary = payablesData?.summary;
-  const accounts = payablesData?.byWarehouse ?? [];
+  const summary = payablesData?.data?.summary;
+  const accounts = payablesData?.data?.byWarehouse ?? [];
 
   const [salesPage, setSalesPage] = useState(1);
   const [salesFilters, setSalesFilters] = useState<QueryFilterValues>({});
