@@ -38,6 +38,7 @@ export default function InventoryMovementsPage() {
   const [page, setPage] = useState(1);
   const [movementType, setMovementType] = useState<string>("");
   const [isInternal, setIsInternal] = useState<string>("");
+  const [isMarkedPaid, setIsMarkedPaid] = useState<string>("");
 
   const [sort, setSort] = useState<SortState<MovementSortBy>>({ sortBy: "movementDate", sortOrder: "desc" });
 
@@ -47,6 +48,7 @@ export default function InventoryMovementsPage() {
     ...sort,
     movementType: (movementType || undefined) as QuantityMovementType | undefined,
     isInternal: isInternal || undefined,
+    isMarkedPaid: isMarkedPaid || undefined,
   });
 
   const movements = movementsData?.data ?? [];
@@ -118,6 +120,19 @@ export default function InventoryMovementsPage() {
           <option value="">All buyers</option>
           <option value="true">Sold to a site</option>
           <option value="false">Not sold to a site</option>
+        </select>
+        <select
+          className="field w-full sm:max-w-xs"
+          value={isMarkedPaid}
+          aria-label="Paid label on sales to sites"
+          onChange={(e) => {
+            setIsMarkedPaid(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">Any paid label</option>
+          <option value="true">Marked paid (site sales)</option>
+          <option value="false">Not marked paid (site sales)</option>
         </select>
         <SortSelect
           options={MOVEMENT_SORT_OPTIONS}

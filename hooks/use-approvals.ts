@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import * as approvalsApi from "@/lib/api/approvals"
 import type { ApprovalListParams } from "@/lib/api/approvals"
 import { queryKeys } from "@/lib/query/keys"
-import { onApprovalProcessed } from "@/lib/query/approval-invalidation"
+import { onApprovalProcessed, onBulkApprovalProcessed } from "@/lib/query/approval-invalidation"
 import { isAdmin, canApproveType, type Role } from "@/lib/auth/permissions"
 import type { Approval } from "@/types/api"
 
@@ -53,6 +53,33 @@ export function useRejectApproval() {
             // invalidate transactions rather than thread approvalType through
             // here just for that one case.
             queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all })
+        },
+    })
+}
+
+// Approve or reject many at once. Partial mode (default) resolves what it can
+// and reports the rest per row; the caller reads `results` off the response.
+export function useBulkProcessApprovals() {
+    const queryClient = useQueryClient()
+    return useMutation({
+        mutationFn: ({
+            approvals,
+            ...rest
+        }: {
+            // The selected rows: ids go to the API, types drive the refresh.
+            approvals: Pick<Approval, "id" | "approvalType">[]
+            status: "approved" | "rejected"
+            notes?: string
+            atomic?: boolean
+        }) => approvalsApi.bulkProcessApprovals({ ...rest, approvalIds: approvals.map((a) => a.id) }),
+        onSuccess: ({ data: result }, variables) => {
+            // Fan out only for what actually went through.
+            const succeeded = new Set(result.results.filter((r) => r.ok).map((r) => r.approvalId))
+            onBulkApprovalProcessed(
+                queryClient,
+                result.decision,
+                variables.approvals.filter((a) => succeeded.has(a.id)).map((a) => a.approvalType)
+            )
         },
     })
 }

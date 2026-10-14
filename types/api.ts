@@ -827,6 +827,25 @@ export interface Approval {
   deletedAt: string | null;
 }
 
+export interface BulkApprovalResultRow {
+  approvalId: string;
+  ok: boolean;
+  // Only on failures.
+  code?: "FORBIDDEN" | "NOT_FOUND" | "CONFLICT" | "VALIDATION" | "ERROR";
+  error?: string;
+}
+
+// POST /api/approvals/bulk. In partial mode this is 200 even when some
+// approvals fail — read `results`. In atomic mode any failure is an error
+// response instead and nothing changes.
+export interface BulkApprovalResult {
+  decision: "approved" | "rejected";
+  total: number;
+  succeeded: number;
+  failed: number;
+  results: BulkApprovalResultRow[];
+}
+
 // ---- 9. Analytics ----
 
 export interface SpendAnalytics {

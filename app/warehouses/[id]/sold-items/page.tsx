@@ -197,7 +197,13 @@ export default function WarehouseSoldItemsPage() {
         setDetailModal(null);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to reverse movement");
+      const message = e instanceof Error ? e.message : "Failed to reverse movement";
+      // 409: the site has paid more than it would then owe this warehouse.
+      setError(
+        /Reverse a payment first/i.test(message)
+          ? `${message} Open Site accounts, then Payments for that site, to reverse one.`
+          : message,
+      );
     }
   };
 

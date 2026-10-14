@@ -7,6 +7,7 @@ import { useInventoryItems } from "@/hooks/use-inventory-items";
 import { useInventoryNodes } from "@/hooks/use-inventories";
 import { useLicenses } from "@/hooks/use-licenses";
 import { useSites } from "@/hooks/use-sites";
+import { useUsers } from "@/hooks/use-users";
 import { useWarehouses } from "@/hooks/use-warehouses";
 import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
 import type {
@@ -41,7 +42,12 @@ export type QueryFilterKey =
   | "isInternal"
   | "includeReversed"
   | "minAmount"
-  | "maxAmount";
+  | "maxAmount"
+  | "approvalType"
+  | "submittedBy"
+  | "approvedBy"
+  | "resolvedFrom"
+  | "resolvedTo";
 
 export type QueryFilterValues = Partial<Record<QueryFilterKey, string>>;
 
@@ -110,6 +116,14 @@ const INTERNAL = [
 
 const INCLUDE_REVERSED = [{ value: "true", label: "Show reversed and reversals" }];
 
+const APPROVAL_TYPE = [
+  { value: "inventory_movement", label: "Inventory movement" },
+  { value: "equipment_movement", label: "Equipment movement" },
+  { value: "transaction", label: "Transaction" },
+  { value: "progress_log", label: "Progress log" },
+  { value: "rental_event", label: "Rental event" },
+];
+
 export function QueryFilters({
   fields,
   values,
@@ -118,6 +132,7 @@ export function QueryFilters({
   itemCategory = "equipment",
   title,
   className = "mb-6",
+  labels,
 }: {
   fields: QueryFilterKey[];
   values: QueryFilterValues;
@@ -126,6 +141,9 @@ export function QueryFilters({
   itemCategory?: InventoryItemCategory;
   title?: string;
   className?: string;
+  // Override a control's label where the generic one is ambiguous (e.g. the
+  // date range means "submitted" on one screen and "posted" on another).
+  labels?: Partial<Record<QueryFilterKey, string>>;
 }) {
   function set(key: QueryFilterKey, value: string) {
     onChange({ ...values, [key]: value });
@@ -143,6 +161,7 @@ export function QueryFilters({
           value={values[key] ?? ""}
           searchPlaceholder={searchPlaceholder}
           itemCategory={itemCategory}
+          label={labels?.[key]}
           onChange={(value) => set(key, value)}
         />
       ))}
@@ -161,12 +180,14 @@ function FilterControl({
   onChange,
   searchPlaceholder,
   itemCategory,
+  label,
 }: {
   field: QueryFilterKey;
   value: string;
   onChange: (value: string) => void;
   searchPlaceholder: string;
   itemCategory: InventoryItemCategory;
+  label?: string;
 }) {
   if (field === "search") {
     return (
@@ -183,16 +204,21 @@ function FilterControl({
     );
   }
 
-  if (field === "dateFrom" || field === "dateTo") {
+  if (field === "dateFrom" || field === "dateTo" || field === "resolvedFrom" || field === "resolvedTo") {
+    const fallback =
+      field === "dateFrom" ? "From" : field === "dateTo" ? "To" : field === "resolvedFrom" ? "Resolved from" : "Resolved to";
     return (
       <Wrap>
-        <Field label={field === "dateFrom" ? "From" : "To"}>
+        <Field label={label ?? fallback}>
           <input className="field" type="date" value={value} onChange={(e) => onChange(e.target.value)} />
         </Field>
       </Wrap>
     );
   }
 
+  if (field === "approvalType") return <StaticSelect label="Request type" empty="All types" value={value} options={APPROVAL_TYPE} onChange={onChange} />;
+  if (field === "submittedBy") return <UserSelect label={label ?? "Submitted by"} empty="Anyone" value={value} onChange={onChange} />;
+  if (field === "approvedBy") return <UserSelect label={label ?? "Resolved by"} empty="Anyone" value={value} onChange={onChange} />;
   if (field === "category") return <StaticSelect label="Category" empty="All categories" value={value} options={CATEGORY} onChange={onChange} />;
   if (field === "tracking") return <StaticSelect label="Tracking" empty="All tracking" value={value} options={TRACKING} onChange={onChange} />;
   if (field === "lifecycleStatus") return <StaticSelect label="Ownership" empty="Any ownership" value={value} options={LIFECYCLE} onChange={onChange} />;
@@ -273,6 +299,36 @@ function LicenseSelect({ value, onChange }: { value: string; onChange: (value: s
           {options.map((license) => (
             <option key={license.id} value={license.id}>
               {license.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+    </Wrap>
+  );
+}
+
+// Listing users is an admin call — only offer this filter to admins.
+function UserSelect({
+  label,
+  empty,
+  value,
+  onChange,
+}: {
+  label: string;
+  empty: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const { data } = useUsers();
+  const options = data?.users ?? [];
+  return (
+    <Wrap>
+      <Field label={label}>
+        <select className="field" value={value} onChange={(e) => onChange(e.target.value)}>
+          <option value="">{empty}</option>
+          {options.map((user) => (
+            <option key={user.id} value={user.id}>
+              {user.name}
             </option>
           ))}
         </select>

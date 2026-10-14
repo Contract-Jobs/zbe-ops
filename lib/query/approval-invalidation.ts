@@ -133,6 +133,15 @@ function invalidate(queryClient: QueryClient, approvalType: ApprovalType, keys: 
     invalidateInventoryNodeOverviewQueries(queryClient)
     invalidateAllSoldItemsQueries(queryClient)
   }
+  if (approvalType === "inventory_movement") {
+    // An approved sale to a site changes what that site owes its warehouse.
+    queryClient.invalidateQueries({
+      predicate: (query) =>
+        query.queryKey[0] === "sites" &&
+        query.queryKey[1] === "detail" &&
+        ["payables", "payable-payments"].includes(query.queryKey[3] as string),
+    })
+  }
   if (approvalType === "inventory_movement" || approvalType === "equipment_movement" || approvalType === "transaction" || approvalType === "rental_event") {
     invalidateAnalytics(queryClient)
   }
@@ -181,4 +190,28 @@ export async function onApprovalProcessed(
   }
 
   invalidate(queryClient, approval.approvalType, approvalFanOut[approval.approvalType](approval.recordId, siteId))
+}
+
+// For the bulk approve / reject call. A batch can mix types and can be up to
+// 100 long, so unlike onApprovalProcessed this never looks records up one by
+// one: it sweeps each approved type's whole family once.
+export function onBulkApprovalProcessed(
+  queryClient: QueryClient,
+  decision: "approved" | "rejected",
+  resolvedTypes: ApprovalType[]
+) {
+  queryClient.invalidateQueries({ queryKey: queryKeys.approvals.all })
+  if (decision === "rejected") {
+    // Rejecting a pending transaction reversal un-flags the original.
+    queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all })
+    return
+  }
+  for (const approvalType of new Set(resolvedTypes)) {
+    invalidate(queryClient, approvalType, approvalFanOut[approvalType]("", undefined))
+    // Without a siteId the progress_log fan-out is empty — sweep instead.
+    if (approvalType === "progress_log") {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sites.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all })
+    }
+  }
 }
