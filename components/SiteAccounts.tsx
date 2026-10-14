@@ -177,10 +177,7 @@ function RegisterPaymentForm({
   const categories = (categoriesData?.data ?? []).filter((c) => !c.deletedAt);
 
   const outstanding = Number(account.outstanding);
-  const [amount, setAmount] = useState(outstanding > 0 ? outstanding.toFixed(2) : "");
-  // What the site would still owe if this payment went through.
-  const balanceAfter = outstanding - (Number(amount) || 0);
-  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [amount, setAmount] = useState(outstanding > 0 ? outstanding.toFixed(2) : "");  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [note, setNote] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [markSelected, setMarkSelected] = useState(selectedSaleIds.length > 0);
@@ -220,24 +217,6 @@ function RegisterPaymentForm({
         <p className="border border-[var(--bad)] bg-[var(--white)] p-2 text-sm text-[var(--bad)]">{error}</p>
       ) : null}
 
-      {/* Where the account stands before this payment. */}
-      <dl className="border border-black/10">
-        <div className="border-b border-black/10 px-3 py-2">
-          <dt className="kicker">Sold</dt>
-          <dd className="mt-0.5 font-mono text-sm">{etb(account.sold)}</dd>
-        </div>
-        <div className="border-b border-black/10 px-3 py-2">
-          <dt className="kicker">Paid</dt>
-          <dd className="mt-0.5 font-mono text-sm">{etb(account.paid)}</dd>
-        </div>
-        <div className="px-3 py-2">
-          <dt className="kicker">Owes</dt>
-          <dd className={`mt-0.5 font-mono text-sm font-medium ${outstanding > 0 ? "text-bad" : ""}`}>
-            {etb(account.outstanding)}
-          </dd>
-        </div>
-      </dl>
-
       <Field label="Amount (ETB)">
         <input
           className="field"
@@ -250,19 +229,6 @@ function RegisterPaymentForm({
           disabled={mutation.isPending}
           required
         />
-        <div className="mt-1 flex flex-col items-start gap-1 text-xs">
-          <span className={balanceAfter < -0.005 ? "text-bad" : "text-black/50"}>
-            {balanceAfter < -0.005 ? `Over by ${etb(-balanceAfter)}` : `Owes after: ${etb(Math.max(0, balanceAfter))}`}
-          </span>
-          <button
-            type="button"
-            className="text-blue-600/80 hover:text-black hover:underline"
-            onClick={() => setAmount(outstanding.toFixed(2))}
-            disabled={mutation.isPending || outstanding <= 0}
-          >
-            Pay full balance
-          </button>
-        </div>
       </Field>
       <Field label="Payment date">
         <input
