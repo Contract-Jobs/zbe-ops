@@ -1,4 +1,4 @@
-import { apiClient } from "./client"
+import { apiClient, type Pagination } from "./client"
 import { buildListParams } from "./list-params"
 import type { ListParams } from "./list-params"
 import type {
@@ -30,8 +30,29 @@ export function createInventoryMovement(payload: InventoryMovementCreatePayload)
     return apiClient.post<InventoryMovement>("/api/inventory-movements", payload)
 }
 
-export function listInventoryMovements(params: InventoryMovementListParams = {}) {
-    return apiClient.get<InventoryMovement[]>("/api/inventory-movements", buildListParams(params))
+// The list has come back in two shapes: a plain array with a top-level
+// `pagination`, and `{ movements, total }` under `data` (what the sync doc
+// documents). Callers get one shape either way — an array in `data` and a
+// `pagination` — so a server change can't crash a page with ".map is not a
+// function".
+export async function listInventoryMovements(
+    params: InventoryMovementListParams = {}
+): Promise<{ data: InventoryMovement[]; pagination?: Pagination }> {
+    const res = await apiClient.get<InventoryMovement[] | { movements?: InventoryMovement[]; total?: number }>(
+        "/api/inventory-movements",
+        buildListParams(params)
+    )
+    const raw = res.data
+    if (Array.isArray(raw)) return { data: raw, pagination: res.pagination }
+
+    const movements = raw?.movements ?? []
+    const total = raw?.total ?? movements.length
+    const page = params.page ?? 1
+    const limit = params.limit ?? Math.max(movements.length, 1)
+    return {
+        data: movements,
+        pagination: res.pagination ?? { total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) },
+    }
 }
 
 export function reverseInventoryMovement(id: string, payload: { notes?: string } = {}) {
