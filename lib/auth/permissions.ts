@@ -32,6 +32,11 @@ export function canApprove(role: Role | null | undefined): boolean {
   return isAdmin(role);
 }
 
+// Editing the selling price of a sale — admin/superadmin only.
+export function canEditSalePrice(role: Role | null | undefined): boolean {
+  return isAdmin(role);
+}
+
 export function canManageMasterData(role: Role | null | undefined): boolean {
   return isAdmin(role);
 }

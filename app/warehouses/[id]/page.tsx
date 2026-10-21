@@ -10,7 +10,8 @@ import { useWarehouse, useWarehouseMaterials, useWarehouseBulkEquipment, useWare
 import { useInventoryNodeId } from "@/hooks/use-inventories";
 import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
 import { MaterialMovementForm } from "@/components/forms/material-movement";
-import { MarketValueCells, SetMarketValueButton } from "@/components/MarketValue";
+import { MarketValueCells, MarketValueModal } from "@/components/MarketValue";
+import { RowActions } from "@/components/RowActions";
 import { ListToolbar } from "@/components/ListToolbar";
 import { BulkEquipmentMovementForm } from "@/components/forms/bulk-equipment-movement";
 import { InventoryAdjustForm } from "@/components/forms/inventory-adjust";
@@ -19,7 +20,7 @@ import { isSiteManager } from "@/lib/store";
 import type { Warehouse } from "@/types/api";
 import { useInventoryAnalytics } from "@/hooks/use-analytics";
 import { useLicensesInBulk } from "@/hooks/use-licenses";
-import { etb } from "@/lib/format";
+import { etb, qtyNum } from "@/lib/format";
 
 export default function WarehouseDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -76,6 +77,7 @@ export default function WarehouseDetailPage() {
   const [purchaseMaterialOpen, setPurchaseMaterialOpen] = useState(false);
   const [purchaseEquipmentOpen, setPurchaseEquipmentOpen] = useState(false);
   const [purchaseBulkEquipmentOpen, setPurchaseBulkEquipmentOpen] = useState(false);
+  const [marketTarget, setMarketTarget] = useState<{ itemId: string; itemName: string; unit: string; marketValue?: string | null; averageUnitValue?: string | null } | null>(null);
   const [historyTarget, setHistoryTarget] = useState<{ itemId: string; itemName: string; unit: string } | null>(null);
   const [tab, setTab] = useState<"materials" | "bulk" | "equipment">("materials");
 
@@ -195,7 +197,7 @@ export default function WarehouseDetailPage() {
                     </td>
                     <td className="text-sm text-black/60">{m.licenseName}</td>
                     <td className="font-mono text-left min-w-[120px]">
-                      {m.quantity} {m.unit}
+                      {qtyNum(m.quantity)} {m.unit}
                     </td>
 
                     <td className="font-mono text-left min-w-[120px]">
@@ -205,33 +207,15 @@ export default function WarehouseDetailPage() {
 
                     <td>
                       {canMutate && (
-                        <span className="inline-block text-left">
-                          <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId({ itemId: m.itemId, license: { id: m.licenseId, name: m.licenseName } })}>Move</button>
-                          <SetMarketValueButton
-                            itemId={m.itemId}
-                            itemName={m.itemName}
-                            unit={m.unit}
-                            marketValue={m.marketValue}
-                            averageUnitValue={m.averageUnitValue}
-                          />
-                          <button
-                            className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
-                            onClick={() => setAdjustBalance({
-                              itemId: m.itemId,
-                              materialName: m.itemName,
-                              unit: m.unit,
-                              currentQuantity: m.quantity
-                            })}
-                          >
-                            Report loss
-                          </button>
-                          <button
-                            className="ml-3 text-xs text-black/50 hover:text-black hover:underline"
-                            onClick={() => setHistoryTarget({ itemId: m.itemId, itemName: m.itemName, unit: m.unit })}
-                          >
-                            History
-                          </button>
-                        </span>
+                        <RowActions
+                              ariaLabel={`Actions for ${m.itemName}`}
+                              primary={{ label: "Move", onClick: () => setMoveMaterialId({ itemId: m.itemId, license: { id: m.licenseId, name: m.licenseName } }) }}
+                              items={[
+                                { label: m.marketValue != null ? "Market value" : "Set market value", onClick: () => setMarketTarget({ itemId: m.itemId, itemName: m.itemName, unit: m.unit, marketValue: m.marketValue, averageUnitValue: m.averageUnitValue }) },
+                                { label: "Report loss", onClick: () => setAdjustBalance({ itemId: m.itemId, materialName: m.itemName, unit: m.unit, currentQuantity: m.quantity }) },
+                                { label: "History", onClick: () => setHistoryTarget({ itemId: m.itemId, itemName: m.itemName, unit: m.unit }) },
+                              ]}
+                            />
                       )}
                     </td>
                   </tr>
@@ -275,30 +259,18 @@ export default function WarehouseDetailPage() {
                     </td>
                     <td className="text-sm text-black/60">{b.licenseName}</td>
                     <td className="font-mono text-left min-w-[120px]">
-                      {b.quantity} {b.unit}
+                      {qtyNum(b.quantity)} {b.unit}
                     </td>
                     <td>
                       {canMutate && (
-                        <span className="inline-block text-left">
-                          <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId({ itemId: b.itemId, license: { id: b.licenseId, name: b.licenseName } })}>Move</button>
-                          <button
-                            className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
-                            onClick={() => setAdjustBalance({
-                              itemId: b.itemId,
-                              materialName: b.itemName,
-                              unit: b.unit,
-                              currentQuantity: b.quantity
-                            })}
-                          >
-                            Report loss
-                          </button>
-                          <button
-                            className="ml-3 text-xs text-black/50 hover:text-black hover:underline"
-                            onClick={() => setHistoryTarget({ itemId: b.itemId, itemName: b.itemName, unit: b.unit })}
-                          >
-                            History
-                          </button>
-                        </span>
+                        <RowActions
+                              ariaLabel={`Actions for ${b.itemName}`}
+                              primary={{ label: "Move", onClick: () => setMoveMaterialId({ itemId: b.itemId, license: { id: b.licenseId, name: b.licenseName } }) }}
+                              items={[
+                                { label: "Report loss", onClick: () => setAdjustBalance({ itemId: b.itemId, materialName: b.itemName, unit: b.unit, currentQuantity: b.quantity }) },
+                                { label: "History", onClick: () => setHistoryTarget({ itemId: b.itemId, itemName: b.itemName, unit: b.unit }) },
+                              ]}
+                            />
                       )}
                     </td>
                   </tr>
@@ -368,6 +340,8 @@ export default function WarehouseDetailPage() {
         )}
       </div>
       ) : null}
+
+      {marketTarget ? <MarketValueModal {...marketTarget} onClose={() => setMarketTarget(null)} /> : null}
 
       {moveMaterialId ? (
         <ModalPanel kicker="Warehouse Inventory" title="Move Material" onClose={() => setMoveMaterialId(null)}>

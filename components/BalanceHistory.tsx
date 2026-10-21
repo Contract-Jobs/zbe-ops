@@ -2,12 +2,15 @@
 
 import { useState, useMemo } from "react";
 import { ModalPanel, Stamp, TableWrap, Username, statusTone } from "@/components/ui";
-import { day, etb } from "@/lib/format";
+import { day, etb, qtyNum } from "@/lib/format";
 import { useBalanceMovements, useVerifyInventoryBalance } from "@/hooks/use-inventory-balances";
 import { useReverseInventoryMovement } from "@/hooks/use-inventory-movements";
 import { useInventoriesInBulk } from "@/hooks/use-inventories";
 import { useLicensesInBulk } from "@/hooks/use-licenses";
-import { useStore } from "@/lib/store";
+import { useStore, currentUser } from "@/lib/store";
+import { EditSalePriceModal, PriceHistory, canEditPrice } from "@/components/forms/edit-sale-price";
+import { SaleCogs } from "@/components/SaleCogs";
+import { canEditSalePrice } from "@/lib/auth/permissions";
 import { QUANTITY_MOVEMENT_LABELS } from "@/lib/movement-labels";
 import type { InventoryMovement, License } from "@/types/api";
 
@@ -32,6 +35,7 @@ export function BalanceHistoryPanel({
   const reverseMutation = useReverseInventoryMovement();
   const [reversingId, setReversingId] = useState<string | null>(null);
   const [selectedMovement, setSelectedMovement] = useState<InventoryMovement | null>(null);
+  const [priceTarget, setPriceTarget] = useState<InventoryMovement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const movements = [...(data?.data ?? [])].sort(
@@ -156,7 +160,7 @@ export function BalanceHistoryPanel({
                       <td>
                         <Stamp value={QUANTITY_MOVEMENT_LABELS[m.movementType] ?? m.movementType} />
                       </td>
-                      <td className="font-mono">{m.quantity}</td>
+                      <td className="font-mono">{qtyNum(m.quantity)}</td>
                       <td className="hidden text-sm sm:table-cell">
                         {locationLabel(m.sourceInventoryId)} → {locationLabel(m.destinationInventoryId)}
                       </td>
@@ -228,6 +232,14 @@ export function BalanceHistoryPanel({
               !selectedMovement.isReversal
             }
             isReversing={reversingId === selectedMovement.id}
+            onEditPrice={
+              canEditSalePrice(currentUser(store).role) && canEditPrice(selectedMovement)
+                ? () => {
+                    setPriceTarget(selectedMovement);
+                    setSelectedMovement(null);
+                  }
+                : undefined
+            }
             onReverse={() => {
               const id = selectedMovement.id;
               setSelectedMovement(null);
@@ -236,6 +248,9 @@ export function BalanceHistoryPanel({
             onClose={() => setSelectedMovement(null)}
           />
         </ModalPanel>
+      ) : null}
+      {priceTarget ? (
+        <EditSalePriceModal key={priceTarget.id} movement={priceTarget} unit={unit} onClose={() => setPriceTarget(null)} />
       ) : null}
     </div>
   );
@@ -249,6 +264,7 @@ function MovementDetailModal({
   licenseName,
   canReverse,
   isReversing,
+  onEditPrice,
   onReverse,
   onClose,
 }: {
@@ -259,6 +275,7 @@ function MovementDetailModal({
   licenseName?: string;
   canReverse: boolean;
   isReversing: boolean;
+  onEditPrice?: () => void;
   onReverse: () => void;
   onClose: () => void;
 }) {
@@ -282,7 +299,7 @@ function MovementDetailModal({
         <p className="kicker">Quantity & Cost</p>
         <div className="mt-1 flex flex-wrap items-baseline gap-4">
           <span className="font-mono text-2xl font-medium tracking-tight">
-            {m.quantity} <span className="text-base text-black/50">{unit}</span>
+            {qtyNum(m.quantity)} <span className="text-base text-black/50">{unit}</span>
           </span>
           {total > 0 ? (
             <span className="font-mono text-lg text-black/70">
@@ -383,8 +400,16 @@ function MovementDetailModal({
         ) : null}
       </dl>
 
+      <SaleCogs movement={m} />
+      <PriceHistory movement={m} />
+
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-4">
-        <div>
+        <div className="flex items-center gap-2">
+          {onEditPrice ? (
+            <button type="button" className="btn btn-ghost text-xs" onClick={onEditPrice}>
+              Edit price
+            </button>
+          ) : null}
           {canReverse ? (
             <button
               type="button"

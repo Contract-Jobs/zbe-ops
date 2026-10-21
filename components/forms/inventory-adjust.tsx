@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { parseQuantity, qtyNum } from "@/lib/format";
 import { useLogInventoryLoss } from "@/hooks/use-inventory-movements";
 
 // v2 has no balance "adjust" action — the closest equivalent for real
@@ -41,11 +42,12 @@ export function InventoryAdjustForm({
     e.preventDefault();
     setError(null);
 
-    const q = Number(quantity);
-    if (!quantity || isNaN(q) || q <= 0) {
-      setError("Quantity must be a positive number.");
+    const parsed = parseQuantity(quantity);
+    if ("error" in parsed) {
+      setError(parsed.error);
       return;
     }
+    const q = parsed.value;
     if (q > currentQuantity) {
       setError(`Cannot report a loss greater than the current balance (${currentQuantity} ${unit}).`);
       return;
@@ -73,14 +75,15 @@ export function InventoryAdjustForm({
       <p className="kicker mb-3">Report loss: {materialName}</p>
 
       <p className="mb-3 text-sm text-black/60">
-        Current balance: <span className="font-mono text-black">{currentQuantity} {unit}</span>
+        Current balance: <span className="font-mono text-black">{qtyNum(currentQuantity)} {unit}</span>
       </p>
 
       <label className="mb-3 block text-sm">
         Units lost *
         <input
           type="number"
-          step="0.01"
+          step="0.001"
+          min="0.001"
           required
           max={currentQuantity}
           value={quantity}

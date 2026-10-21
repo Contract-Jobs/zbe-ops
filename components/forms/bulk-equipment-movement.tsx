@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { parseQuantity } from "@/lib/format";
 import { LocationSelect } from "@/components/LocationSelect";
 import { isSiteManager, useStore } from "@/lib/store";
 import {
@@ -126,8 +127,9 @@ export function BulkEquipmentMovementForm({
   const submit = async () => {
     setMsg(null);
     try {
-      const qn = Number(quantity);
-      if (!qn || qn <= 0) throw new Error("Quantity required");
+      const parsedQty = parseQuantity(quantity);
+      if ("error" in parsedQty) throw new Error(parsedQty.error);
+      const qn = parsedQty.value;
       if (!mId) throw new Error("Please select a material");
 
       const parsedDate = movementDate ? new Date(movementDate).toISOString() : undefined;
@@ -275,7 +277,15 @@ export function BulkEquipmentMovementForm({
 
       <label className="mb-3 block text-sm">
         Quantity
-        <input className="field mt-1" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+        <input
+          className="field mt-1"
+          type="number"
+          step="0.001"
+          min="0.001"
+          inputMode="decimal"
+          value={quantity}
+          onChange={(e) => setQuantity(e.target.value)}
+        />
       </label>
 
       {["purchase", "sale"].includes(type) && (

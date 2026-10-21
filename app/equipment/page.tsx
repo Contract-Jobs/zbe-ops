@@ -18,7 +18,7 @@ import {
   statusTone,
   type RecordMode,
 } from "@/components/ui";
-import { etb } from "@/lib/format";
+import { etb, qtyNum } from "@/lib/format";
 import { currentUser, isSiteManager, useStore } from "@/lib/store";
 import { useEquipmentList, useDeleteEquipment, useRestoreEquipment, useRebuildEquipmentStates } from "@/hooks/use-equipment";
 import { useInventoryItems, useInventoryItemsInBulk } from "@/hooks/use-inventory-items";
@@ -273,7 +273,7 @@ export default function EquipmentPage() {
                           {it.name}
                         </Link>
                       </td>
-                      <td className="font-mono text-sm">{it.totalQuantity} {it.unit}</td>
+                      <td className="font-mono text-sm">{qtyNum(it.totalQuantity)} {it.unit}</td>
                     </tr>
                   ))}
                 </tbody>

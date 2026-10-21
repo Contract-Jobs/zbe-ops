@@ -8,7 +8,7 @@ import { ListToolbar } from "@/components/ListToolbar";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { closedMode, DeleteConfirm, FormPanel, ModalPanel, PageHead, RecordActions, Stamp, TableWrap, type RecordMode } from "@/components/ui";
 import type { InventoryItemCategory, InventoryItemTracking } from "@/types/api";
-import { etb } from "@/lib/format";
+import { etb, qtyNum } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
 import { useInventoryItems, useDeleteInventoryItem, useRestoreInventoryItem } from "@/hooks/use-inventory-items";
 import type { InventoryItem } from "@/types/api";
@@ -142,7 +142,7 @@ export default function MaterialsPage() {
                       {m.name}
                     </Link>
                   </td>
-                  <td className="font-mono text-sm">{m.totalQuantity} {m.unit}</td>
+                  <td className="font-mono text-sm">{qtyNum(m.totalQuantity)} {m.unit}</td>
                   {/* null means "not set", never 0 */}
                   <td className="hidden font-mono text-sm md:table-cell">
                     {m.marketValue != null ? etb(m.marketValue) : "—"}

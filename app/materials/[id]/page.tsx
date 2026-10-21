@@ -14,7 +14,7 @@ import {
   TableWrap,
   type RecordMode,
 } from "@/components/ui";
-import { day, qty, etb } from "@/lib/format";
+import { day, qty, etb, qtyNum } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
 import { useInventoryItem, useDeleteInventoryItem, useSubitems, useRemoveSubitem, useItemBalances, useItemHistory } from "@/hooks/use-inventory-items";
 import { QUANTITY_MOVEMENT_LABELS } from "@/lib/movement-labels";
@@ -259,7 +259,7 @@ export default function MaterialDetailPage() {
                     <td>
                       <Stamp value={QUANTITY_MOVEMENT_LABELS[h.movement.movementType]} />
                     </td>
-                    <td className="font-mono">{h.movement.quantity}</td>
+                    <td className="font-mono">{qtyNum(h.movement.quantity)}</td>
                     <td className="hidden text-sm sm:table-cell">
                       {h.fromLabel || "—"} → {h.toLabel || "—"}
                     </td>

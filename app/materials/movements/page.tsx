@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { PageHead, Stamp, TableWrap } from "@/components/ui";
-import { day, etb } from "@/lib/format";
+import { day, etb, qtyNum } from "@/lib/format";
 import { useInventoryMovements } from "@/hooks/use-inventory-movements";
 import { useInventoryItemsInBulk } from "@/hooks/use-inventory-items";
 import { useInventoriesInBulk } from "@/hooks/use-inventories";
@@ -148,7 +148,7 @@ export default function InventoryMovementsPage() {
                       <Stamp value={QUANTITY_MOVEMENT_LABELS[m.movementType]} />
                     </td>
                     <td className="font-mono">
-                      {m.quantity} {item?.unit ?? ""}
+                      {qtyNum(m.quantity)} {item?.unit ?? ""}
                     </td>
                     <td className="hidden text-sm sm:table-cell">
                       {locationLabel(m.sourceInventoryId)} →{" "}

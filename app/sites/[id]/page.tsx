@@ -21,7 +21,7 @@ import {
   FormActions,
   Username,
 } from "@/components/ui";
-import { day, etb, stamp } from "@/lib/format";
+import { day, etb, stamp, qtyNum } from "@/lib/format";
 import {
   addTask,
   claimTask,
@@ -59,7 +59,8 @@ import { TransactionForm } from "@/components/forms/transaction";
 import { InventoryAdjustForm } from "@/components/forms/inventory-adjust";
 import { BalanceHistoryPanel } from "@/components/BalanceHistory";
 import { LedgerToolsPanel } from "@/components/LedgerTools";
-import { MarketValueCells, SetMarketValueButton } from "@/components/MarketValue";
+import { MarketValueCells, MarketValueModal } from "@/components/MarketValue";
+import { RowActions } from "@/components/RowActions";
 import { ListToolbar } from "@/components/ListToolbar";import type { Site, SiteTask, License, Transaction, TransactionCategory } from "@/types/api";
 import { BulkEquipmentMovementForm } from "@/components/forms/bulk-equipment-movement";
 
@@ -151,6 +152,7 @@ export default function SiteDetailPage() {
   // The balance row being moved: its item and the license that stock is under.
   const [moveMaterialId, setMoveMaterialId] = useState<{ itemId: string; license: { id: string; name: string } } | null>(null);
   const [adjustBalance, setAdjustBalance] = useState<{ itemId: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
+  const [marketTarget, setMarketTarget] = useState<{ itemId: string; itemName: string; unit: string; marketValue?: string | null; averageUnitValue?: string | null } | null>(null);
   const [historyTarget, setHistoryTarget] = useState<{ itemId: string; itemName: string; unit: string } | null>(null);
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
   const [purchaseMaterialOpen, setPurchaseMaterialOpen] = useState(false);
@@ -668,7 +670,7 @@ export default function SiteDetailPage() {
                         </td>
                         <td className="text-sm text-black/60">{m.licenseName}</td>
                         <td className="font-mono text-left min-w-[120px]">
-                          {m.quantity} {m.unit}
+                          {qtyNum(m.quantity)} {m.unit}
                         </td>
 
                         <td className="font-mono text-left min-w-[120px]">
@@ -678,33 +680,15 @@ export default function SiteDetailPage() {
 
                         <td>
                           {canMutate && (
-                            <span className="inline-block text-left">
-                              <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId({ itemId: m.itemId, license: { id: m.licenseId, name: m.licenseName } })}>Move</button>
-                              <SetMarketValueButton
-                                itemId={m.itemId}
-                                itemName={m.itemName}
-                                unit={m.unit}
-                                marketValue={m.marketValue}
-                                averageUnitValue={m.averageUnitValue}
-                              />
-                              <button
-                                className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
-                                onClick={() => setAdjustBalance({
-                                  itemId: m.itemId,
-                                  materialName: m.itemName,
-                                  unit: m.unit,
-                                  currentQuantity: m.quantity
-                                })}
-                              >
-                                Report loss
-                              </button>
-                              <button
-                                className="ml-3 text-xs text-black/50 hover:text-black hover:underline"
-                                onClick={() => setHistoryTarget({ itemId: m.itemId, itemName: m.itemName, unit: m.unit })}
-                              >
-                                History
-                              </button>
-                            </span>
+                            <RowActions
+                              ariaLabel={`Actions for ${m.itemName}`}
+                              primary={{ label: "Move", onClick: () => setMoveMaterialId({ itemId: m.itemId, license: { id: m.licenseId, name: m.licenseName } }) }}
+                              items={[
+                                { label: m.marketValue != null ? "Market value" : "Set market value", onClick: () => setMarketTarget({ itemId: m.itemId, itemName: m.itemName, unit: m.unit, marketValue: m.marketValue, averageUnitValue: m.averageUnitValue }) },
+                                { label: "Report loss", onClick: () => setAdjustBalance({ itemId: m.itemId, materialName: m.itemName, unit: m.unit, currentQuantity: m.quantity }) },
+                                { label: "History", onClick: () => setHistoryTarget({ itemId: m.itemId, itemName: m.itemName, unit: m.unit }) },
+                              ]}
+                            />
                           )}
                         </td>
                       </tr>
@@ -753,33 +737,21 @@ export default function SiteDetailPage() {
                         </td>
                         <td className="text-sm text-black/60">{b.licenseName}</td>
                         <td className="font-mono text-left min-w-[120px]">
-                          {b.quantity} {b.unit}
+                          {qtyNum(b.quantity)} {b.unit}
                         </td>
                         <td className="font-mono text-left min-w-[120px]">
                           {b.averageUnitValue ? etb(b.averageUnitValue) : "—"}
                         </td>
                         <td>
                           {canMutate && (
-                            <span className="inline-block text-left">
-                              <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveMaterialId({ itemId: b.itemId, license: { id: b.licenseId, name: b.licenseName } })}>Move</button>
-                              <button
-                                className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
-                                onClick={() => setAdjustBalance({
-                                  itemId: b.itemId,
-                                  materialName: b.itemName,
-                                  unit: b.unit,
-                                  currentQuantity: b.quantity
-                                })}
-                              >
-                                Report loss
-                              </button>
-                              <button
-                                className="ml-3 text-xs text-black/50 hover:text-black hover:underline"
-                                onClick={() => setHistoryTarget({ itemId: b.itemId, itemName: b.itemName, unit: b.unit })}
-                              >
-                                History
-                              </button>
-                            </span>
+                            <RowActions
+                              ariaLabel={`Actions for ${b.itemName}`}
+                              primary={{ label: "Move", onClick: () => setMoveMaterialId({ itemId: b.itemId, license: { id: b.licenseId, name: b.licenseName } }) }}
+                              items={[
+                                { label: "Report loss", onClick: () => setAdjustBalance({ itemId: b.itemId, materialName: b.itemName, unit: b.unit, currentQuantity: b.quantity }) },
+                                { label: "History", onClick: () => setHistoryTarget({ itemId: b.itemId, itemName: b.itemName, unit: b.unit }) },
+                              ]}
+                            />
                           )}
                         </td>
                       </tr>
@@ -946,6 +918,8 @@ export default function SiteDetailPage() {
         onClose={() => setTaskMode(closedMode())}
         onConfirm={handleDeleteTask}
       />
+      {marketTarget ? <MarketValueModal {...marketTarget} onClose={() => setMarketTarget(null)} /> : null}
+
       {moveMaterialId ? (
         <ModalPanel kicker="Site Inventory" title="Move Material" onClose={() => setMoveMaterialId(null)}>
           <MaterialMovementForm

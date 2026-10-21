@@ -115,3 +115,21 @@ export function useReverseInventoryMovementPayment() {
     })
 }
 
+
+// Editing a sale's price moves its total, status, site payables and margin.
+export function useUpdateSalePrice() {
+    const queryClient = useQueryClient()
+    return useMutation({
+        mutationFn: ({ id, unitCost, reason }: { id: string; unitCost: string; reason?: string }) =>
+            movementsApi.updateInventoryMovementPrice(id, { unitCost, reason: reason?.trim() || undefined }),
+        onSuccess: ({ data: movement }) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.inventoryMovements.all })
+            queryClient.invalidateQueries({ queryKey: queryKeys.inventoryMovements.payments(movement.id) })
+            queryClient.invalidateQueries({ queryKey: queryKeys.inventoryBalances.all })
+            queryClient.invalidateQueries({ queryKey: ["warehouses"] })
+            queryClient.invalidateQueries({ queryKey: queryKeys.sites.all })
+            queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all })
+            queryClient.invalidateQueries({ queryKey: ["analytics"] })
+        },
+    })
+}

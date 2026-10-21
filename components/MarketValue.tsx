@@ -25,6 +25,36 @@ export function MarketValueCells({
   );
 }
 
+// Controlled version for callers that open it from a menu item (the menu
+// unmounts on close, so the modal cannot live inside it).
+export function MarketValueModal({
+  itemId,
+  itemName,
+  unit,
+  marketValue,
+  averageUnitValue,
+  onClose,
+}: {
+  itemId: string;
+  itemName: string;
+  unit: string;
+  marketValue?: string | null;
+  averageUnitValue?: string | null;
+  onClose: () => void;
+}) {
+  return (
+    <ModalPanel kicker="Material" title={`Market value · ${itemName}`} onClose={onClose}>
+      <MarketValueForm
+        itemId={itemId}
+        unit={unit}
+        current={marketValue ?? null}
+        averageUnitValue={averageUnitValue}
+        onDone={onClose}
+      />
+    </ModalPanel>
+  );
+}
+
 // Row action: change the item's market price without leaving the balances
 // table. The price belongs to the item, so it changes on every balance row of
 // that item, at every location.

@@ -17,7 +17,7 @@ import { useInventoriesInBulk } from "@/hooks/use-inventories";
 import { useInventoryItemsInBulk } from "@/hooks/use-inventory-items";
 import { useInventoryMovements } from "@/hooks/use-inventory-movements";
 import { useSite, useSitePayablePayments, useSitePayables } from "@/hooks/use-sites";
-import { day, etb } from "@/lib/format";
+import { day, etb, qtyNum } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
 
 type SalesSortBy = "movementDate" | "totalCost" | "quantity";
@@ -239,7 +239,7 @@ export default function SitePurchasedMaterialsPage() {
                       <td>
                         <div className="font-medium">{item?.name ?? s.itemId}</div>
                         <div className="font-mono text-xs text-black/50">
-                          {s.quantity} {item?.unit ?? ""} × {etb(s.unitCost)}
+                          {qtyNum(s.quantity)} {item?.unit ?? ""} × {etb(s.unitCost)}
                         </div>
                       </td>
                       <td className="hidden md:table-cell">

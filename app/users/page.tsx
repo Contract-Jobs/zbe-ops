@@ -1,5 +1,6 @@
 "use client";
 
+import { RowActions } from "@/components/RowActions";
 import { useState, useEffect } from "react";
 import { UserForm } from "@/components/forms/user";
 import { useSites, useUpdateSite } from "@/hooks/use-sites";
@@ -150,31 +151,18 @@ export default function UsersPage() {
                       </td>
                       <td>
                         {canEdit ? (
-                          <div className="flex flex-wrap gap-2">
-                            <RecordActions
-                              onEdit={() => setMode({ kind: "edit", record: u })}
-                              onDelete={canSetAdmin ? () => setMode({ kind: "delete", record: u, label: u.name }) : undefined}
-                            />
-                            {u.role === "site_manager" && (
-                              <button
-                                type="button"
-                                className="btn btn-ghost"
-                                onClick={() => setMode({ kind: "assign", record: u } as any)}
-                              >
-                                Assign sites
-                              </button>
-                            )}
-                            {canSetAdmin && (
-                              <>
-                                {u.banned ? (
-                                  <button type="button" className="btn btn-ghost" onClick={() => setMode({ kind: "unban", record: u } as any)}>Unban</button>
-                                ) : (
-                                  <button type="button" className="btn btn-ghost-bad" onClick={() => setMode({ kind: "ban", record: u } as any)}>Ban</button>
-                                )}
-                                <button type="button" className="btn btn-ghost" onClick={() => setMode({ kind: "password", record: u } as any)}>Set password</button>
-                              </>
-                            )}
-                          </div>
+                          <RowActions
+                            ariaLabel={`Actions for ${u.name}`}
+                            primary={{ label: "Edit", onClick: () => setMode({ kind: "edit", record: u }) }}
+                            items={[
+                              { label: "Assign sites", hidden: u.role !== "site_manager", onClick: () => setMode({ kind: "assign", record: u }) },
+                              { label: "Set password", hidden: !canSetAdmin, onClick: () => setMode({ kind: "password", record: u }) },
+                              u.banned
+                                ? { label: "Unban", hidden: !canSetAdmin, onClick: () => setMode({ kind: "unban", record: u }) }
+                                : { label: "Ban", tone: "bad", hidden: !canSetAdmin, onClick: () => setMode({ kind: "ban", record: u }) },
+                              { label: "Delete", tone: "bad", separatorBefore: true, hidden: !canSetAdmin, onClick: () => setMode({ kind: "delete", record: u, label: u.name }) },
+                            ]}
+                          />
                         ) : null}
                       </td>
                     </tr>

@@ -14,7 +14,7 @@ import {
   Tabs,
   statusTone,
 } from "@/components/ui";
-import { useStore, isSiteManager } from "@/lib/store";
+import { useStore, isSiteManager, currentUser } from "@/lib/store";
 import { toast } from "sonner";
 import {
   useWarehouseSoldOverview,
@@ -25,9 +25,13 @@ import {
 import { SiteAccountsSection } from "@/components/SiteAccounts";
 import { ListToolbar } from "@/components/ListToolbar";
 import { SalePaymentsPanel } from "@/components/SalePaymentsPanel";
+import { EditSalePriceModal, PriceHistory, canEditPrice } from "@/components/forms/edit-sale-price";
+import { RowActions } from "@/components/RowActions";
+import { SaleCogs } from "@/components/SaleCogs";
+import { canEditSalePrice } from "@/lib/auth/permissions";
 import { useLicensesInBulk } from "@/hooks/use-licenses";
 import { useReverseInventoryMovement } from "@/hooks/use-inventory-movements";
-import { etb, day } from "@/lib/format";
+import { etb, day, qtyNum, saleMargin } from "@/lib/format";
 import type {
   SoldItemsOverview,
   Warehouse,
@@ -66,6 +70,7 @@ export default function WarehouseSoldItemsPage() {
   const searchParams = useSearchParams();
   const store = useStore();
   const canMutate = !isSiteManager(store);
+  const canEditPrices = canEditSalePrice(currentUser(store).role);
 
   // Site accounts are admin-only (the API returns none to a site manager), so
   // a manager only ever sees the sold items. ?tab=accounts deep-links in.
@@ -110,6 +115,7 @@ export default function WarehouseSoldItemsPage() {
 
   const [reverseTarget, setReverseTarget] = useState<ReverseTarget | null>(null);
   const [detailModal, setDetailModal] = useState<SoldMatRow | null>(null);
+  const [priceTarget, setPriceTarget] = useState<SoldMatRow | null>(null);
   const [paymentTarget, setPaymentTarget] = useState<PaymentTarget | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -394,6 +400,7 @@ export default function WarehouseSoldItemsPage() {
                   <th>Note</th>
                   <th>Unit Price</th>
                   <th>Total</th>
+                  <th className="hidden lg:table-cell">Margin</th>
                   <th>Logged By</th>
                   <th></th>
                 </tr>
@@ -440,7 +447,7 @@ export default function WarehouseSoldItemsPage() {
                         {l.isReversed ? <Stamp value="reversed" tone="bad" /> : null}
                       </td>
                       <td className="whitespace-nowrap font-mono">
-                        {l.quantity} {l.item?.unit ?? ""}
+                        {qtyNum(l.quantity)} {l.item?.unit ?? ""}
                       </td>
                       <td>
                         {l.clientName ?? "—"}
@@ -471,52 +478,56 @@ export default function WarehouseSoldItemsPage() {
                           <div className="text-xs text-black/50">Paid: {etb(paid)}</div>
                         ) : null}
                       </td>
+                      <td className="hidden whitespace-nowrap font-mono lg:table-cell">
+                        {(() => {
+                          const margin = saleMargin(l.totalCost, l.cogsTotalCost);
+                          if (!margin) return "—";
+                          return (
+                            <span className={margin.isNegative() ? "text-bad" : "text-ok"}>
+                              {etb(margin.toFixed(2))}
+                              {l.cogsEstimated ? <span className="ml-1 text-xs text-black/50">est.</span> : null}
+                            </span>
+                          );
+                        })()}
+                      </td>
                       <td><Username userId={l.loggedBy ?? ""} /></td>
                       <td className="whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
-                        <span className="inline-block text-right">
-                          {isSiteSale ? null : (
-                            <button
-                              type="button"
-                              className="mr-3 text-xs text-black/50 hover:text-black hover:underline"
-                              onClick={() =>
+                        <RowActions
+                          ariaLabel={`Actions for ${l.item?.name ?? "sale"}`}
+                          items={[
+                            {
+                              label: "Payments",
+                              hidden: isSiteSale,
+                              onClick: () =>
                                 setPaymentTarget({
                                   id: l.id,
                                   title: l.item?.name ?? "Material sale",
                                   totalCost: total,
                                   paidAmount: paid,
                                   saleStatus: currentSaleStatus,
-                                })
-                              }
-                            >
-                              Payments
-                            </button>
-                          )}
-                          {canMutate && canTick(l) ? (
-                            <button
-                              type="button"
-                              className="mr-3 text-xs text-blue-600/80 hover:text-black hover:underline"
-                              disabled={markPaidMutation.isPending}
-                              onClick={() => void setPaidLabel([l.id], !l.isMarkedPaid)}
-                            >
-                              {l.isMarkedPaid ? "Unmark paid" : "Mark paid"}
-                            </button>
-                          ) : null}
-                          {canReverse && canMutate ? (
-                            <button
-                              type="button"
-                              className="text-xs text-bad hover:underline"
-                              onClick={() =>
+                                }),
+                            },
+                            {
+                              label: l.isMarkedPaid ? "Unmark paid" : "Mark paid",
+                              hidden: !(canMutate && canTick(l)),
+                              disabled: markPaidMutation.isPending,
+                              onClick: () => void setPaidLabel([l.id], !l.isMarkedPaid),
+                            },
+                            { label: "Edit price", hidden: !(canEditPrices && canEditPrice(l)), onClick: () => setPriceTarget(l) },
+                            {
+                              label: "Reverse sale",
+                              tone: "bad",
+                              separatorBefore: true,
+                              hidden: !(canReverse && canMutate),
+                              onClick: () =>
                                 setReverseTarget({
                                   id: l.id,
                                   title: l.item?.name ?? "Material sale",
                                   amount: total,
-                                })
-                              }
-                            >
-                              Reverse sale
-                            </button>
-                          ) : null}
-                        </span>
+                                }),
+                            },
+                          ]}
+                        />
                       </td>
                     </tr>
                   );
@@ -563,6 +574,14 @@ export default function WarehouseSoldItemsPage() {
             warehouseName={warehouse.name}
             licensesMap={licensesMap}
             canReverse={!detailModal.isReversal && !detailModal.isReversed && canMutate}
+            onEditPrice={
+              canEditPrices && canEditPrice(detailModal)
+                ? () => {
+                    setPriceTarget(detailModal);
+                    setDetailModal(null);
+                  }
+                : undefined
+            }
             onOpenPayments={
               soldToSite(detailModal)
                 ? undefined
@@ -594,6 +613,15 @@ export default function WarehouseSoldItemsPage() {
             onClose={() => setDetailModal(null)}
           />
         </ModalPanel>
+      ) : null}
+
+      {priceTarget ? (
+        <EditSalePriceModal
+          key={priceTarget.id}
+          movement={priceTarget}
+          unit={priceTarget.item?.unit}
+          onClose={() => setPriceTarget(null)}
+        />
       ) : null}
 
       <ConfirmDialog
@@ -639,6 +667,7 @@ function SoldMaterialDetailModal({
   warehouseName,
   licensesMap,
   canReverse,
+  onEditPrice,
   onOpenPayments,
   onReverse,
   onClose,
@@ -647,6 +676,8 @@ function SoldMaterialDetailModal({
   warehouseName: string;
   licensesMap: Map<string, License>;
   canReverse: boolean;
+  // Absent unless the user may edit this sale's price.
+  onEditPrice?: () => void;
   // Absent for a sale to a site, which has no per-sale payments.
   onOpenPayments?: () => void;
   onReverse: () => void;
@@ -712,7 +743,7 @@ function SoldMaterialDetailModal({
           label="Quantity"
           value={
             <span className="font-mono text-xs">
-              {l.quantity} {l.item?.unit ?? ""}
+              {qtyNum(l.quantity)} {l.item?.unit ?? ""}
             </span>
           }
         />
@@ -817,8 +848,16 @@ function SoldMaterialDetailModal({
         ) : null}
       </dl>
 
+      <SaleCogs movement={l} />
+      <PriceHistory movement={l} />
+
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-black/10 pt-4">
         <div className="flex items-center gap-2">
+          {onEditPrice ? (
+            <button type="button" className="btn btn-ghost text-xs" onClick={onEditPrice}>
+              Edit price
+            </button>
+          ) : null}
           {canReverse ? (
             <button
               type="button"

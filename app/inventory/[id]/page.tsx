@@ -2,6 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useState, useMemo } from "react";
+import { RowActions } from "@/components/RowActions";
 import { PageHead, TableWrap, Stamp, ModalPanel, Tabs } from "@/components/ui";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
 import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
@@ -13,7 +14,7 @@ import { InventoryAdjustForm } from "@/components/forms/inventory-adjust";
 import { BalanceHistoryPanel } from "@/components/BalanceHistory";
 import { useInventoryAnalytics } from "@/hooks/use-analytics";
 import { useLicensesInBulk } from "@/hooks/use-licenses";
-import { etb } from "@/lib/format";
+import { etb, qtyNum } from "@/lib/format";
 import type { QuantityMovementType } from "@/types/api";
 
 export default function InventoryLocationPage() {
@@ -181,30 +182,18 @@ export default function InventoryLocationPage() {
                     </td>
                     <td className="text-sm text-black/60">{m.licenseName}</td>
                     <td className="font-mono text-left min-w-[120px]">
-                      {m.quantity} {m.unit}
+                      {qtyNum(m.quantity)} {m.unit}
                     </td>
                     <td className="text-left">
                       {canMutate && (
-                        <span className="inline-block">
-                          <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveMaterialId({ itemId: m.itemId, license: { id: m.licenseId, name: m.licenseName } })}>Move</button>
-                          <button
-                            className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
-                            onClick={() => setAdjustBalance({
-                              itemId: m.itemId,
-                              materialName: m.itemName,
-                              unit: m.unit,
-                              currentQuantity: m.quantity
-                            })}
-                          >
-                            Report loss
-                          </button>
-                          <button
-                            className="ml-3 text-xs text-black/50 hover:text-black hover:underline"
-                            onClick={() => setHistoryTarget({ itemId: m.itemId, itemName: m.itemName, unit: m.unit })}
-                          >
-                            History
-                          </button>
-                        </span>
+                        <RowActions
+                              ariaLabel={`Actions for ${m.itemName}`}
+                              primary={{ label: "Move", onClick: () => setMoveMaterialId({ itemId: m.itemId, license: { id: m.licenseId, name: m.licenseName } }) }}
+                              items={[
+                                { label: "Report loss", onClick: () => setAdjustBalance({ itemId: m.itemId, materialName: m.itemName, unit: m.unit, currentQuantity: m.quantity }) },
+                                { label: "History", onClick: () => setHistoryTarget({ itemId: m.itemId, itemName: m.itemName, unit: m.unit }) },
+                              ]}
+                            />
                       )}
                     </td>
                   </tr>
@@ -251,30 +240,18 @@ export default function InventoryLocationPage() {
                     </td>
                     <td className="text-sm text-black/60">{b.licenseName}</td>
                     <td className="font-mono text-left min-w-[120px]">
-                      {b.quantity} {b.unit}
+                      {qtyNum(b.quantity)} {b.unit}
                     </td>
                     <td className="text-left">
                       {canMutate && (
-                        <span className="inline-block">
-                          <button className="text-xs text-black/50 hover:text-black hover:underline" onClick={() => setMoveMaterialId({ itemId: b.itemId, license: { id: b.licenseId, name: b.licenseName } })}>Move</button>
-                          <button
-                            className="ml-3 text-xs text-blue-600/80 hover:text-black hover:underline"
-                            onClick={() => setAdjustBalance({
-                              itemId: b.itemId,
-                              materialName: b.itemName,
-                              unit: b.unit,
-                              currentQuantity: b.quantity
-                            })}
-                          >
-                            Report loss
-                          </button>
-                          <button
-                            className="ml-3 text-xs text-black/50 hover:text-black hover:underline"
-                            onClick={() => setHistoryTarget({ itemId: b.itemId, itemName: b.itemName, unit: b.unit })}
-                          >
-                            History
-                          </button>
-                        </span>
+                        <RowActions
+                              ariaLabel={`Actions for ${b.itemName}`}
+                              primary={{ label: "Move", onClick: () => setMoveMaterialId({ itemId: b.itemId, license: { id: b.licenseId, name: b.licenseName } }) }}
+                              items={[
+                                { label: "Report loss", onClick: () => setAdjustBalance({ itemId: b.itemId, materialName: b.itemName, unit: b.unit, currentQuantity: b.quantity }) },
+                                { label: "History", onClick: () => setHistoryTarget({ itemId: b.itemId, itemName: b.itemName, unit: b.unit }) },
+                              ]}
+                            />
                       )}
                     </td>
                   </tr>
