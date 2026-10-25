@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { VAT_RATE_PERCENT, accountAmounts } from "@/lib/vat";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
@@ -18,7 +19,7 @@ import { useInventoryItemsInBulk } from "@/hooks/use-inventory-items";
 import { useInventoryMovements } from "@/hooks/use-inventory-movements";
 import { useSite, useSitePayablePayments, useSitePayables } from "@/hooks/use-sites";
 import { day, etb, qtyNum } from "@/lib/format";
-import { isSiteManager, useStore } from "@/lib/store";
+import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
 
 type SalesSortBy = "movementDate" | "totalCost" | "quantity";
 
@@ -91,7 +92,13 @@ export default function SitePurchasedMaterialsPage() {
   );
 
   const outstanding = Number(summary?.outstanding ?? 0);
+  const totals = useMemo(() => accountAmounts(summary ?? { sold: "0" }), [summary]);
   const [tab, setTab] = useState<"accounts" | "items" | "payments">("accounts");
+
+  // A site manager sees their own sites only (the API answers 403 otherwise).
+  if (!isAdmin && !visibleSiteIds(store).has(id)) {
+    return <p className="p-8 text-center text-sm text-black/50">You don&apos;t have permission to view this site.</p>;
+  }
 
   return (
     <div>
@@ -104,10 +111,18 @@ export default function SitePurchasedMaterialsPage() {
           </button>
         }
       />
-      <div className="mb-6 grid gap-px bg-black/10 sm:grid-cols-3">
+      <div className="mb-6 grid gap-px bg-black/10 sm:grid-cols-3 lg:grid-cols-5">
         <div className="bg-white p-4">
-          <p className="kicker">Bought</p>
-          <p className="mt-2 font-mono text-sm">{etb(summary?.sold)}</p>
+          <p className="kicker">Bought ex-VAT</p>
+          <p className="mt-2 font-mono text-sm">{totals.known ? etb(totals.net.toFixed(2)) : "—"}</p>
+        </div>
+        <div className="bg-white p-4">
+          <p className="kicker">VAT {VAT_RATE_PERCENT}%</p>
+          <p className="mt-2 font-mono text-sm">{totals.known ? etb(totals.vat.toFixed(2)) : "—"}</p>
+        </div>
+        <div className="bg-white p-4">
+          <p className="kicker">Total incl. VAT</p>
+          <p className="mt-2 font-mono text-sm">{etb(totals.gross.toFixed(2))}</p>
         </div>
         <div className="bg-white p-4">
           <p className="kicker">Paid</p>
@@ -154,10 +169,12 @@ export default function SitePurchasedMaterialsPage() {
                 <tr>
                   <th>Warehouse</th>
                   <th className="hidden sm:table-cell">Sales</th>
-                  <th>Bought</th>
+                  <th className="hidden md:table-cell">Bought <span className="font-normal normal-case text-black/40">ex-VAT</span></th>
+                  <th className="hidden md:table-cell">VAT {VAT_RATE_PERCENT}%</th>
+                  <th>Total <span className="font-normal normal-case text-black/40">incl. VAT</span></th>
                   <th>Paid</th>
                   <th>Outstanding</th>
-                  <th className="hidden md:table-cell">Marked paid</th>
+                  <th className="hidden xl:table-cell">Marked paid</th>
                 </tr>
               </thead>
               <tbody>
@@ -173,12 +190,14 @@ export default function SitePurchasedMaterialsPage() {
                       )}
                     </td>
                     <td className="hidden font-mono text-sm sm:table-cell">{a.saleCount}</td>
+                    <td className="hidden font-mono text-sm md:table-cell">{accountAmounts(a).known ? etb(accountAmounts(a).net.toFixed(2)) : "—"}</td>
+                    <td className="hidden font-mono text-sm md:table-cell">{accountAmounts(a).known ? etb(accountAmounts(a).vat.toFixed(2)) : "—"}</td>
                     <td className="font-mono text-sm">{etb(a.sold)}</td>
                     <td className="font-mono text-sm">{etb(a.paid)}</td>
                     <td className={`font-mono text-sm ${Number(a.outstanding) > 0 ? "text-bad" : ""}`}>
                       {etb(a.outstanding)}
                     </td>
-                    <td className="hidden font-mono text-xs text-black/60 md:table-cell">
+                    <td className="hidden font-mono text-xs text-black/60 xl:table-cell">
                       {etb(a.markedPaidTotal)} of {etb(a.sold)}
                     </td>
                   </tr>
@@ -188,7 +207,8 @@ export default function SitePurchasedMaterialsPage() {
           </TableWrap>
         )}
         <p className="mt-2 text-xs text-black/50">
-          The balance is bought minus paid. &ldquo;Marked paid&rdquo; is a manual label staff use to track items; it
+          Totals include {VAT_RATE_PERCENT}% VAT, and so do payments: the balance is the total minus paid.
+          &ldquo;Marked paid&rdquo; is a manual label staff use to track items; it
           never changes the balance.
         </p>
       </section>

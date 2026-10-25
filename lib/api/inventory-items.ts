@@ -20,6 +20,8 @@ export interface CreateInventoryItemPayload {
     // Current market price per unit, "12.50" (>= 0, at most 2 decimals).
     // null clears it. Materials only — the API refuses it on equipment.
     marketValue?: string | null
+    // Sales of this item are charged 0% VAT.
+    vatExempt?: boolean
 }
 
 export type UpdateInventoryItemPayload = Partial<CreateInventoryItemPayload>

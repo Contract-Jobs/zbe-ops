@@ -1,5 +1,7 @@
 "use client";
 
+import { CostSummary } from "@/components/forms/cost-summary";
+import { amountToSend } from "@/lib/vat";
 import { useState } from "react";
 import { parseQuantity } from "@/lib/format";
 import { LocationSelect } from "@/components/LocationSelect";
@@ -89,6 +91,10 @@ export function BulkEquipmentMovementForm({
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
   const [movementDate, setMovementDate] = useState("");
+  const [vatExempt, setVatExempt] = useState(false);
+  // Frontend only: how to read the typed amount. Purchases are typed with VAT
+  // included by default, sales without. Resets whenever the action changes.
+  const [taxToggle, setTaxToggle] = useState<{ forType: string; value: boolean } | null>(null);
   const [fullyPaid, setFullyPaid] = useState(true);
   const [paidAmount, setPaidAmount] = useState("0");
 
@@ -108,6 +114,13 @@ export function BulkEquipmentMovementForm({
   const { nodeId: destNodeId } = useInventoryNodeId(destKind, destRefId || undefined);
 
   const [msg, setMsg] = useState<string | null>(null);
+
+  const includesTax = taxToggle?.forType === type ? taxToggle.value : type === "purchase";
+  const itemVatExempt = materials.some((m) => m.id === mId && "vatExempt" in m && m.vatExempt === true);
+  const noVat = vatExempt || itemVatExempt;
+  const priceKind = type === "sale" ? "sale" : "purchase";
+  // What the API gets: sale ex-VAT, purchase VAT-inclusive.
+  const sendUnitCost = amountToSend(priceKind, unitCost, includesTax, noVat) ?? unitCost;
 
   const createItemMutation = useCreateInventoryItem();
   const purchaseMutation = usePurchaseInventoryItem();
@@ -160,9 +173,10 @@ export function BulkEquipmentMovementForm({
           movementDate: parsedDate,
           quantity: qn,
           destinationInventoryId: destNodeId,
-          unitCost,
+          unitCost: sendUnitCost,
           clientName: clientName || undefined,
           licenseId,
+          vatExempt: vatExempt || undefined,
         });
       } else if (type === "transfer") {
         if (!sourceNodeId || !destNodeId) throw new Error("Source and destination are required for transfer");
@@ -185,7 +199,7 @@ export function BulkEquipmentMovementForm({
           movementDate: parsedDate,
           quantity: qn,
           sourceInventoryId: sourceNodeId,
-          unitCost,
+          unitCost: sendUnitCost,
           clientName: clientName || undefined,
           // Only sent when the source holds this item under more than one
           // license — otherwise the server auto-resolves the lot. An empty
@@ -193,6 +207,7 @@ export function BulkEquipmentMovementForm({
           licenseId: licenseId || undefined,
           fullyPaid,
           paidAmount: !fullyPaid ? (paidAmount.trim() || "0") : undefined,
+          vatExempt: vatExempt || undefined,
         });
       } else if (type === "consume") {
         if (!sourceNodeId) throw new Error("Source is required");
@@ -290,9 +305,23 @@ export function BulkEquipmentMovementForm({
 
       {["purchase", "sale"].includes(type) && (
         <label className="mb-3 block text-sm">
-          Unit Cost (ETB)
+          {type === "sale" ? "Unit price (ETB)" : "Unit cost (ETB)"}
           <input className="field mt-1" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
         </label>
+      )}
+
+
+      {["purchase", "sale"].includes(type) && (
+        <CostSummary
+          kind={priceKind}
+          amount={unitCost}
+          quantity={quantity}
+          includesTax={includesTax}
+          onIncludesTaxChange={(value) => setTaxToggle({ forType: type, value })}
+          noVat={vatExempt}
+          onNoVatChange={setVatExempt}
+          itemExempt={itemVatExempt}
+        />
       )}
 
       {type === "sale" && (
@@ -320,7 +349,7 @@ export function BulkEquipmentMovementForm({
           </label>
           {!fullyPaid && (
             <label className="mt-2 block text-sm">
-              Paid amount (ETB)
+              Paid amount incl. VAT (ETB)
               <input
                 type="number"
                 step="0.01"

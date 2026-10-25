@@ -73,7 +73,7 @@ export function RegisterSitePaymentForm({
       {/* Where the account stands before this payment — one item under another. */}
       <dl className="border border-black/10">
         <div className="border-b border-black/10 px-3 py-2">
-          <dt className="kicker">Sold</dt>
+          <dt className="kicker">Total (incl. VAT)</dt>
           <dd className="mt-0.5 font-mono text-sm">{etb(account.sold)}</dd>
         </div>
         <div className="border-b border-black/10 px-3 py-2">

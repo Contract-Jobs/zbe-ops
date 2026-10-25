@@ -1,5 +1,6 @@
 "use client";
 
+import { APPROVALS_VISIBLE } from "@/lib/features";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
@@ -9,7 +10,7 @@ import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
 import { useApprovals } from "@/hooks/use-approvals";
 import { useEquipmentList } from "@/hooks/use-equipment";
 import { useSites } from "@/hooks/use-sites";
-import { useSpendAnalytics, useBudgetHealth, useSalesAnalytics } from "@/hooks/use-analytics";
+import { useSpendAnalytics, useScopedBudgetHealth, useSalesAnalytics } from "@/hooks/use-analytics";
 import type { Approval, BudgetHealthEntry, IndividualEquipmentItem, Site } from "@/types/api";
 
 export default function BoardPage() {
@@ -26,14 +27,22 @@ export default function BoardPage() {
   const [spendFilters, setSpendFilters] = useState<QueryFilterValues>({});
   const [salesFilters, setSalesFilters] = useState<QueryFilterValues>({});
   const { data: sitesData } = useSites({ page: sitePage, limit: 50 });
-  const { data: spendData } = useSpendAnalytics({
-    siteId: spendFilters.siteId || undefined,
-    warehouseId: spendFilters.warehouseId || undefined,
-    licenseId: spendFilters.licenseId || undefined,
-    dateFrom: spendFilters.dateFrom || undefined,
-    dateTo: spendFilters.dateTo || undefined,
-  });
-  const { data: budgetHealthData } = useBudgetHealth();
+  // A site manager's analytics always name one of their own sites (the API
+  // refuses another site, a warehouse filter, or no site at all).
+  const ownSiteIds = Array.from(allowedSiteIds).sort();
+  const noSite = manager && ownSiteIds.length === 0;
+  const spendSiteId = spendFilters.siteId || (manager ? ownSiteIds[0] : undefined);
+  const { data: spendData } = useSpendAnalytics(
+    {
+      siteId: spendSiteId,
+      warehouseId: manager ? undefined : spendFilters.warehouseId || undefined,
+      licenseId: spendFilters.licenseId || undefined,
+      dateFrom: spendFilters.dateFrom || undefined,
+      dateTo: spendFilters.dateTo || undefined,
+    },
+    { enabled: !noSite },
+  );
+  const { data: budgetHealth } = useScopedBudgetHealth({ manager, siteIds: ownSiteIds });
   const { data: salesAnalyticsData } = useSalesAnalytics(
     {
       warehouseId: salesFilters.warehouseId || undefined,
@@ -71,7 +80,7 @@ export default function BoardPage() {
 
   const totalSpendDisplay = spendData?.data ? Number(spendData.data.totalSpend) : 0;
 
-  const healths: BudgetHealthEntry[] = budgetHealthData?.data ?? [];
+  const healths: BudgetHealthEntry[] = budgetHealth;
 
   const getHealthEntry = (siteId: string): BudgetHealthEntry | undefined =>
     healths.find((h) => h.siteId === siteId);
@@ -82,18 +91,18 @@ export default function BoardPage() {
 
   return (
     <div>
-      <PageHead kicker="Today" title="Warehouse and site board" />
+      <PageHead kicker="Today" title={manager ? "Sites board" : "Warehouse and site board"} />
 
       <div className="grid gap-px bg-black/10 sm:grid-cols-2">
-        <Stat label="Pending approvals" value={String(pending.length)} href="/approvals" />
+        {APPROVALS_VISIBLE ? <Stat label="Pending approvals" value={String(pending.length)} href="/approvals" /> : null}
         <Stat label="Plant on loan" value={String(onLoan.length)} href="/equipment" />
       </div>
 
       <QueryFilters
         className="mt-8 mb-3"
         title="Spend"
-        fields={["siteId", "warehouseId", "licenseId", "dateFrom", "dateTo"]}
-        values={spendFilters}
+        fields={manager ? ["siteId", "licenseId", "dateFrom", "dateTo"] : ["siteId", "warehouseId", "licenseId", "dateFrom", "dateTo"]}
+        values={manager ? { ...spendFilters, siteId: spendSiteId ?? "" } : spendFilters}
         onChange={setSpendFilters}
       />
 
@@ -196,9 +205,22 @@ export default function BoardPage() {
               <>
               <div className="grid gap-px bg-black/10">
                 <div className="bg-white p-4">
-                  <p className="text-sm font-medium text-black/60">Total Revenue (external buyers)</p>
-                  <p className="mt-1 font-mono text-xl">{etb(Number(salesAnalytics.totalRevenue))}</p>
+                  <p className="text-sm font-medium text-black/60">Revenue before VAT</p>
+                  <p className="mt-1 font-mono text-xl">{etb(salesAnalytics.totalRevenue)}</p>
                 </div>
+                {salesAnalytics.totalVat !== undefined ? (
+                  <div className="bg-white p-4">
+                    <p className="text-sm font-medium text-black/60">VAT charged</p>
+                    <p className="mt-1 font-mono text-xl">{etb(salesAnalytics.totalVat)}</p>
+                  </div>
+                ) : null}
+                {salesAnalytics.totalGrossRevenue !== undefined ? (
+                  <div className="bg-white p-4">
+                    <p className="text-sm font-medium text-black/60">Invoiced incl. VAT</p>
+                    <p className="mt-1 font-mono text-xl">{etb(salesAnalytics.totalGrossRevenue)}</p>
+                    <p className="mt-1 text-xs text-black/50">Cash collected and what is owed are counted on this.</p>
+                  </div>
+                ) : null}
                 <div className="bg-white p-4">
                   <p className="text-sm font-medium text-black/60">Sold Equipment</p>
                   <p className="mt-1 font-mono text-xl">{salesAnalytics.equipmentSaleCount} <span className="text-sm text-black/50">units</span></p>
@@ -226,7 +248,7 @@ export default function BoardPage() {
                       <p className="mt-1 font-mono text-xs text-black/50">{profitability.marginPct} margin</p>
                     </div>
                     <div className="bg-white p-4">
-                      <p className="text-sm font-medium text-black/60">Profit on cash collected</p>
+                      <p className="text-sm font-medium text-black/60">Profit on cash collected (before VAT)</p>
                       <p className="mt-1 font-mono text-xl">{etb(profitability.actualProfit)}</p>
                       <p className="mt-1 font-mono text-xs text-black/50">
                         {etb(profitability.unrealizedProfit)} still in receivables
@@ -254,9 +276,12 @@ export default function BoardPage() {
                   <p className="kicker mb-3">Sales to sites</p>
                   <div className="grid gap-px bg-black/10 sm:grid-cols-2">
                     <div className="bg-white p-4">
-                      <p className="text-sm font-medium text-black/60">Revenue</p>
+                      <p className="text-sm font-medium text-black/60">Revenue before VAT</p>
                       <p className="mt-1 font-mono text-xl">{etb(siteSales.revenue)}</p>
-                      <p className="mt-1 font-mono text-xs text-black/50">{siteSales.saleCount} sales</p>
+                      <p className="mt-1 font-mono text-xs text-black/50">
+                        {siteSales.saleCount} sales
+                        {siteSales.vat !== undefined ? ` · VAT ${etb(siteSales.vat)}` : ""}
+                      </p>
                     </div>
                     <div className="bg-white p-4">
                       <p className="text-sm font-medium text-black/60">Gross profit</p>
@@ -277,7 +302,7 @@ export default function BoardPage() {
                     </div>
                   </div>
                   <p className="mt-2 text-xs text-black/55">
-                    Profit is counted when the material is sold, since sites pay a balance rather than each sale.
+                    Profit is counted before VAT, when the material is sold, since sites pay a balance (VAT included) rather than each sale.
                     {siteSales.cashReceived === null ? " Cash and balance are not shown under a license filter." : ""}
                   </p>
                   {siteSales.profitability.estimatedCogsSaleCount > 0 ? (
@@ -301,6 +326,8 @@ export default function BoardPage() {
           ) : null}
 
           <div>
+            {APPROVALS_VISIBLE ? (
+              <>
             <p className="kicker mb-3">Waiting on you</p>
             <ul className="border border-black/10">
               {pending.slice(0, 6).map((a) => {
@@ -322,6 +349,8 @@ export default function BoardPage() {
                 <li className="px-4 py-8 text-center text-black/45">Queue is clear.</li>
               ) : null}
             </ul>
+              </>
+            ) : null}
             {maintenance.length > 0 ? (
               <p className="mt-6 text-sm text-black/70">
                 In the shop: {maintenance.map((e) => e.identifier).join(", ")}.

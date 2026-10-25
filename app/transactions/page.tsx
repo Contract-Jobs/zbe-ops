@@ -31,6 +31,9 @@ export default function TransactionsPage() {
   const manager = isSiteManager(store);
   const user = currentUser(store);
   const canMutate = !manager;
+  // Admins reverse anything; a site manager reverses transactions of their own
+  // sites (the same rule as reading them).
+  const mayReverse = (t: Transaction) => canMutate || (!!t.siteId && sites.has(t.siteId));
   const sites = visibleSiteIds(store);
   const [page, setPage] = useState(1);
 
@@ -41,12 +44,14 @@ export default function TransactionsPage() {
   const { data: transactionsData, isLoading: isTxLoading } = useTransactions({
     page,
     limit: 10,
-    siteId: filters.siteId ? [filters.siteId] : undefined,
+    // A site manager must always name their own sites (the API answers 403
+    // otherwise); admins see everything unless they filter.
+    siteId: filters.siteId ? [filters.siteId] : manager && sites.size > 0 ? Array.from(sites) : undefined,
     categoryId: filters.categoryId ? [filters.categoryId] : undefined,
     type: filters.type ? [filters.type] : undefined,
     dateFrom: filters.dateFrom ? [filters.dateFrom] : undefined,
     dateTo: filters.dateTo ? [filters.dateTo] : undefined,
-    warehouseId: filters.warehouseId || undefined,
+    warehouseId: manager ? undefined : filters.warehouseId || undefined,
     itemId: filters.itemId || undefined,
     buyerSiteId: filters.buyerSiteId || undefined,
     isInternal: filters.isInternal || undefined,
@@ -225,9 +230,9 @@ export default function TransactionsPage() {
       </div>
 
       {addTxOpen ? (
-        <FormPanel kicker="Money" title="Log Manual Transaction" onClose={() => setAddTxOpen(false)}>
+        <ModalPanel kicker="Money" title="Log Manual Transaction" onClose={() => setAddTxOpen(false)}>
           <TransactionForm onDone={() => setAddTxOpen(false)} />
-        </FormPanel>
+        </ModalPanel>
       ) : null}
 
       <ListToolbar
@@ -251,7 +256,8 @@ export default function TransactionsPage() {
         fields={[
           "search",
           "siteId",
-          "warehouseId",
+          // Warehouse money is not a site manager's: the API refuses the filter.
+          ...(manager ? [] : (["warehouseId"] as const)),
           "categoryId",
           "itemId",
           "type",
@@ -288,7 +294,7 @@ export default function TransactionsPage() {
                 <th className="hidden sm:table-cell">Type</th>
                 <th>Note</th>
                 <th>Amount</th>
-                {canMutate && <th>Action</th>}
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -343,26 +349,31 @@ export default function TransactionsPage() {
                     >
                       {noteValue || "—"}
                     </td>
-                    <td className="whitespace-nowrap font-mono text-sm">{etb(Number(t.amount) || 0)}</td>
-                    {canMutate && (
-                      <td className="text-right" onClick={(e) => e.stopPropagation()}>
-                        {canReverse ? (
-                          <button
-                            type="button"
-                            className="btn btn-ghost-bad px-2 py-0.5 text-xs"
-                            onClick={() => setReverseTarget(t)}
-                          >
-                            Reverse
-                          </button>
-                        ) : null}
-                      </td>
-                    )}
+                    <td className="whitespace-nowrap font-mono text-sm">
+                      <div>{etb(Number(t.amount) || 0)}</div>
+                      {t.taxes && t.taxes.length > 0 ? (
+                        <div className="text-xs text-black/50">
+                          incl. tax {etb(t.taxes.reduce((sum, x) => sum + (Number(x.amount) || 0), 0))}
+                        </div>
+                      ) : null}
+                    </td>
+                    <td className="text-right" onClick={(e) => e.stopPropagation()}>
+                      {canReverse && mayReverse(t) ? (
+                        <button
+                          type="button"
+                          className="btn btn-ghost-bad px-2 py-0.5 text-xs"
+                          onClick={() => setReverseTarget(t)}
+                        >
+                          Reverse
+                        </button>
+                      ) : null}
+                    </td>
                   </tr>
                 );
               })}
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={canMutate ? 8 : 7} className="py-12 text-center text-sm text-black/45">
+                  <td colSpan={8} className="py-12 text-center text-sm text-black/45">
                     No transactions found.
                   </td>
                 </tr>
@@ -383,7 +394,7 @@ export default function TransactionsPage() {
             sitesMap={sitesMap}
             warehousesMap={warehousesMap}
             categoriesMap={categoriesMap}
-            canReverse={canMutate && canReverseTx(detailTx)}
+            canReverse={mayReverse(detailTx) && canReverseTx(detailTx)}
             onReverse={() => {
               const target = detailTx;
               setDetailTx(null);
@@ -577,6 +588,23 @@ function TransactionDetailModal({
           value={tx.note || "—"}
           fullWidth
         />
+
+        {tx.taxes && tx.taxes.length > 0 ? (
+          <DetailRow
+            label="Taxes included in the amount"
+            value={
+              <ul className="font-mono text-xs">
+                {tx.taxes.map((x) => (
+                  <li key={x.id}>
+                    {x.label}
+                    {x.rate ? ` (${(Number(x.rate) * 100).toFixed(0)}%)` : ""}: {etb(x.amount)}
+                  </li>
+                ))}
+              </ul>
+            }
+            fullWidth
+          />
+        ) : null}
 
         {tx.description && tx.description !== tx.note ? (
           <DetailRow

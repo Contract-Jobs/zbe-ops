@@ -21,6 +21,7 @@ interface SalePaymentsPanelProps {
   movementId: string;
   kind: "material" | "equipment";
   itemTitle: string;
+  // What the buyer owes: the sale total including VAT.
   totalCost: number;
   paidAmount: number;
   saleStatus: SaleStatus;
@@ -155,8 +156,9 @@ export function SalePaymentsPanel({
 
       <div className="mb-6 grid grid-cols-1 gap-px bg-black/10">
         <div className="bg-white p-4">
-          <p className="kicker">Total Sale Amount</p>
+          <p className="kicker">Total Sale Amount (incl. VAT)</p>
           <p className="mt-1 font-mono text-xl font-medium tracking-tight text-black">{etb(totalCost)}</p>
+          <p className="mt-1 text-xs text-black/50">Payments are counted against this total, VAT included.</p>
         </div>
         <div className="bg-white p-4">
           <p className="kicker">Cash Collected</p>

@@ -24,7 +24,8 @@ import type { RentalAgreement, IndividualEquipmentItem, License } from "@/types/
 export default function RentalsPage() {
   const store = useStore();
   const manager = isSiteManager(store);
-  const canMutate = !manager;
+  // Starting a rental for their own site is allowed for a site manager.
+  const canMutate = true;
 
   const [q, setQ] = useState("");
   const [mode, setMode] = useState<RecordMode<RentalAgreement>>(closedMode);

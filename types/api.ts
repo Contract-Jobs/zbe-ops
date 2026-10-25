@@ -50,6 +50,8 @@ export interface InventoryItem {
   marketValue?: string | null;
   // quantity × marketValue across all locations; null when marketValue is.
   totalMarketValue?: string | null;
+  // Sales of this item carry 0% VAT.
+  vatExempt?: boolean;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -172,6 +174,14 @@ export interface InventoryMovement {
   cogsUnitCost?: string | null;
   cogsTotalCost?: string | null;
   cogsEstimated?: boolean;
+  // Sale: unitCost/totalCost stay net; the buyer owes grossTotal.
+  // Purchase: the price is VAT-inclusive and unchanged; vatAmount is the VAT
+  // contained in it, grossTotal is the price paid (net = grossTotal - vatAmount).
+  // grossTotal is null until the backfill has run — no VAT recorded.
+  vatExempt?: boolean;
+  vatRate?: string | null;
+  vatAmount?: string | null;
+  grossTotal?: string | null;
   loggedBy: string;
   createdAt: string;
   updatedAt: string;
@@ -203,6 +213,8 @@ export type InventoryMovementCreatePayload = {
       clientName?: string;
       licenseId: string;
       autoCreateItem?: { name: string; slug?: string; category: "material"; unit?: string };
+      // unitCost is VAT-inclusive (the invoice total). true = no VAT was charged.
+      vatExempt?: boolean;
     }
   | {
       movementType: "sale";
@@ -218,8 +230,11 @@ export type InventoryMovementCreatePayload = {
       // under one license. Only needed when more than one license's lot is
       // present there (pick the lot from GET /api/inventory-balances).
       licenseId?: string;
+      // fullyPaid and paidAmount are gross (incl. VAT).
       fullyPaid?: boolean;
       paidAmount?: string;
+      // Charge 0% VAT on this sale.
+      vatExempt?: boolean;
     }
   | {
     movementType: "transfer";
@@ -310,6 +325,10 @@ export interface IndividualEquipmentMovement {
   ledgerId: string | null;
   saleStatus?: SaleStatus;
   paidAmount?: string;
+  vatExempt?: boolean;
+  vatRate?: string | null;
+  vatAmount?: string | null;
+  grossTotal?: string | null;
   note?: string | null;
   loggedBy: string;
   createdAt: string;
@@ -354,6 +373,8 @@ export type EquipmentMovementCreatePayload = {
     clientName?: string;
     licenseId: string;
     autoCreateEquipment?: AutoCreateEquipmentPayload;
+    // movementCost is VAT-inclusive. true = no VAT was charged.
+    vatExempt?: boolean;
   }
   | {
     movementType: "deploy_to_site";
@@ -393,8 +414,10 @@ export type EquipmentMovementCreatePayload = {
     movementCost?: string;
     clientName?: string;
     licenseId: string;
+    // movementCost is net; fullyPaid and paidAmount are gross (incl. VAT).
     fullyPaid?: boolean;
     paidAmount?: string;
+    vatExempt?: boolean;
   }
   | {
     movementType: "dispose";
@@ -608,6 +631,10 @@ export interface SoldItemsOverview {
   soldEquipmentOutstanding?: string;
   soldMaterialCash?: string;
   soldMaterialOutstanding?: string;
+  // The totals above are invoiced INCLUDING VAT (gross).
+  soldEquipmentVat?: string;
+  soldMaterialVat?: string;
+  totalVat?: string;
   totalCashCollected?: string;
   totalOutstanding?: string;
   collectionRate?: string;
@@ -662,7 +689,10 @@ export interface SoldItemsOverview {
 // A site's running account with one warehouse: outstanding = sold − paid,
 // computed on read. Payments are not allocated to individual sales.
 export interface AccountTotals {
+  // Gross: what the account owes including VAT. soldNet + soldVat = sold.
   sold: string;
+  soldNet?: string;
+  soldVat?: string;
   paid: string;
   outstanding: string;
 }
@@ -751,10 +781,20 @@ export interface Transaction {
   reversalOfId: string | null;
   isSystemGenerated: boolean;
   ledgerId: string | null;
+  // Taxes contained in `amount` (the amount is the total paid/received).
+  taxes?: TransactionTax[];
   loggedBy: string;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+}
+
+export interface TransactionTax {
+  id: string;
+  taxType: "vat" | "other";
+  label: string;
+  rate: string | null;
+  amount: string;
 }
 
 export interface TransactionCategory {
@@ -944,7 +984,9 @@ export interface SalesProfitability {
 // status).
 export interface SiteSalesAnalytics {
   saleCount: number;
+  // Net. cashReceived and outstandingBalance are gross (site payments include VAT).
   revenue: string;
+  vat?: string;
   profitability: Omit<SalesProfitability, "cashCollected" | "actualProfit" | "unrealizedProfit">;
   cashReceived: string | null;
   outstandingBalance: string | null;
@@ -956,7 +998,11 @@ export interface SalesAnalytics {
   siteSales?: SiteSalesAnalytics;
   totalMaterialRevenue: string;
   totalEquipmentRevenue: string;
+  // Net of VAT.
   totalRevenue: string;
+  totalVat?: string;
+  totalGrossRevenue?: string;
+  // Cash, outstanding and collection rate are measured against gross.
   totalCashCollected?: string;
   totalOutstanding?: string;
   collectionRate?: string;
@@ -1033,6 +1079,11 @@ export interface CompanyFinancialSummary {
     totalSalesRevenue?: string;
     totalSalesCash?: string;
     outstandingSalesReceivables?: string;
+    // VAT is a liability, not income: `total` and netIncome exclude it.
+    // vatOutput = VAT charged on sales in the period; vatCollected = the VAT
+    // part of what external buyers have paid so far.
+    vatOutput?: string;
+    vatCollected?: string;
     // Revenue from sales to sites, recognised at the sale (no transaction
     // exists then); already inside materialSaleRevenue and `total`.
     siteSaleRevenue?: string;
@@ -1043,4 +1094,38 @@ export interface CompanyFinancialSummary {
   netCashFlow: string;
   // income.total − expense.total: site sales counted when sold.
   netIncome?: string;
+  vat?: { output: string; input: string; netPayable: string };
+}
+
+export interface VatCategoryTotals {
+  saleCount: number;
+  net: string;
+  vat: string;
+  gross: string;
+}
+
+// GET /api/analytics/vat (admin only).
+export interface VatReport {
+  outputVat: string;
+  taxableNet: string;
+  exemptNet: string;
+  grossInvoiced: string;
+  byCategory: {
+    material: VatCategoryTotals;
+    equipment: VatCategoryTotals;
+    siteSales: VatCategoryTotals;
+  };
+  externalVatCollected: string;
+  externalVatOutstanding: string;
+  notBackfilledSaleCount: number;
+  // Input VAT: VAT paid on purchases and in manual transactions (reclaimable).
+  inputVat?: {
+    materialPurchases: string;
+    equipmentPurchases: string;
+    transactions: string;
+    total: string;
+  };
+  // outputVat - inputVat; negative = refundable / carried forward.
+  netVatPayable?: string;
+  notBackfilledPurchaseCount?: number;
 }

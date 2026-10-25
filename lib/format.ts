@@ -22,8 +22,8 @@ export function qty(n: number | string | null | undefined, unit = "pcs"): string
 }
 
 // Parses a quantity field. Returns the number, or an error message to show.
-export function parseQuantity(raw: string): { value: number } | { error: string } {
-  const text = raw.trim();
+export function parseQuantity(raw: string | null | undefined): { value: number } | { error: string } {
+  const text = (raw ?? "").trim();
   if (!/^(\d+\.?\d*|\.\d+)$/.test(text)) return { error: "Quantity must be a positive number." };
   const frac = text.split(".")[1] ?? "";
   if (frac.length > 3) return { error: "Quantity can have at most 3 decimal places." };

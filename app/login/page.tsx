@@ -7,11 +7,6 @@ import { Field } from "@/components/ui";
 
 const AUTH_PERSONAS = [
   {
-    email: "haileabt@gmail.com",
-    pass: "Haile@zbe",
-    label: "Haile (Superadmin)",
-  },
-  {
     email: "abebe@zbe.com",
     pass: "Password123!",
     label: "Abebe (Ops)",

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Field, FormActions } from "@/components/ui";
 import { LocationSelect } from "@/components/LocationSelect";
+import { isSiteManager, useStore } from "@/lib/store";
 import { useCreateRental, useAdjustRental, useReturnRental } from "@/hooks/use-rentals";
 import { useInventoryItems } from "@/hooks/use-inventory-items";
 import type { IndividualEquipmentItem, License, RentalCreatePayload } from "@/types/api";
@@ -20,6 +21,9 @@ export function RentalForm({
   onDone: () => void;
 }) {
   const createMutation = useCreateRental();
+  // A site manager can only start a rental for their own site: the API refuses
+  // a warehouse-only rental, so a site is the only choice they get.
+  const manager = isSiteManager(useStore());
   // Full catalog pull, not the endpoint's default page size of 10 — this
   // feeds a plain <select>, not a server-searched picker.
   const { data: eqItemsData } = useInventoryItems({ category: "equipment", limit: 50 });
@@ -30,7 +34,7 @@ export function RentalForm({
   const [eqId, setEqId] = useState<string>("new");
   const [catalogItemId, setCatalogItemId] = useState("");
   const [newCatalogName, setNewCatalogName] = useState("");
-  const [locKind, setLocKind] = useState<LocationKind | "">("");
+  const [locKind, setLocKind] = useState<LocationKind | "">(manager ? "site" : "");
   const [locId, setLocId] = useState("");
 
   const isPending = createMutation.isPending;
@@ -159,7 +163,7 @@ export function RentalForm({
           </Field>
           <div className="sm:col-span-2">
             <p className="mb-1 text-sm font-medium">Deliver To</p>
-            <LocationSelect kind={locKind} id={locId} onKind={setLocKind} onId={setLocId} />
+            <LocationSelect kind={locKind} id={locId} onKind={setLocKind} onId={setLocId} allowWarehouse={!manager} />
           </div>
         </>
       ) : (
@@ -169,7 +173,7 @@ export function RentalForm({
           </Field>
           <div className="sm:col-span-2">
             <p className="mb-1 text-sm font-medium">Dispatch From</p>
-            <LocationSelect kind={locKind} id={locId} onKind={setLocKind} onId={setLocId} />
+            <LocationSelect kind={locKind} id={locId} onKind={setLocKind} onId={setLocId} allowWarehouse={!manager} />
           </div>
         </>
       )}

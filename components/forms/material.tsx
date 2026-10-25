@@ -30,6 +30,7 @@ export function MaterialForm({
     const name = String(fd.get("name") ?? "").trim();
     const unit = String(fd.get("unit") ?? "").trim();
     const marketValueText = String(fd.get("marketValue") ?? "").trim();
+    const vatExempt = fd.get("vatExempt") === "on";
 
     if (!name) return;
     if (marketValueText && !MARKET_VALUE_PATTERN.test(marketValueText)) {
@@ -44,13 +45,14 @@ export function MaterialForm({
         const marketValue = marketValueText || (initial.marketValue != null ? null : undefined);
         await updateMutation.mutateAsync({
           id: initial.id,
-          payload: { name, unit: unit || undefined, marketValue },
+          payload: { name, unit: unit || undefined, marketValue, vatExempt },
         });
       } else {
         await createMutation.mutateAsync({
           name,
           unit: unit || undefined,
           marketValue: marketValueText || undefined,
+          vatExempt,
           category: "material",
           tracking: "quantity",
           compositionType,
@@ -87,6 +89,10 @@ export function MaterialForm({
           disabled={isPending}
         />
       </Field>
+      <label className="flex items-center gap-2 text-sm text-black/70 sm:col-span-2">
+        <input type="checkbox" name="vatExempt" defaultChecked={initial?.vatExempt ?? false} disabled={isPending} />
+        VAT-exempt (sales of this item are charged 0% VAT)
+      </label>
       <Field label="Type">
         <select
           className="field"

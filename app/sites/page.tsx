@@ -30,10 +30,10 @@ import {
   type RecordMode,
 } from "@/components/ui";
 import { etb } from "@/lib/format";
-import { isSiteManager, useStore, visibleSites } from "@/lib/store";
+import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
 import { useSites, useDeleteSite, useRestoreSite } from "@/hooks/use-sites";
 import { useLicenses, useLicensesInBulk } from "@/hooks/use-licenses";
-import { useBudgetHealth } from "@/hooks/use-analytics";
+import { useScopedBudgetHealth } from "@/hooks/use-analytics";
 import type { Site } from "@/types/api";
 
 export default function SitesPage() {
@@ -48,13 +48,13 @@ export default function SitesPage() {
 
   const { data: sitesData, isLoading } = useSites({ page, limit: 10, ...sort });
   const { data: licensesData } = useLicenses();
-  const { data: budgetHealthData } = useBudgetHealth();
+  const { data: budgetHealth } = useScopedBudgetHealth({ manager: isSiteManager(store), siteIds: Array.from(visibleSiteIds(store)).sort() });
   const deleteMutation = useDeleteSite();
   const restoreMutation = useRestoreSite();
 
   const sites = sitesData ? sitesData.data : (store.sites as unknown as Site[]);
   const licensesList = licensesData ? licensesData.data : store.licenses;
-  const spendBySite = new Map((budgetHealthData?.data ?? []).map((b) => [b.siteId, b]));
+  const spendBySite = new Map(budgetHealth.map((b) => [b.siteId, b]));
 
   const licenseIds = useMemo(() => {
     return Array.from(new Set(sites.map((s) => s.licenseId).filter(Boolean)));
@@ -69,7 +69,7 @@ export default function SitesPage() {
   }, [bulkLicensesData]);
 
   // Site manager scoping: filter client-side against visible sites from the store
-  const visibleIds = useMemo(() => visibleSites(store).map((s) => s.id), [store]);
+  const visibleIds = useMemo(() => Array.from(visibleSiteIds(store)), [store]);
 
   async function handleDelete() {
     if (mode.kind === "delete" && mode.record) {

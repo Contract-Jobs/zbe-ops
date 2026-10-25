@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Field } from "@/components/ui";
+import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { useCategories } from "@/hooks/use-categories";
 import { useInventoryItems } from "@/hooks/use-inventory-items";
 import { useInventoryNodes } from "@/hooks/use-inventories";
@@ -57,6 +58,35 @@ export type QueryFilterKey =
   | "movementType";
 
 export type QueryFilterValues = Partial<Record<QueryFilterKey, string>>;
+
+// A From/To pair listed together is drawn as one date-range control; any other
+// field is drawn on its own. The values stay in the same two keys.
+const RANGE_PAIRS: { from: QueryFilterKey; to: QueryFilterKey; label: string }[] = [
+  { from: "dateFrom", to: "dateTo", label: "Date" },
+  { from: "resolvedFrom", to: "resolvedTo", label: "Resolved" },
+];
+
+type FilterUnit =
+  | { kind: "field"; key: QueryFilterKey; keys: [QueryFilterKey] }
+  | { kind: "range"; key: QueryFilterKey; keys: [QueryFilterKey, QueryFilterKey]; label: string };
+
+function toUnits(fields: QueryFilterKey[]): FilterUnit[] {
+  const units: FilterUnit[] = [];
+  const used = new Set<QueryFilterKey>();
+  for (const key of fields) {
+    if (used.has(key)) continue;
+    const pair = RANGE_PAIRS.find((p) => (p.from === key || p.to === key) && fields.includes(p.from) && fields.includes(p.to));
+    if (pair) {
+      used.add(pair.from);
+      used.add(pair.to);
+      units.push({ kind: "range", key: pair.from, keys: [pair.from, pair.to], label: pair.label });
+    } else {
+      used.add(key);
+      units.push({ kind: "field", key, keys: [key] });
+    }
+  }
+  return units;
+}
 
 const TRACKING: { value: InventoryItemTracking; label: string }[] = [
   { value: "quantity", label: "Quantity" },
@@ -176,27 +206,23 @@ export function QueryFilters({
   popover?: boolean;
   pinned?: QueryFilterKey[];
 }) {
-  function set(key: QueryFilterKey, value: string) {
-    onChange({ ...values, [key]: value });
-  }
-
   const active = fields.some((key) => Boolean(values[key]));
 
   if (popover) {
-    const pinnedFields = fields.filter((key) => pinned.includes(key));
+    const pinnedFields = toUnits(fields.filter((key) => pinned.includes(key)));
     const popoverFields = fields.filter((key) => !pinned.includes(key));
     return (
       <div className={`flex flex-wrap items-end gap-3 ${className}`}>
         {title ? <p className="kicker w-full">{title}</p> : null}
-        {pinnedFields.map((key) => (
-          <FilterControl
-            key={key}
-            field={key}
-            value={values[key] ?? ""}
+        {pinnedFields.map((unit) => (
+          <UnitControl
+            key={unit.key}
+            unit={unit}
+            values={values}
+            onValues={(patch) => onChange({ ...values, ...patch })}
             searchPlaceholder={searchPlaceholder}
             itemCategory={itemCategory}
-            label={labels?.[key]}
-            onChange={(value) => set(key, value)}
+            labels={labels}
           />
         ))}
         <FilterPopover
@@ -219,15 +245,15 @@ export function QueryFilters({
   return (
     <div className={`flex flex-wrap items-end gap-3 ${className}`}>
       {title ? <p className="kicker w-full">{title}</p> : null}
-      {fields.map((key) => (
-        <FilterControl
-          key={key}
-          field={key}
-          value={values[key] ?? ""}
+      {toUnits(fields).map((unit) => (
+        <UnitControl
+          key={unit.key}
+          unit={unit}
+          values={values}
+          onValues={(patch) => onChange({ ...values, ...patch })}
           searchPlaceholder={searchPlaceholder}
           itemCategory={itemCategory}
-          label={labels?.[key]}
-          onChange={(value) => set(key, value)}
+          labels={labels}
         />
       ))}
       {active ? (
@@ -236,6 +262,47 @@ export function QueryFilters({
         </button>
       ) : null}
     </div>
+  );
+}
+
+// One filter unit, drawn: a date-range control for a From/To pair, otherwise
+// the plain control for that field.
+function UnitControl({
+  unit,
+  values,
+  onValues,
+  searchPlaceholder,
+  itemCategory,
+  labels,
+}: {
+  unit: FilterUnit;
+  values: QueryFilterValues;
+  onValues: (patch: QueryFilterValues) => void;
+  searchPlaceholder: string;
+  itemCategory: InventoryItemCategory;
+  labels?: Partial<Record<QueryFilterKey, string>>;
+}) {
+  if (unit.kind === "range") {
+    const [fromKey, toKey] = unit.keys;
+    return (
+      <DateRangeFilter
+        label={labels?.[fromKey] ?? unit.label}
+        from={values[fromKey] ?? ""}
+        to={values[toKey] ?? ""}
+        onChange={(from, to) => onValues({ [fromKey]: from, [toKey]: to })}
+      />
+    );
+  }
+  const key = unit.key;
+  return (
+    <FilterControl
+      field={key}
+      value={values[key] ?? ""}
+      searchPlaceholder={searchPlaceholder}
+      itemCategory={itemCategory}
+      label={labels?.[key]}
+      onChange={(value) => onValues({ [key]: value })}
+    />
   );
 }
 
@@ -262,13 +329,19 @@ function FilterPopover({
   const [draft, setDraft] = useState<QueryFilterValues>({});
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const appliedCount = fields.filter((key) => Boolean(values[key])).length;
-  const draftCount = fields.filter((key) => Boolean(draft[key])).length;
+  // A date range counts once, however many of its two dates are set.
+  const units = toUnits(fields);
+  const appliedCount = units.filter((u) => u.keys.some((k) => Boolean(values[k]))).length;
+  const draftCount = units.filter((u) => u.keys.some((k) => Boolean(draft[k]))).length;
 
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      // A floating panel (the custom date range) is drawn outside this box but
+      // belongs to it: clicking in it must not close the Filters panel.
+      if ((target as Element).closest?.("[data-floating-panel]")) return;
+      if (rootRef.current && !rootRef.current.contains(target)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -332,16 +405,18 @@ function FilterPopover({
           className="fixed inset-x-4 top-28 z-40 max-h-[75vh] overflow-y-auto border border-black bg-white p-4 sm:absolute sm:inset-x-auto sm:left-0 sm:top-full sm:mt-1 sm:w-[44rem] sm:max-w-[calc(100vw-3rem)]"
         >
           <div className="flex flex-wrap items-end gap-3">
-            {fields.map((key) => {
-              const applied = values[key] ?? "";
-              const current = draft[key] ?? "";
+            {units.map((unit) => {
+              const applied = unit.keys.map((k) => values[k] ?? "").join("|");
+              const current = unit.keys.map((k) => draft[k] ?? "").join("|");
+              const isSet = unit.keys.some((k) => Boolean(draft[k]));
+              const wasSet = unit.keys.some((k) => Boolean(values[k]));
               // Solid = applied and untouched. Hollow = changed here and not
               // applied yet (including a filter about to be removed).
               const state: "none" | "applied" | "changed" =
-                current === applied ? (applied ? "applied" : "none") : "changed";
+                current === applied ? (wasSet ? "applied" : "none") : "changed";
               return (
                 <div
-                  key={key}
+                  key={unit.key}
                   className={`relative border-l-2 pl-3 ${
                     state === "applied"
                       ? "border-yellow [&_label]:text-yellow"
@@ -358,23 +433,25 @@ function FilterPopover({
                       }`}
                     />
                   ) : null}
-                  {current ? (
+                  {isSet ? (
                     <button
                       type="button"
-                      aria-label={`Clear ${labels?.[key] ?? key}`}
+                      aria-label={`Clear ${labels?.[unit.key] ?? (unit.kind === "range" ? unit.label : unit.key)}`}
                       className="absolute right-0 top-0 px-1 text-sm leading-none text-black/50 hover:text-black"
-                      onClick={() => setDraft((prev) => ({ ...prev, [key]: "" }))}
+                      onClick={() =>
+                        setDraft((prev) => ({ ...prev, ...Object.fromEntries(unit.keys.map((k) => [k, ""])) }))
+                      }
                     >
                       ×
                     </button>
                   ) : null}
-                  <FilterControl
-                    field={key}
-                    value={current}
+                  <UnitControl
+                    unit={unit}
+                    values={draft}
+                    onValues={(patch) => setDraft((prev) => ({ ...prev, ...patch }))}
                     searchPlaceholder={searchPlaceholder}
                     itemCategory={itemCategory}
-                    label={labels?.[key]}
-                    onChange={(value) => setDraft((prev) => ({ ...prev, [key]: value }))}
+                    labels={labels}
                   />
                 </div>
               );
@@ -680,8 +757,12 @@ function ItemSelect({
 }
 
 function InventorySelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const store = useStore();
+  const manager = isSiteManager(store);
   const { data } = useInventoryNodes({ limit: 50 });
-  const options = data?.data ?? [];
+  // A site manager can filter by their own sites' stock only; a warehouse (or
+  // another site) as the location is refused by the API, so it is not offered.
+  const options = (data?.data ?? []).filter((node) => !(manager && node.inventoryType !== "site"));
   return (
     <Wrap wide>
       <Field label="Location">

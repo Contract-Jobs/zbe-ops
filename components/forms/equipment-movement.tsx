@@ -1,8 +1,10 @@
 "use client";
 
+import { CostSummary } from "@/components/forms/cost-summary";
+import { amountToSend } from "@/lib/vat";
 import { useMemo, useState } from "react";
 import { LocationSelect } from "@/components/LocationSelect";
-import { useStore } from "@/lib/store";
+import { isSiteManager, useStore } from "@/lib/store";
 import {
   usePurchaseEquipment,
   useDeployToSite,
@@ -92,7 +94,11 @@ export function EquipmentMovementForm({
   const { data: eqItemsData } = useInventoryItems({ category: "equipment", limit: 50, tracking: "individual" });
   const equipmentItems = eqItemsData?.data ?? [];
 
-  const availableActions = actions.filter(a => !allowedActions || allowedActions.includes(a.type));
+  // Sales leave a warehouse; a site manager can never create one.
+  const manager = isSiteManager(store);
+  const availableActions = actions.filter(
+    (a) => (!allowedActions || allowedActions.includes(a.type)) && !(manager && a.type === "sale"),
+  );
 
   const [selectedEqId, setSelectedEqId] = useState<string>(equipmentId ?? "new");
   const eId = equipmentId || selectedEqId;
@@ -116,6 +122,10 @@ export function EquipmentMovementForm({
   const [clientName, setClientName] = useState("");
   const [licenseId, setLicenseId] = useState("");
   const [movementDate, setMovementDate] = useState("");
+  const [vatExempt, setVatExempt] = useState(false);
+  // Frontend only: how to read the typed amount (purchase: with VAT by
+  // default, sale: without). Resets whenever the action changes.
+  const [taxToggle, setTaxToggle] = useState<{ forType: string; value: boolean } | null>(null);
   const [fullyPaid, setFullyPaid] = useState(true);
   const [paidAmount, setPaidAmount] = useState("0");
 
@@ -127,6 +137,12 @@ export function EquipmentMovementForm({
   const { nodeId: destNodeId } = useInventoryNodeId(destKind, destRefId || undefined);
 
   const [msg, setMsg] = useState<string | null>(null);
+
+  const includesTax = taxToggle?.forType === type ? taxToggle.value : type === "purchase";
+  const priceKind = type === "sale" ? "sale" : "purchase";
+  // What the API gets for a purchase/sale: sale ex-VAT, purchase VAT-inclusive.
+  const sendCost =
+    type === "sale" || type === "purchase" ? (amountToSend(priceKind, cost, includesTax, vatExempt) ?? cost) : cost;
 
   const purchaseMutation = usePurchaseEquipment();
   const deployMutation = useDeployToSite();
@@ -179,7 +195,7 @@ export function EquipmentMovementForm({
         await purchaseMutation.mutateAsync({
           individualItemId: isCreating ? undefined : eId,
           destinationInventoryId: destNodeId,
-          movementCost: cost || undefined,
+          movementCost: sendCost || undefined,
           clientName: clientName || undefined,
           note,
           movementDate: parsedDate,
@@ -189,9 +205,10 @@ export function EquipmentMovementForm({
               itemId: catalogItemId || undefined,
               autoCreateItem: catalogItemId ? undefined : { name: newCatalogName, category: "equipment" },
               identifier,
-              originalValue: cost,
+              originalValue: sendCost,
             }
             : undefined,
+          vatExempt: vatExempt || undefined,
         });
       } else if (type === "transfer") {
         if (!destNodeId) throw new Error("Destination is required");
@@ -202,16 +219,18 @@ export function EquipmentMovementForm({
         else if (resolvedTransfer === "transfer_between_sites") await transferSitesMutation.mutateAsync(payload);
         else await transferWarehousesMutation.mutateAsync(payload);
       } else if (type === "sale") {
+        if (manager) throw new Error("Site managers cannot sell");
         if (!licenseId) throw new Error("License is required");
         await sellMutation.mutateAsync({
           individualItemId: eId,
           note,
           movementDate: parsedDate,
-          movementCost: cost || undefined,
+          movementCost: sendCost || undefined,
           clientName: clientName || undefined,
           licenseId,
           fullyPaid,
           paidAmount: !fullyPaid ? (paidAmount.trim() || "0") : undefined,
+          vatExempt: vatExempt || undefined,
         });
       } else if (type === "send_to_maintenance") {
         await maintenanceOutMutation.mutateAsync({ individualItemId: eId, clientName: clientName || undefined, note, movementDate: parsedDate });
@@ -312,9 +331,22 @@ export function EquipmentMovementForm({
 
       {["purchase", "sale", "return_from_maintenance"].includes(type) && (
         <label className="mb-3 block text-sm">
-          Cost (ETB)
+          {type === "sale" ? "Price (ETB)" : "Cost (ETB)"}
           <input className="field mt-1" value={cost} onChange={(e) => setCost(e.target.value)} />
         </label>
+      )}
+
+
+      {["purchase", "sale"].includes(type) && (
+        <CostSummary
+          kind={priceKind}
+          amount={cost}
+          quantity={1}
+          includesTax={includesTax}
+          onIncludesTaxChange={(value) => setTaxToggle({ forType: type, value })}
+          noVat={vatExempt}
+          onNoVatChange={setVatExempt}
+        />
       )}
 
       {type === "degrade" && (
@@ -349,7 +381,7 @@ export function EquipmentMovementForm({
           </label>
           {!fullyPaid && (
             <label className="mt-2 block text-sm">
-              Paid amount (ETB)
+              Paid amount incl. VAT (ETB)
               <input
                 type="number"
                 step="0.01"

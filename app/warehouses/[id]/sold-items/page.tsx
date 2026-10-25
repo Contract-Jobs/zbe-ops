@@ -26,6 +26,7 @@ import { SiteAccountsSection } from "@/components/SiteAccounts";
 import { ListToolbar } from "@/components/ListToolbar";
 import { SalePaymentsPanel } from "@/components/SalePaymentsPanel";
 import { EditSalePriceModal, PriceHistory, canEditPrice } from "@/components/forms/edit-sale-price";
+import { VAT_RATE_PERCENT, saleAmounts } from "@/lib/vat";
 import { RowActions } from "@/components/RowActions";
 import { SaleCogs } from "@/components/SaleCogs";
 import { canEditSalePrice } from "@/lib/auth/permissions";
@@ -236,12 +237,15 @@ export default function WarehouseSoldItemsPage() {
 
       <div className="grid gap-px bg-black/10 sm:grid-cols-2 lg:grid-cols-3">
         <div className="bg-white p-5">
-          <p className="kicker">Total Revenue</p>
+          <p className="kicker">Invoiced (incl. VAT)</p>
           <p className="mt-2 break-words text-2xl tracking-tight">{etb(totalRevenue)}</p>
-          <p className="mt-1 text-sm text-black/60">{overview.totalCount} sales logged</p>
+          <p className="mt-1 text-sm text-black/60">
+            {overview.totalCount} sales logged
+            {overview.totalVat !== undefined && <> · VAT: {etb(overview.totalVat)}</>}
+          </p>
         </div>
         <div className="bg-white p-5">
-          <p className="kicker">Equipments Sold</p>
+          <p className="kicker">Equipments Sold (incl. VAT)</p>
           <p className="mt-2 break-words text-2xl tracking-tight">{etb(overview.soldEquipmentTotal)}</p>
           <p className="mt-1 text-sm text-black/60">
             {overview.soldEquipmentCount} units
@@ -251,7 +255,7 @@ export default function WarehouseSoldItemsPage() {
           </p>
         </div>
         <div className="bg-white p-5">
-          <p className="kicker">Materials Sold</p>
+          <p className="kicker">Materials Sold (incl. VAT)</p>
           <p className="mt-2 break-words text-2xl tracking-tight">{etb(overview.soldMaterialTotal)}</p>
           <p className="mt-1 text-sm text-black/60">
             {overview.soldMaterialCount} batches
@@ -281,7 +285,7 @@ export default function WarehouseSoldItemsPage() {
         <div className="bg-white p-5">
           <p className="kicker">Collection Rate</p>
           <p className="mt-2 break-words text-2xl tracking-tight">{collectionRate}</p>
-          <p className="mt-1 text-sm text-black/60">Cash vs. total sales revenue</p>
+          <p className="mt-1 text-sm text-black/60">Cash vs. total invoiced</p>
         </div>
       </div>
 
@@ -408,7 +412,9 @@ export default function WarehouseSoldItemsPage() {
               <tbody>
                 {soldMats.map((l) => {
                   const canReverse = !l.isReversal && !l.isReversed;
-                  const total = Number(l.totalCost) || Number(l.unitCost) * l.quantity;
+                  const amt = saleAmounts(l);
+                  // Gross: what the buyer owes and pays.
+                  const total = amt.gross.toNumber();
                   // A sale to a site has no per-sale payment (saleStatus and
                   // paidAmount are null) — its money lives in the site account.
                   const isSiteSale = soldToSite(l);
@@ -473,7 +479,10 @@ export default function WarehouseSoldItemsPage() {
                       </td>
                       <td className="whitespace-nowrap font-mono">{etb(l.unitCost)}</td>
                       <td className="whitespace-nowrap font-mono">
-                        <div>{etb(total)}</div>
+                        <div>{etb(amt.gross.toFixed(2))}</div>
+                        <div className="text-xs text-black/50">
+                          {etb(amt.net.toFixed(2))} + VAT {etb(amt.vat.toFixed(2))}
+                        </div>
                         {!isSiteSale && currentSaleStatus !== "paid" ? (
                           <div className="text-xs text-black/50">Paid: {etb(paid)}</div>
                         ) : null}
@@ -587,7 +596,7 @@ export default function WarehouseSoldItemsPage() {
                 ? undefined
                 : () => {
                     const rec = detailModal;
-                    const total = Number(rec.totalCost) || Number(rec.unitCost) * rec.quantity;
+                    const total = saleAmounts(rec).gross.toNumber();
                     const currentSaleStatus = rec.saleStatus ?? "paid";
                     const paid = Number(rec.paidAmount ?? (currentSaleStatus === "unpaid" ? 0 : total));
                     setDetailModal(null);
@@ -602,7 +611,7 @@ export default function WarehouseSoldItemsPage() {
             }
             onReverse={() => {
               const rec = detailModal;
-              const total = Number(rec.totalCost) || Number(rec.unitCost) * rec.quantity;
+              const total = saleAmounts(rec).gross.toNumber();
               setDetailModal(null);
               setReverseTarget({
                 id: rec.id,
@@ -688,7 +697,8 @@ function SoldMaterialDetailModal({
   const licenseName = l.licenseId
     ? license?.name ?? store.licenses.find((lic) => lic.id === l.licenseId)?.name ?? l.licenseId
     : "—";
-  const total = Number(l.totalCost) || Number(l.unitCost) * l.quantity;
+  const amt = saleAmounts(l);
+  const total = amt.gross.toNumber();
   const isSiteSale = soldToSite(l);
   const currentSaleStatus = l.saleStatus ?? "paid";
   const paid = Number(l.paidAmount ?? (currentSaleStatus === "unpaid" ? 0 : total));
@@ -712,9 +722,9 @@ function SoldMaterialDetailModal({
       </div>
 
       <div className="mb-6 border-b border-black/10 pb-4">
-        <p className="kicker">Total Sale Amount</p>
+        <p className="kicker">Total Sale Amount (incl. VAT)</p>
         <p className="mt-1 font-mono text-2xl font-medium tracking-tight text-ok">
-          {etb(total)}
+          {etb(amt.gross.toFixed(2))}
         </p>
       </div>
 
@@ -752,8 +762,16 @@ function SoldMaterialDetailModal({
           value={<span className="font-mono text-xs">{etb(l.unitCost)}</span>}
         />
         <DetailRow
-          label="Total price"
-          value={<span className="font-mono text-xs">{etb(total)}</span>}
+          label="Total price (ex-VAT)"
+          value={<span className="font-mono text-xs">{etb(amt.net.toFixed(2))}</span>}
+        />
+        <DetailRow
+          label={l.vatExempt ? "VAT (exempt)" : `VAT ${VAT_RATE_PERCENT}%`}
+          value={<span className="font-mono text-xs">{etb(amt.vat.toFixed(2))}</span>}
+        />
+        <DetailRow
+          label="Total incl. VAT"
+          value={<span className="font-mono text-xs">{etb(amt.gross.toFixed(2))}</span>}
         />
         {isSiteSale ? (
           <DetailRow

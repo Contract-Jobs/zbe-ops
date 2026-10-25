@@ -1,5 +1,7 @@
 "use client";
 
+import { APPROVALS_VISIBLE } from "@/lib/features";
+import { NoAccess } from "@/components/NoAccess";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -10,65 +12,35 @@ import {
   isSiteManager,
   resetStore,
   switchLicense,
-  switchUser,
+  visibleSiteIds,
   useStore,
 } from "@/lib/store";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSession, signIn, signOut } from "@/lib/auth/client";
+import { useSession, signOut } from "@/lib/auth/client";
 
-const nav = [
+const nav: { href: string; label: string; adminOnly?: boolean }[] = [
   { href: "/", label: "Board" },
-  { href: "/approvals", label: "Approvals" },
+  ...(APPROVALS_VISIBLE ? [{ href: "/approvals", label: "Approvals" }] : []),
   { href: "/sites", label: "Sites" },
   // { href: "/tasks", label: "Tasks" },
   { href: "/materials", label: "Materials" },
   { href: "/inventory", label: "Inventory" },
   { href: "/equipment", label: "Equipment" },
   { href: "/rentals", label: "Rentals" },
-  { href: "/warehouses", label: "Warehouses" },
-  { href: "/tenders", label: "Tenders" },
+  // Site managers get warehouse names only and no tender access at all.
+  { href: "/warehouses", label: "Warehouses", adminOnly: true },
+  { href: "/tenders", label: "Tenders", adminOnly: true },
   { href: "/licenses", label: "Licenses" },
   { href: "/ledger", label: "Ledger" },
   { href: "/transactions", label: "Transactions" },
 ];
 
-const AUTH_PERSONAS = [
-  {
-    id: "usr_haile",
-    email: "haileabt@gmail.com",
-    pass: "Haile@zbe",
-    label: "Haile (Superadmin) · ops",
-    storeUserId: "usr_abebe",
-  },
-  {
-    id: "usr_abebe",
-    email: "abebe@zbe.com",
-    pass: "Password123!",
-    label: "Abebe Tadesse · ops",
-    storeUserId: "usr_abebe",
-  },
-  {
-    id: "usr_hana",
-    email: "hana@zbe.com",
-    pass: "Password123!",
-    label: "Hana Bekele · site (Westin)",
-    storeUserId: "usr_hana",
-  },
-  {
-    id: "usr_dawit",
-    email: "dawit@zbe.com",
-    pass: "Password123!",
-    label: "Dawit Mekonnen · site (EBC)",
-    storeUserId: "usr_dawit",
-  },
-];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const store = useStore();
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const { data: sessionData, isPending: sessionLoading } = useSession();
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const user = currentUser(store);
   const pending = store.approvals.filter((a) => a.status === "pending").length;
   const manager = isSiteManager(store);
@@ -128,7 +100,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </button>
         </div>
         <nav className="flex-1 overflow-y-auto px-3">
-          {nav.map((item) => {
+          {nav.filter((item) => !(manager && item.adminOnly)).map((item) => {
             const active =
               item.href === "/"
                 ? pathname === "/"
@@ -177,13 +149,13 @@ export function AppShell({ children }: { children: ReactNode }) {
           ) : null}
         </nav>
         <div className="px-5 py-4">
-          <button
+          {process.env.NEXT_PUBLIC_USE_DEMO === "true" && <button
             type="button"
             className="text-left font-mono text-[0.65rem] text-white/40 hover:text-yellow"
             onClick={() => resetStore()}
           >
             Reset demo data
-          </button>
+          </button>}
           <p className="mt-2 font-mono text-[0.65rem] leading-relaxed text-white/40">
             Warehouse movements wait in Approvals. Manual ledger entries post
             immediately.
@@ -229,30 +201,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                     Sign out
                   </button>
                 </>
-              ) : (
-                <button
-                  type="button"
-                  className="btn text-xs py-1 px-2.5 font-mono"
-                  disabled={isAuthenticating}
-                  onClick={async () => {
-                    setIsAuthenticating(true);
-                    try {
-                      await signIn.email({
-                        email: "haileabt@gmail.com",
-                        password: "Haile@zbe",
-                      });
-                      await queryClient.invalidateQueries();
-                    } catch {
-                      // ignore
-                    } finally {
-                      setIsAuthenticating(false);
-                    }
-                  }}
-                >
-                  {isAuthenticating ? "Connecting..." : "Connect DB"}
-                </button>
-              )}
-              {pending > 0 ? (
+              ) : null}
+              {APPROVALS_VISIBLE && pending > 0 ? (
                 <Link
                   href="/approvals"
                   className="shrink-0 bg-yellow px-2 py-1 font-mono text-[0.7rem] text-white lg:hidden"
@@ -277,45 +227,17 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </option>
               ))}
             </select>
-            <select
-              className="field min-w-[11rem] flex-1 bg-white sm:flex-none sm:min-w-[14rem]"
-              value={
-                AUTH_PERSONAS.find(
-                  (p) => p.email === sessionData?.user?.email,
-                )?.id ?? store.session.userId
-              }
-              onChange={async (e) => {
-                const targetId = e.target.value;
-                const persona = AUTH_PERSONAS.find((p) => p.id === targetId);
-                if (persona) {
-                  switchUser(persona.storeUserId);
-                  try {
-                    await signIn.email({
-                      email: persona.email,
-                      password: persona.pass,
-                    });
-                    await queryClient.invalidateQueries();
-                  } catch {
-                    // fallback to local switch
-                  }
-                } else {
-                  switchUser(targetId);
-                }
-              }}
-            >
-              {AUTH_PERSONAS.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
             <span className="hidden items-center font-mono text-[0.7rem] text-black/45 lg:inline">
               {sessionData?.user ? sessionData.user.email : user.id}
             </span>
           </div>
         </header>
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 sm:py-8">
-          {children}
+          {manager && process.env.NEXT_PUBLIC_USE_DEMO !== "true" && visibleSiteIds(store).size === 0 ? (
+            <NoAccess title="No site assigned">Ask an administrator to assign you a site.</NoAccess>
+          ) : (
+            children
+          )}
         </main>
       </div>
     </div>

@@ -17,6 +17,7 @@ import type {
   Session,
   Site,
   Task,
+  Role,
   Tender,
   Transaction,
   User,
@@ -126,7 +127,9 @@ function emit() {
 
 export function hydrateStore() {
   const loaded = load();
-  state = loaded;
+  // Real mode: the store holds no data of its own, but it does hold the
+  // signed-in user synced from the auth session. Resetting must not drop it.
+  state = isDemoMode() ? loaded : { ...loaded, session: { ...loaded.session, userId: state.session.userId }, users: state.users };
   listeners.forEach((fn) => fn());
 }
 
@@ -150,25 +153,54 @@ export function useStore(): Store {
   return useSyncExternalStore(subscribe, getStore, getStore);
 }
 
+const isDemoMode = () => process.env.NEXT_PUBLIC_USE_DEMO === "true";
+
+// A known role, or null. The API refuses every call from an account whose role
+// is missing or unknown, so null means "no access" (never "site manager").
+export function normalizeRole(role: string | null | undefined): Role | null {
+  return role === "admin" || role === "superadmin" || role === "site_manager" ? role : null;
+}
+
 export function currentUser(store: Store = state): User {
   const user = store.users.find((u) => u.id === store.session.userId);
-  if (!user) {
-    // Return a dummy admin user if missing to prevent crashes in production when store is empty
-    return {
-      id: "usr_abebe",
-      name: "Admin",
-      email: "admin@example.com",
-      role: "admin",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      banned: false,
-    } as unknown as User;
-  }
-  return user;
+  if (user) return user;
+  // No signed-in user known yet. Demo mode keeps its seeded admin; against the
+  // real backend fail closed (least privilege) instead of showing admin tools.
+  return {
+    id: store.session.userId,
+    name: isDemoMode() ? "Admin" : "",
+    role: isDemoMode() ? "admin" : "site_manager",
+    siteIds: [],
+  } as unknown as User;
 }
 
 export function isSiteManager(store: Store = state): boolean {
   return currentUser(store).role === "site_manager";
+}
+
+// Mirror the real signed-in user (role from the auth session, sites from the
+// sites they manage) into the store so every `currentUser(store)` /
+// `isSiteManager(store)` check reflects the actual account.
+export function syncSessionUser(
+  user: { id: string; name?: string | null; role?: string | null },
+  siteIds: string[],
+) {
+  if (isDemoMode()) return;
+  const role = normalizeRole(user.role);
+  if (!role) return;
+  const prev = state.users.find((u) => u.id === user.id);
+  const same =
+    state.session.userId === user.id &&
+    prev?.role === role &&
+    prev.name === (user.name ?? "") &&
+    prev.siteIds.length === siteIds.length &&
+    prev.siteIds.every((id, i) => id === siteIds[i]);
+  if (same) return;
+  set((current) => ({
+    ...current,
+    session: { ...current.session, userId: user.id },
+    users: [{ id: user.id, name: user.name ?? "", role, siteIds } as unknown as User],
+  }));
 }
 
 export function visibleSites(store: Store = state): Site[] {
@@ -183,7 +215,11 @@ export function visibleSites(store: Store = state): Site[] {
   return list;
 }
 
+// Sites a site manager may use. Real mode: the sites whose managerId is the
+// user (synced above), since the store holds no site records there.
 export function visibleSiteIds(store: Store = state): Set<string> {
+  const user = currentUser(store);
+  if (user.role === "site_manager") return new Set(user.siteIds);
   return new Set(visibleSites(store).map((s) => s.id));
 }
 

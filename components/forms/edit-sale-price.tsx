@@ -7,6 +7,8 @@ import { ModalPanel, Username } from "@/components/ui";
 import { useUpdateSalePrice } from "@/hooks/use-inventory-movements";
 import { ApiError } from "@/lib/api/client";
 import { day, etb, qtyNum } from "@/lib/format";
+import { CostSummary } from "@/components/forms/cost-summary";
+import { amountToSend, saleAmounts, withVat } from "@/lib/vat";
 import type { InventoryMovement } from "@/types/api";
 
 // Only a live sale can be re-priced.
@@ -68,20 +70,30 @@ export function EditSalePriceModal({
   onClose: () => void;
 }) {
   const [unitCost, setUnitCost] = useState(Number(movement.unitCost).toFixed(2));
+  // Frontend only: unchecked = the price typed is before VAT (what the API takes).
+  const [includesTax, setIncludesTax] = useState(false);
+  const [vatExempt, setVatExempt] = useState(Boolean(movement.vatExempt));
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const mutation = useUpdateSalePrice();
 
   const isSiteSale = Boolean(movement.isInternal || movement.buyerSiteId);
-  const parsed = /^\d+(\.\d{1,2})?$|^\.\d{1,2}$/.test(unitCost.trim()) ? new Decimal(unitCost.trim()) : null;
-  const newTotal = parsed ? parsed.times(movement.quantity) : null;
+  const itemExempt = Boolean(movement.item?.vatExempt);
+  const noVat = vatExempt || itemExempt;
+  // What the API gets: the price per unit before VAT.
+  const sendPrice = amountToSend("sale", unitCost, includesTax, noVat);
+  const parsed = sendPrice && /^\d+(\.\d{1,2})?$|^\.\d{1,2}$/.test(sendPrice) ? new Decimal(sendPrice) : null;
+  const newNet = parsed ? parsed.times(movement.quantity) : null;
+  // Mirrors the server: VAT on the new net total, 0% when the sale is exempt.
+  const newAmounts = newNet ? withVat(newNet.toFixed(2), noVat) : null;
+  const current = saleAmounts(movement);
   // A site never has a per-sale paid amount — its payments live in the account.
   const paid = !isSiteSale && movement.paidAmount != null ? new Decimal(movement.paidAmount) : null;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!parsed || !newTotal) {
+    if (!parsed || !newAmounts) {
       setError("Enter a price with at most 2 decimals.");
       return;
     }
@@ -89,12 +101,18 @@ export function EditSalePriceModal({
       setError("Price must be greater than 0.");
       return;
     }
-    if (paid && newTotal.lt(paid)) {
+    if (paid && newAmounts.gross.lt(paid)) {
       setError(CLIENT_PAID_MSG);
       return;
     }
     try {
-      await mutation.mutateAsync({ id: movement.id, unitCost: parsed.toFixed(2), reason });
+      await mutation.mutateAsync({
+        id: movement.id,
+        unitCost: parsed.toFixed(2),
+        reason,
+        // Only sent when the user changed it.
+        vatExempt: vatExempt !== Boolean(movement.vatExempt) ? vatExempt : undefined,
+      });
       toast.success("Sale price updated.");
       onClose();
     } catch (err) {
@@ -133,11 +151,20 @@ export function EditSalePriceModal({
             disabled={mutation.isPending}
           />
         </label>
+        <CostSummary
+          kind="sale"
+          amount={unitCost}
+          quantity={movement.quantity}
+          includesTax={includesTax}
+          onIncludesTaxChange={setIncludesTax}
+          noVat={vatExempt}
+          onNoVatChange={setVatExempt}
+          itemExempt={itemExempt}
+          disabled={mutation.isPending}
+        />
         <dl className="mb-3 grid grid-cols-2 gap-2 border border-black/10 p-3 text-sm">
-          <dt className="text-black/60">Current total</dt>
-          <dd className="text-right font-mono">{etb(movement.totalCost)}</dd>
-          <dt className="text-black/60">New total</dt>
-          <dd className="text-right font-mono">{newTotal ? etb(newTotal.toFixed(2)) : "—"}</dd>
+          <dt className="text-black/60">Current total (incl. VAT)</dt>
+          <dd className="text-right font-mono">{etb(current.gross.toFixed(2))}</dd>
           {paid ? (
             <>
               <dt className="text-black/60">Already paid</dt>

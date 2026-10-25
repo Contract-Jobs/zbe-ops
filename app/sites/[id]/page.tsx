@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NoAccess } from "@/components/NoAccess";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
@@ -24,7 +25,6 @@ import {
 import { day, etb, stamp, qtyNum } from "@/lib/format";
 import {
   addTask,
-  claimTask,
   completeTask,
   currentUser,
   isSiteManager,
@@ -41,8 +41,8 @@ import {
   useSiteBulkEquipment,
   useCreateSiteTask,
   useUpdateSiteTask,
-  useClaimSiteTask,
   useCompleteSiteTask,
+  useUncompleteSiteTask,
   useDeleteSiteTask,
   useSiteLifecycle,
   useDeleteSite,
@@ -59,6 +59,7 @@ import { TransactionForm } from "@/components/forms/transaction";
 import { InventoryAdjustForm } from "@/components/forms/inventory-adjust";
 import { BalanceHistoryPanel } from "@/components/BalanceHistory";
 import { LedgerToolsPanel } from "@/components/LedgerTools";
+import { SiteBomExport } from "@/components/SiteBomExport";
 import { MarketValueCells, MarketValueModal } from "@/components/MarketValue";
 import { RowActions } from "@/components/RowActions";
 import { ListToolbar } from "@/components/ListToolbar";import type { Site, SiteTask, License, Transaction, TransactionCategory } from "@/types/api";
@@ -165,8 +166,8 @@ export default function SiteDetailPage() {
 
   const createSiteTaskMutation = useCreateSiteTask(id || "");
   const updateSiteTaskMutation = useUpdateSiteTask(id || "");
-  const claimSiteTaskMutation = useClaimSiteTask(id || "");
   const completeSiteTaskMutation = useCompleteSiteTask(id || "");
+  const uncompleteSiteTaskMutation = useUncompleteSiteTask(id || "");
   const deleteSiteTaskMutation = useDeleteSiteTask(id || "");
   const deleteSiteMutation = useDeleteSite();
   const reverseTransactionMutation = useReverseTransaction();
@@ -211,8 +212,12 @@ export default function SiteDetailPage() {
     return <p className="p-8 text-center text-sm text-black/50">Loading site...</p>;
   }
 
-  if (!site || (manager && !allowed.has(site.id))) {
-    return <p>Site not found, or you are not assigned to it.</p>;
+  // Not one of their sites: the API answers 403, so say that, not "not found".
+  if (manager && !allowed.has(id ?? "")) {
+    return <NoAccess>This site is not assigned to you.</NoAccess>;
+  }
+  if (!site) {
+    return <p>Site not found.</p>;
   }
 
   const tasks: SiteTask[] = tasksData?.data ??
@@ -247,12 +252,15 @@ export default function SiteDetailPage() {
     }
   };
 
-  const handleClaimTask = async (taskId: string, claimNotes?: string) => {
+  // Direct, no approval step. Review text is admin-only, so a site manager
+  // sends none.
+  const handleCompleteTask = async (taskId: string, reviewNotes?: string) => {
     try {
+      const review = canMutate ? reviewNotes?.trim() || "Approved" : undefined;
       if (tasksData) {
-        await claimSiteTaskMutation.mutateAsync({ taskId, notes: claimNotes || undefined });
+        await completeSiteTaskMutation.mutateAsync({ taskId, review });
       } else {
-        claimTask(taskId, claimNotes || undefined);
+        completeTask(taskId, review ?? "");
       }
       setTaskMode(closedMode());
     } catch {
@@ -260,13 +268,9 @@ export default function SiteDetailPage() {
     }
   };
 
-  const handleCompleteTask = async (taskId: string, reviewNotes?: string) => {
+  const handleReopenTask = async (taskId: string) => {
     try {
-      if (tasksData) {
-        await completeSiteTaskMutation.mutateAsync({ taskId, review: reviewNotes || "Approved" });
-      } else {
-        completeTask(taskId, reviewNotes || "Approved");
-      }
+      await uncompleteSiteTaskMutation.mutateAsync({ taskId });
       setTaskMode(closedMode());
     } catch {
       // Ignore
@@ -337,6 +341,7 @@ export default function SiteDetailPage() {
         action={
           <span className="flex flex-wrap items-center gap-2">
             <Stamp value={site.status} tone={statusTone(site.status)} />
+            <SiteBomExport siteId={id} siteName={site.name} nodeId={nodeId ?? undefined} />
             {canMutate ? (
               <RecordActions
                 onEdit={() => setMode({ kind: "edit", record: site })}
@@ -376,9 +381,9 @@ export default function SiteDetailPage() {
         </div>
       </div>
       {addTxOpen ? (
-        <FormPanel kicker="Money" title="Log Manual Transaction" onClose={() => setAddTxOpen(false)}>
+        <ModalPanel kicker="Money" title="Log Manual Transaction" onClose={() => setAddTxOpen(false)}>
           <TransactionForm initialSiteId={site.id} onDone={() => setAddTxOpen(false)} />
-        </FormPanel>
+        </ModalPanel>
       ) : null}
 
       <div className="grid gap-px bg-black/10 sm:grid-cols-2 lg:grid-cols-4">
@@ -530,26 +535,8 @@ export default function SiteDetailPage() {
               </div>
             </FormPanel>
           ) : null}
-          {taskMode.kind === "claim" && taskMode.record ? (
-            <FormPanel kicker="Task" title="Claim Completion" onClose={() => setTaskMode(closedMode())}>
-              <form
-                className="grid gap-3"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const fd = new FormData(e.currentTarget);
-                  handleClaimTask(taskMode.record!.id, fd.get("notes") as string);
-                }}
-              >
-                <label className="block text-sm">
-                  Completion Notes
-                  <textarea className="field mt-1 min-h-24" name="notes" placeholder="Describe the completion..." />
-                </label>
-                <FormActions saveLabel="Claim Completion" onCancel={() => setTaskMode(closedMode())} loading={claimSiteTaskMutation.isPending} />
-              </form>
-            </FormPanel>
-          ) : null}
           {taskMode.kind === "complete" && taskMode.record ? (
-            <FormPanel kicker="Task" title="Approve Completion" onClose={() => setTaskMode(closedMode())}>
+            <FormPanel kicker="Task" title="Complete task" onClose={() => setTaskMode(closedMode())}>
               <form
                 className="grid gap-3"
                 onSubmit={(e) => {
@@ -558,14 +545,26 @@ export default function SiteDetailPage() {
                   handleCompleteTask(taskMode.record!.id, fd.get("review") as string);
                 }}
               >
-                <label className="block text-sm">
-                  Review Notes
-                  <textarea className="field mt-1 min-h-24" name="review" placeholder="Approve the completion..." />
-                </label>
-                <FormActions saveLabel="Approve Completion" onCancel={() => setTaskMode(closedMode())} loading={completeSiteTaskMutation.isPending} />
+                <p className="text-sm text-black/70">Mark &ldquo;{taskMode.record.title}&rdquo; as complete.</p>
+                {canMutate ? (
+                  <label className="block text-sm">
+                    Review notes (optional)
+                    <textarea className="field mt-1 min-h-24" name="review" placeholder="Anything to record about the completion..." />
+                  </label>
+                ) : null}
+                <FormActions saveLabel="Complete" onCancel={() => setTaskMode(closedMode())} loading={completeSiteTaskMutation.isPending} />
               </form>
             </FormPanel>
           ) : null}
+          <ConfirmDialog
+            open={taskMode.kind === "reopen"}
+            title="Re-open this task?"
+            body="The task goes back to open and its completion is cleared. Notes are kept, and it can be completed again."
+            confirmLabel="Re-open"
+            loading={uncompleteSiteTaskMutation.isPending}
+            onCancel={() => setTaskMode(closedMode())}
+            onConfirm={() => taskMode.kind === "reopen" && handleReopenTask(taskMode.record.id)}
+          />
           <TableWrap pagination={tasksData?.pagination} onPageChange={setTaskPage}>
             <table className="data">
               <thead>
@@ -592,32 +591,28 @@ export default function SiteDetailPage() {
                     </td>
                     <td className="text-right">
                       <div className="flex flex-wrap items-center justify-end gap-2">
-                        {(getTaskStatus(task) === "open") &&
-                          user?.role === "site_manager" &&
-                          !isClosed ? (
+                        {getTaskStatus(task) !== "completed" && !isClosed ? (
                           <button
                             type="button"
-                            disabled={isClosed}
                             className="btn"
-                            onClick={() => setTaskMode({ kind: "claim", record: task })}
-                          >
-                            Claim Completion
-                          </button>
-                        ) : null}
-                        {getTaskStatus(task) === "claimed" && (user?.role === "admin" || user?.role === "superadmin") ? (
-                          <button
-                            type="button"
-                            disabled={isClosed}
-                            className="btn btn-ghost"
                             onClick={() => setTaskMode({ kind: "complete", record: task })}
                           >
-                            Approve Complete
+                            Complete
+                          </button>
+                        ) : null}
+                        {getTaskStatus(task) === "completed" && !isClosed ? (
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() => setTaskMode({ kind: "reopen", record: task })}
+                          >
+                            Re-open
                           </button>
                         ) : null}
                         <button type="button" className="btn btn-ghost" onClick={() => setTaskMode({ kind: "view", record: task })}>View</button>
                         <RecordActions
                           onEdit={() => setTaskMode({ kind: "edit", record: task, })} editDisabled={isClosed}
-                          onDelete={() => setTaskMode({ kind: "delete", record: task, label: task.title })} deleteDisabled={isClosed}
+                          onDelete={canMutate ? () => setTaskMode({ kind: "delete", record: task, label: task.title }) : undefined} deleteDisabled={isClosed}
                         />
                       </div>
                     </td>
@@ -857,7 +852,7 @@ export default function SiteDetailPage() {
                     <th className="hidden md:table-cell">Category</th>
                     <th>Type</th>
                     <th>Amount</th>
-                    {canMutate && <th></th>}
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -875,7 +870,7 @@ export default function SiteDetailPage() {
                           {t.isReversal ? <span className="ml-2"><Stamp value="reversal" tone="bad" /></span> : null}
                         </td>
                         <td className="whitespace-nowrap font-mono text-sm">{etb(Number(t.amount) || 0)}</td>
-                        {canMutate && (
+                        {(
                           <td className="text-right">
                             {canReverse ? (
                               <button
@@ -893,7 +888,7 @@ export default function SiteDetailPage() {
                   })}
                   {transactions.length === 0 ? (
                     <tr>
-                      <td colSpan={canMutate ? 5 : 4} className="py-8 text-center text-sm text-black/45">
+                      <td colSpan={5} className="py-8 text-center text-sm text-black/45">
                         No transactions found for this site.
                       </td>
                     </tr>

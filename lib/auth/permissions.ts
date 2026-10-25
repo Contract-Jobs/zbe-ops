@@ -37,6 +37,36 @@ export function canEditSalePrice(role: Role | null | undefined): boolean {
   return isAdmin(role);
 }
 
+// access-control.md §7: the API lets any role reverse a movement or record a
+// payment on a client sale (no site check), so the UI keeps these to admins.
+export function canReverseMovement(role: Role | null | undefined): boolean {
+  return isAdmin(role);
+}
+
+export function canRecordSalePayment(role: Role | null | undefined): boolean {
+  return isAdmin(role);
+}
+
+// Sales leave a warehouse: a site manager can never create one.
+export function canCreateSale(role: Role | null | undefined): boolean {
+  return isAdmin(role);
+}
+
+// Site accounts: registering/reversing site payments, mark-paid, receivables.
+export function canManageSiteAccounts(role: Role | null | undefined): boolean {
+  return isAdmin(role);
+}
+
+// /analytics/sales, /analytics/vat, /analytics/company.
+export function canViewCompanyAnalytics(role: Role | null | undefined): boolean {
+  return isAdmin(role);
+}
+
+// Rebuild / backfill tools (inventory-balances, equipment-states).
+export function isSuperadmin(role: Role | null | undefined): boolean {
+  return role === "superadmin";
+}
+
 export function canManageMasterData(role: Role | null | undefined): boolean {
   return isAdmin(role);
 }

@@ -120,8 +120,8 @@ export function useReverseInventoryMovementPayment() {
 export function useUpdateSalePrice() {
     const queryClient = useQueryClient()
     return useMutation({
-        mutationFn: ({ id, unitCost, reason }: { id: string; unitCost: string; reason?: string }) =>
-            movementsApi.updateInventoryMovementPrice(id, { unitCost, reason: reason?.trim() || undefined }),
+        mutationFn: ({ id, unitCost, reason, vatExempt }: { id: string; unitCost: string; reason?: string; vatExempt?: boolean }) =>
+            movementsApi.updateInventoryMovementPrice(id, { unitCost, reason: reason?.trim() || undefined, vatExempt }),
         onSuccess: ({ data: movement }) => {
             queryClient.invalidateQueries({ queryKey: queryKeys.inventoryMovements.all })
             queryClient.invalidateQueries({ queryKey: queryKeys.inventoryMovements.payments(movement.id) })

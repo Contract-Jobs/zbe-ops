@@ -5,6 +5,7 @@ import { useState, useMemo } from "react";
 import { RowActions } from "@/components/RowActions";
 import { PageHead, TableWrap, Stamp, ModalPanel, Tabs } from "@/components/ui";
 import { QueryFilters, type QueryFilterValues } from "@/components/QueryFilters";
+import { NoAccess } from "@/components/NoAccess";
 import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
 import { useInventoryNode, useInventoryMaterials, useInventoryIndividualEquipment, useInventoryBulkEquipment } from "@/hooks/use-inventories";
 import { EquipmentMovementForm } from "@/components/forms/equipment-movement";
@@ -19,6 +20,22 @@ import type { QuantityMovementType } from "@/types/api";
 
 export default function InventoryLocationPage() {
   const { id } = useParams<{ id: string }>();
+  const store = useStore();
+  const manager = isSiteManager(store);
+  const { data, isLoading, isError } = useInventoryNode(id);
+
+  // A site manager may open their own sites' stock only. A warehouse (names
+  // only) or another site is refused, so those pages are never drawn.
+  if (manager) {
+    if (isLoading) return <p className="p-8 text-center text-sm text-black/50">Loading...</p>;
+    if (isError || !data?.data || data.data.inventoryType === "warehouse") {
+      return <NoAccess>Stock is shown for your own sites only.</NoAccess>;
+    }
+  }
+  return <InventoryLocationView id={id} />;
+}
+
+function InventoryLocationView({ id }: { id: string }) {
   const store = useStore();
   const manager = isSiteManager(store);
   const allowedSites = visibleSiteIds(store);

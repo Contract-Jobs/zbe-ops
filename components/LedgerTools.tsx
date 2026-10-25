@@ -1,5 +1,6 @@
 "use client";
 
+import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { useState } from "react";
 import { ConfirmDialog, Stamp, TableWrap } from "@/components/ui";
 import { etb } from "@/lib/format";
@@ -67,16 +68,16 @@ export function LedgerToolsPanel({ siteId, canRebuild }: { siteId: string; canRe
 
       <div>
         <p className="kicker mb-2">Cost breakdown</p>
-        <div className="mb-3 flex flex-wrap gap-2">
-          <label className="block text-sm">
-            From
-            <input type="date" className="field mt-1" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          </label>
-          <label className="block text-sm">
-            To
-            <input type="date" className="field mt-1" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-          </label>
-        </div>
+        <DateRangeFilter
+          className="mb-3"
+          label="Date"
+          from={dateFrom}
+          to={dateTo}
+          onChange={(from, to) => {
+            setDateFrom(from);
+            setDateTo(to);
+          }}
+        />
         {isBreakdownLoading && !breakdownData ? (
           <p className="text-sm text-black/50">Loading...</p>
         ) : breakdown && breakdown.byCategory.length > 0 ? (

@@ -11,6 +11,7 @@ import { useStore, currentUser } from "@/lib/store";
 import { EditSalePriceModal, PriceHistory, canEditPrice } from "@/components/forms/edit-sale-price";
 import { SaleCogs } from "@/components/SaleCogs";
 import { canEditSalePrice } from "@/lib/auth/permissions";
+import { useOriginCheck } from "@/hooks/use-origin";
 import { QUANTITY_MOVEMENT_LABELS } from "@/lib/movement-labels";
 import type { InventoryMovement, License } from "@/types/api";
 
@@ -31,6 +32,7 @@ export function BalanceHistoryPanel({
   unit: string;
 }) {
   const store = useStore();
+
   const { data, isLoading } = useBalanceMovements({ itemId, inventoryId, includeReversed: false });
   const reverseMutation = useReverseInventoryMovement();
   const [reversingId, setReversingId] = useState<string | null>(null);
@@ -41,6 +43,10 @@ export function BalanceHistoryPanel({
   const movements = [...(data?.data ?? [])].sort(
     (a, b) => new Date(b.movementDate).getTime() - new Date(a.movementDate).getTime()
   );
+
+  // Admins reverse any movement; a site manager only those that started at
+  // one of their own sites (never a warehouse sale).
+  const mayReverse = useOriginCheck(movements);
 
   const inventoryIds = useMemo(() => {
     const ids: string[] = [];
@@ -140,7 +146,7 @@ export function BalanceHistoryPanel({
               </thead>
               <tbody>
                 {pageRows.map((m) => {
-                  const canReverse = m.id === topMovementId && !m.isReversed && !m.isReversal;
+                  const canReverse = mayReverse(m) && m.id === topMovementId && !m.isReversed && !m.isReversal;
                   const noteText = m.note || (m.metadata?.reason ? String(m.metadata.reason) : "");
                   return (
                     <tr
@@ -227,6 +233,7 @@ export function BalanceHistoryPanel({
                 : undefined
             }
             canReverse={
+              mayReverse(selectedMovement) &&
               selectedMovement.id === topMovementId &&
               !selectedMovement.isReversed &&
               !selectedMovement.isReversal
@@ -312,6 +319,11 @@ function MovementDetailModal({
             </span>
           ) : null}
         </div>
+        {m.movementType === "purchase" && m.grossTotal != null ? (
+          <p className="mt-1 font-mono text-xs text-black/50">
+            {m.vatExempt ? "No VAT charged" : `of which VAT: ${etb(m.vatAmount)}`}
+          </p>
+        ) : null}
       </div>
 
       <dl className="grid grid-cols-1 gap-x-8 gap-y-4 border border-black/10 p-4 text-sm sm:grid-cols-2 sm:p-5">

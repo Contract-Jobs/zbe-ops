@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query"
+import { useQueries, useQuery } from "@tanstack/react-query"
 import * as analyticsApi from "@/lib/api/analytics"
 import { queryKeys } from "@/lib/query/keys"
 
@@ -7,11 +7,15 @@ import { queryKeys } from "@/lib/query/keys"
 // not row-level data someone's actively editing.
 const ANALYTICS_STALE_TIME = 2 * 60 * 1000
 
-export function useSpendAnalytics(params: Parameters<typeof analyticsApi.getSpendAnalytics>[0] = {}) {
+export function useSpendAnalytics(
+    params: Parameters<typeof analyticsApi.getSpendAnalytics>[0] = {},
+    options: { enabled?: boolean } = {},
+) {
     return useQuery({
         queryKey: queryKeys.analytics.spend(params),
         queryFn: () => analyticsApi.getSpendAnalytics(params),
         staleTime: ANALYTICS_STALE_TIME,
+        enabled: options.enabled ?? true,
     })
 }
 
@@ -43,11 +47,17 @@ export function useBudgetHealth(params: Parameters<typeof analyticsApi.getBudget
     })
 }
 
-export function useLicenseAnalytics(params: Parameters<typeof analyticsApi.getLicenseAnalytics>[0] = {}) {
+// Company money per license: admin only (403 for a site manager), so callers
+// pass enabled: false for them.
+export function useLicenseAnalytics(
+    params: Parameters<typeof analyticsApi.getLicenseAnalytics>[0] = {},
+    options: { enabled?: boolean } = {},
+) {
     return useQuery({
         queryKey: queryKeys.analytics.licenses(params),
         queryFn: () => analyticsApi.getLicenseAnalytics(params),
         staleTime: ANALYTICS_STALE_TIME,
+        enabled: options.enabled ?? true,
     })
 }
 
@@ -72,4 +82,28 @@ export function useCompanyFinancials(params: Parameters<typeof analyticsApi.getC
         queryFn: () => analyticsApi.getCompanyFinancials(params),
         staleTime: ANALYTICS_STALE_TIME,
     })
+}
+
+// Admin/superadmin only.
+export function useVatReport(params: Parameters<typeof analyticsApi.getVatReport>[0] = {}) {
+    return useQuery({
+        queryKey: queryKeys.analytics.vat(params),
+        queryFn: () => analyticsApi.getVatReport(params),
+        staleTime: ANALYTICS_STALE_TIME,
+    })
+}
+
+// Budget health that is safe for either role. An admin asks once for every
+// site. A site manager's call without a siteId only answers for their first
+// site (and is refused with no site at all), so it asks per own site and merges.
+export function useScopedBudgetHealth(scope: { manager: boolean; siteIds: string[] }) {
+    const targets: { siteId?: string }[] = scope.manager ? scope.siteIds.map((siteId) => ({ siteId })) : [{}]
+    const results = useQueries({
+        queries: targets.map((params) => ({
+            queryKey: queryKeys.analytics.budgetHealth(params),
+            queryFn: () => analyticsApi.getBudgetHealth(params),
+            staleTime: ANALYTICS_STALE_TIME,
+        })),
+    })
+    return { data: results.flatMap((r) => r.data?.data ?? []) }
 }

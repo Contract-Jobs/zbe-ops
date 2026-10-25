@@ -80,6 +80,10 @@ export function reverseInventoryMovementPayment(id: string, paymentId: string, p
 
 // Admin/superadmin only. Sales only (not reversed, not a reversal). Changes
 // unitCost/totalCost/saleStatus; stock and COGS stay as they were.
-export function updateInventoryMovementPrice(id: string, payload: { unitCost: string; reason?: string }) {
+export function updateInventoryMovementPrice(
+    id: string,
+    // vatExempt: charge 0% VAT on this sale (or false to charge it again).
+    payload: { unitCost: string; reason?: string; vatExempt?: boolean },
+) {
     return apiClient.patch<InventoryMovement>(`/api/inventory-movements/${id}`, payload)
 }

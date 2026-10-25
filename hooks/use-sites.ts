@@ -185,13 +185,24 @@ export function useClaimSiteTask(siteId: string) {
   });
 }
 
-// Complete is a direct Admin action, not approval-gated — no
-// onActionSettled needed, just refresh this site's tasks/summary.
+// Complete is direct (no approval step) for a site manager on their own site
+// and for admins on any — just refresh this site's tasks/summary.
 export function useCompleteSiteTask(siteId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ taskId, review }: { taskId: string; review?: string }) =>
       sitesApi.completeSiteTask(siteId, taskId, { review }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sites.tasksAll(siteId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.sites.summary(siteId) });
+    },
+  });
+}
+
+export function useUncompleteSiteTask(siteId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ taskId }: { taskId: string }) => sitesApi.uncompleteSiteTask(siteId, taskId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.sites.tasksAll(siteId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.sites.summary(siteId) });

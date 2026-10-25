@@ -169,5 +169,6 @@ export const queryKeys = {
     licenses: (params?: unknown) => ["analytics", "licenses", params] as const,
     sales: (params?: unknown) => ["analytics", "sales", params] as const,
     company: (params?: unknown) => ["analytics", "company", params] as const,
+    vat: (params?: unknown) => ["analytics", "vat", params] as const,
   },
 };

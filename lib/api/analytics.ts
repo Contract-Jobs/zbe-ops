@@ -7,6 +7,7 @@ import type {
     LicenseAnalytics,
     SalesAnalytics,
     CompanyFinancialSummary,
+    VatReport,
 } from "@/types/api"
 
 interface DateRangeParams {
@@ -61,4 +62,9 @@ export function getSalesAnalytics(
 // New in v2, admin/superadmin only — no legacy equivalent.
 export function getCompanyFinancials(params: { licenseId?: string } & DateRangeParams = {}) {
     return apiClient.get<CompanyFinancialSummary>("/api/analytics/company", toSearchParams(params))
+}
+
+// Admin/superadmin only.
+export function getVatReport(params: { warehouseId?: string; licenseId?: string } & DateRangeParams = {}) {
+    return apiClient.get<VatReport>("/api/analytics/vat", toSearchParams(params))
 }

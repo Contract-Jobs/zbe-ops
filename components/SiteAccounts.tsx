@@ -1,5 +1,6 @@
 "use client";
 
+import Decimal from "decimal.js";
 import Link from "next/link";
 import { useState } from "react";
 import { RegisterSitePaymentForm } from "@/components/forms/site-payment";
@@ -9,6 +10,7 @@ import { SortSelect, type SortState } from "@/components/SortSelect";
 import { ConfirmDialog, ModalPanel, Stamp, TableWrap, Username } from "@/components/ui";
 import { useReverseSitePayment, useWarehouseSitePayments } from "@/hooks/use-warehouses";
 import { day, etb } from "@/lib/format";
+import { VAT_RATE_PERCENT, accountAmounts } from "@/lib/vat";
 import type { AccountRow, SitePayment } from "@/types/api";
 
 export type PaymentSortBy = "paymentDate" | "amount" | "createdAt";
@@ -58,6 +60,10 @@ export function SiteAccountsSection({
   const [historyFor, setHistoryFor] = useState<AccountRow | null>(null);
 
   const owed = accounts.reduce((sum, a) => sum + Number(a.outstanding), 0);
+  const soldNet = accounts.reduce((sum, a) => sum.plus(accountAmounts(a).net), new Decimal(0));
+  const soldVat = accounts.reduce((sum, a) => sum.plus(accountAmounts(a).vat), new Decimal(0));
+  const soldGross = soldNet.plus(soldVat);
+  const splitKnown = accounts.every((a) => accountAmounts(a).known);
 
   return (
     <section className="mb-10">
@@ -66,6 +72,11 @@ export function SiteAccountsSection({
         {accounts.length > 0 ? (
           <p className="text-sm text-black/60">
             Sites owe this warehouse <span className="font-mono">{etb(owed)}</span>
+            <span className="text-black/40">
+              {splitKnown
+                ? ` · sold ${etb(soldNet.toFixed(2))} + VAT ${etb(soldVat.toFixed(2))} = ${etb(soldGross.toFixed(2))}`
+                : ` · sold ${etb(soldGross.toFixed(2))} incl. VAT`}
+            </span>
           </p>
         ) : null}
       </div>
@@ -81,10 +92,12 @@ export function SiteAccountsSection({
               <tr>
                 <th>Site</th>
                 <th className="hidden sm:table-cell">Sales</th>
-                <th>Sold</th>
+                <th className="hidden md:table-cell">Sold <span className="font-normal normal-case text-black/40">ex-VAT</span></th>
+                <th className="hidden md:table-cell">VAT {VAT_RATE_PERCENT}%</th>
+                <th>Total <span className="font-normal normal-case text-black/40">incl. VAT</span></th>
                 <th>Paid</th>
                 <th>Outstanding</th>
-                <th className="hidden md:table-cell">Marked paid</th>
+                <th className="hidden xl:table-cell">Marked paid</th>
                 <th></th>
               </tr>
             </thead>
@@ -97,12 +110,14 @@ export function SiteAccountsSection({
                     </Link>
                   </td>
                   <td className="hidden font-mono text-sm sm:table-cell">{a.saleCount}</td>
+                  <td className="hidden font-mono text-sm md:table-cell">{accountAmounts(a).known ? etb(accountAmounts(a).net.toFixed(2)) : "—"}</td>
+                  <td className="hidden font-mono text-sm md:table-cell">{accountAmounts(a).known ? etb(accountAmounts(a).vat.toFixed(2)) : "—"}</td>
                   <td className="font-mono text-sm">{etb(a.sold)}</td>
                   <td className="font-mono text-sm">{etb(a.paid)}</td>
                   <td className={`font-mono text-sm ${Number(a.outstanding) > 0 ? "text-bad" : ""}`}>
                     {etb(a.outstanding)}
                   </td>
-                  <td className="hidden font-mono text-xs text-black/60 md:table-cell">
+                  <td className="hidden font-mono text-xs text-black/60 xl:table-cell">
                     {etb(a.markedPaidTotal)} of {etb(a.sold)}
                   </td>
                   <td className="whitespace-nowrap text-right">
@@ -126,7 +141,8 @@ export function SiteAccountsSection({
         </TableWrap>
       )}
       <p className="mt-2 text-xs text-black/50">
-        The balance is sold minus paid. &ldquo;Marked paid&rdquo; is a manual label you can tick on the sales below to
+        Totals include {VAT_RATE_PERCENT}% VAT, and so do payments: the balance is the total minus paid.
+        &ldquo;Marked paid&rdquo; is a manual label you can tick on the sales below to
         track items; it never changes the balance.
       </p>
 
@@ -194,7 +210,13 @@ function AccountPayments({
       <p className="mb-4 text-sm text-black/60">
         Balance <span className="font-mono">{etb(account.outstanding)}</span> · paid{" "}
         <span className="font-mono">{etb(account.paid)}</span> of{" "}
-        <span className="font-mono">{etb(account.sold)}</span>
+        <span className="font-mono">{etb(account.sold)}</span> incl. VAT
+        <span className="text-black/40">
+          {" "}
+          {accountAmounts(account).known
+            ? ` · ${etb(accountAmounts(account).net.toFixed(2))} + VAT ${etb(accountAmounts(account).vat.toFixed(2))}`
+            : ""}
+        </span>
       </p>
       <ListToolbar
         sort={

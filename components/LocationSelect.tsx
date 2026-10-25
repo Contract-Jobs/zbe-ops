@@ -20,8 +20,8 @@ export function LocationSelect({
   allowWarehouse?: boolean;
   allowSite?: boolean;
 }) {
-  const { data: sitesData } = useSites();
-  const { data: warehousesData } = useWarehouses();
+  const { data: sitesData } = useSites({ limit: 100 });
+  const { data: warehousesData } = useWarehouses({ limit: 50 });
 
   const options =
     kind === "warehouse"

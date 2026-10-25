@@ -15,6 +15,7 @@ export type RecordMode<T> =
   | { kind: "edit"; record: T }
   | { kind: "claim"; record: T }
   | { kind: "complete"; record: T }
+  | { kind: "reopen"; record: T }
   | { kind: "delete"; record: T; label: string };
 
 export function closedMode<T>(): RecordMode<T> {

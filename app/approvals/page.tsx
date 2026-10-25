@@ -160,7 +160,7 @@ export default function ApprovalsPage() {
         searchPlaceholder="Search notes"
         popover
         pinned={["search", "dateFrom", "dateTo"]}
-        labels={{ dateFrom: "Submitted from", dateTo: "Submitted to" }}
+        labels={{ dateFrom: "Submitted" }}
         fields={[
           "search",
           "approvalType",

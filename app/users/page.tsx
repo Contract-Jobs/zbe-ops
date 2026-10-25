@@ -15,10 +15,11 @@ import {
   DeleteConfirm,
   type RecordMode,
 } from "@/components/ui";
-import { useStore, isSiteManager } from "@/lib/store";
+import { useStore, isSiteManager, normalizeRole } from "@/lib/store";
+import { isSuperadmin } from "@/lib/auth/permissions";
 import { useUsers, useRemoveUser, useBanUser, useUnbanUser, useSetUserPassword } from "@/hooks/use-users";
 import { useSession } from "@/lib/auth/client";
-import type { User as ApiUser } from "@/types/api";
+import type { Site, User as ApiUser } from "@/types/api";
 
 function roleTone(role: string) {
   if (role === "superadmin") return "ok";
@@ -31,7 +32,7 @@ export default function UsersPage() {
   const { data: sessionData } = useSession();
 
   // Use session role if available, otherwise check if they are a site manager from store
-  const isManager = sessionData?.user?.role === "site_manager" || isSiteManager(store);
+  const isManager = normalizeRole(sessionData?.user?.role) === "site_manager" || isSiteManager(store);
 
   const [mode, setMode] = useState<
     | RecordMode<ApiUser>
@@ -75,9 +76,9 @@ export default function UsersPage() {
     );
   }
 
-  // Assume superadmin if the session role is superadmin, or if it's the specific seed user simulating superadmin
-  const canSetAdmin = sessionData?.user?.role === "superadmin" || sessionData?.user?.email === "haileabt@gmail.com";
-  const currentUserRole = sessionData?.user?.role || (store.session.userId === "usr_abebe" ? "admin" : "site_manager");
+  // Only the real session role counts; no role at all means site manager.
+  const currentUserRole = normalizeRole(sessionData?.user?.role);
+  const canSetAdmin = isSuperadmin(currentUserRole);
   const currentUserId = sessionData?.user?.id || store.session.userId;
 
   return (
@@ -243,6 +244,12 @@ export default function UsersPage() {
   );
 }
 
+const ASSIGN_PAGE_SIZE = 10;
+
+// Pick the sites a user manages. The list is paged and searchable on the
+// server, so every site is reachable; what the admin ticks is kept as a list of
+// changes (per site) and survives paging and searching. Nothing is sent until
+// "Save assignments".
 function AssignSitesModal({
   user,
   onCancel,
@@ -252,38 +259,38 @@ function AssignSitesModal({
   onCancel: () => void;
   onDone: () => void;
 }) {
-  const { data: sitesData, isLoading } = useSites();
+  const [page, setPage] = useState(1);
+  const [searchText, setSearchText] = useState("");
+  const [search, setSearch] = useState("");
+  // Narrow to the sites this user already manages (server-side filter).
+  const [onlyAssigned, setOnlyAssigned] = useState(false);
+  const { data: sitesData, isLoading, isFetching } = useSites({
+    page,
+    limit: ASSIGN_PAGE_SIZE,
+    search: search || undefined,
+    managerId: onlyAssigned ? user.id : undefined,
+  });
   const updateSiteMutation = useUpdateSite();
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const sites = sitesData?.data || [];
-  const store = useStore();
+  const sites = (sitesData?.data ?? []).filter((s) => !s.deletedAt);
+  const pagination = sitesData?.pagination;
 
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [initialized, setInitialized] = useState(false);
+  // Ticks the admin has changed, by site. A site not in here shows whatever
+  // the server says (managed by this user or not).
+  const [changes, setChanges] = useState<Map<string, { site: Site; selected: boolean }>>(new Map());
+  const isManagedByUser = (site: Site) => site.managerId === user.id;
+  const isSelected = (site: Site) => changes.get(site.id)?.selected ?? isManagedByUser(site);
 
-  // Initialize selected sites based on managerId in sites list or demo store
-  // We check site.managerId (API) or site.managerUserId (Store)
+  // Wait for a pause in typing before asking the server, and start from page 1.
   useEffect(() => {
-    if (initialized) return;
-    if (sites.length > 0) {
-      const initial = new Set(
-        sites
-          .filter((s: any) => s.managerId === user.id || s.managerUserId === user.id)
-          .map((s) => s.id)
-      );
-      setSelectedIds(initial);
-      setInitialized(true);
-    } else if (store.sites.length > 0) {
-      const initial = new Set(
-        store.sites
-          .filter((s: any) => s.managerUserId === user.id)
-          .map((s) => s.id)
-      );
-      setSelectedIds(initial);
-      setInitialized(true);
-    }
-  }, [sites, store.sites, user.id, initialized]);
+    const timer = setTimeout(() => {
+      setSearch(searchText.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchText]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -298,33 +305,45 @@ function AssignSitesModal({
     };
   }, [onCancel]);
 
-  const handleToggle = (id: string) => {
-    const next = new Set(selectedIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelectedIds(next);
+  const handleToggle = (site: Site) => {
+    setChanges((prev) => {
+      const next = new Map(prev);
+      const nowSelected = !isSelected(site);
+      // Back to what the server already has: not a change any more.
+      if (nowSelected === isManagedByUser(site)) next.delete(site.id);
+      else next.set(site.id, { site, selected: nowSelected });
+      return next;
+    });
   };
+
+  const added = Array.from(changes.values()).filter((c) => c.selected);
+  const removed = Array.from(changes.values()).filter((c) => !c.selected);
 
   const handleSave = async () => {
     setError(null);
-    try {
-      const allSites = sites.length > 0 ? sites : store.sites;
-      const promises = [];
-      for (const site of allSites) {
-        const wasManaged = (site as any).managerId === user.id || (site as any).managerUserId === user.id;
-        const isManagedNow = selectedIds.has(site.id);
-        
-        if (isManagedNow && !wasManaged) {
-          promises.push(updateSiteMutation.mutateAsync({ id: site.id, payload: { managerId: user.id } }).catch(() => {}));
-        } else if (!isManagedNow && wasManaged) {
-          promises.push(updateSiteMutation.mutateAsync({ id: site.id, payload: { managerId: null as unknown as string } }).catch(() => {}));
-        }
-      }
-      await Promise.all(promises);
+    setSaving(true);
+    const entries = Array.from(changes.values());
+    const results = await Promise.allSettled(
+      entries.map((c) =>
+        updateSiteMutation.mutateAsync({
+          id: c.site.id,
+          payload: { managerId: c.selected ? user.id : (null as unknown as string) },
+        }),
+      ),
+    );
+    setSaving(false);
+    // Keep only the changes that did not go through, so a retry is safe.
+    const failed = entries.filter((_, i) => results[i]?.status === "rejected");
+    if (failed.length === 0) {
       onDone();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to assign sites");
+      return;
     }
+    setChanges(new Map(failed.map((c) => [c.site.id, c])));
+    setError(
+      `${failed.length} of ${entries.length} site${entries.length === 1 ? "" : "s"} could not be updated: ` +
+        failed.map((c) => c.site.name).join(", ") +
+        ". The others were saved.",
+    );
   };
 
   return (
@@ -334,45 +353,66 @@ function AssignSitesModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="assign-title"
-        className="relative w-full max-w-md border border-black bg-white p-5 flex flex-col max-h-[90vh]"
+        className="relative flex max-h-[90vh] w-full max-w-md flex-col border border-black bg-white p-5"
       >
         <h2 id="assign-title" className="text-xl tracking-tight">
           Assign Sites to {user.name}
         </h2>
-        
+
         {error ? (
-          <p className="mt-3 border border-[var(--bad)] bg-[var(--white)] p-2 text-sm text-[var(--bad)]">
-            {error}
-          </p>
+          <p className="mt-3 border border-[var(--bad)] bg-[var(--white)] p-2 text-sm text-[var(--bad)]">{error}</p>
         ) : null}
 
-        <div className="mt-4 flex-1 overflow-y-auto border border-black/10 p-3 bg-paper/40">
+        <input
+          className="field mt-4"
+          type="search"
+          placeholder="Search sites by name"
+          aria-label="Search sites"
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
+
+        <label className="mt-2 flex items-center gap-2 text-sm text-black/70">
+          <input
+            type="checkbox"
+            checked={onlyAssigned}
+            onChange={(e) => {
+              setOnlyAssigned(e.target.checked);
+              setPage(1);
+            }}
+          />
+          Only sites assigned to {user.name}
+        </label>
+
+        <div className="mt-3 min-h-[12rem] flex-1 overflow-y-auto border border-black/10 bg-paper/40 p-3">
           {isLoading && sites.length === 0 ? (
             <p className="text-sm text-black/50">Loading sites...</p>
-          ) : (sites.length === 0 && store.sites.length === 0) ? (
-            <p className="text-sm text-black/50">No sites available.</p>
+          ) : sites.length === 0 ? (
+            <p className="text-sm text-black/50">{search ? "No site matches your search." : onlyAssigned ? `${user.name} has no sites yet.` : "No sites available."}</p>
           ) : (
-            <div className="flex flex-col gap-3">
-              {(sites.length > 0 ? sites : store.sites).map((site: any) => {
-                const managerId = site.managerId || site.managerUserId;
-                const isManagedByOther = managerId && managerId !== user.id;
-
+            <div className={`flex flex-col gap-3 ${isFetching ? "opacity-60" : ""}`}>
+              {sites.map((site) => {
+                const managedByOther = !!site.managerId && site.managerId !== user.id;
                 return (
-                  <label key={site.id} className={`flex items-center gap-3 text-sm select-none ${isManagedByOther ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}>
+                  <label
+                    key={site.id}
+                    className={`flex select-none items-center gap-3 text-sm ${managedByOther ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+                  >
                     <input
                       type="checkbox"
-                      className="accent-[var(--yellow)] h-4 w-4"
-                      checked={selectedIds.has(site.id)}
-                      onChange={() => {
-                        if (!isManagedByOther) handleToggle(site.id);
-                      }}
-                      disabled={updateSiteMutation.isPending || !!isManagedByOther}
+                      className="h-4 w-4 accent-[var(--yellow)]"
+                      checked={isSelected(site)}
+                      onChange={() => handleToggle(site)}
+                      disabled={saving || managedByOther}
                     />
                     <span>
-                      <span className="font-medium block">
-                        {site.name} {isManagedByOther && <span className="text-black/50 ml-1 font-normal">(Assigned to another manager)</span>}
+                      <span className="block font-medium">
+                        {site.name}
+                        {managedByOther ? (
+                          <span className="ml-1 font-normal text-black/50">(Assigned to another manager)</span>
+                        ) : null}
                       </span>
-                      <span className="text-[0.8rem] text-black/50 block">{site.location || (site as any).address || "No location"}</span>
+                      <span className="block text-[0.8rem] text-black/50">{site.location || "No location"}</span>
                     </span>
                   </label>
                 );
@@ -381,17 +421,49 @@ function AssignSitesModal({
           )}
         </div>
 
-        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end shrink-0">
-          <button type="button" className="btn btn-ghost w-full sm:w-auto" onClick={onCancel} disabled={updateSiteMutation.isPending}>
+        <div className="mt-2 flex items-center justify-between gap-2 text-xs text-black/60">
+          <span>
+            {pagination
+              ? `Page ${pagination.page} of ${Math.max(1, pagination.totalPages)} · ${pagination.total} site${pagination.total === 1 ? "" : "s"}`
+              : ""}
+          </span>
+          <span className="flex gap-1">
+            <button
+              type="button"
+              className="btn btn-ghost px-2 py-1 text-xs"
+              disabled={page <= 1 || saving}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost px-2 py-1 text-xs"
+              disabled={!pagination || page >= pagination.totalPages || saving}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </button>
+          </span>
+        </div>
+
+        <p className="mt-2 text-xs text-black/60" aria-live="polite">
+          {changes.size === 0
+            ? "No changes yet."
+            : `${added.length > 0 ? `Assign ${added.length}` : ""}${added.length > 0 && removed.length > 0 ? ", " : ""}${removed.length > 0 ? `remove ${removed.length}` : ""} — kept while you search or change page.`}
+        </p>
+
+        <div className="mt-4 flex shrink-0 flex-col gap-2 sm:flex-row sm:justify-end">
+          <button type="button" className="btn btn-ghost w-full sm:w-auto" onClick={onCancel} disabled={saving}>
             Cancel
           </button>
           <button
             type="button"
             className="btn w-full sm:w-auto"
             onClick={handleSave}
-            disabled={updateSiteMutation.isPending}
+            disabled={saving || changes.size === 0}
           >
-            {updateSiteMutation.isPending ? "Saving..." : "Save Assignments"}
+            {saving ? "Saving..." : "Save Assignments"}
           </button>
         </div>
       </div>

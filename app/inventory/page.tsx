@@ -45,7 +45,11 @@ export default function InventoryPage() {
   const { data: nodesData, isLoading } = useInventoryNodes({ limit: 50, ...sort });
 
   const locations = useMemo(() => {
-    return (nodesData?.data ?? []).map((node) => ({
+    return (nodesData?.data ?? [])
+      // A site manager gets warehouse nodes as names only (no stock, and the
+      // page behind them is refused), so they are not listed.
+      .filter((node) => !(manager && node.inventoryType === "warehouse"))
+      .map((node) => ({
       id: node.id,
       name: node.site?.name ?? node.warehouse?.name ?? "Unknown",
       type: node.inventoryType,
@@ -53,7 +57,7 @@ export default function InventoryPage() {
       bulkEquipmentItemCount: node.bulkEquipmentItemCount ?? 0,
       individualEquipmentCount: node.individualEquipmentCount ?? 0,
     }));
-  }, [nodesData]);
+  }, [nodesData, manager]);
 
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();

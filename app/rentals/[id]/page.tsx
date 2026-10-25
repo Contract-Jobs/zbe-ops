@@ -50,7 +50,7 @@ export default function RentalDetailPage() {
         kicker="Rental Agreement"
         title={item.id.toUpperCase()}
         action={
-          !manager && item.status === "active" ? (
+          item.status === "active" ? (
             <div className="flex gap-2">
               <button className="btn btn-ghost" onClick={() => setMode("adjust")}>Adjust</button>
               <button className="btn" onClick={() => setMode("return")}>Return</button>

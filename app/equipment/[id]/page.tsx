@@ -16,6 +16,7 @@ import {
 } from "@/components/ui";
 import { day, etb } from "@/lib/format";
 import { isSiteManager, useStore } from "@/lib/store";
+import { useOriginCheck } from "@/hooks/use-origin";
 import { useEquipment, useDeleteEquipment, useEquipmentTrace, useVerifyEquipmentState } from "@/hooks/use-equipment";
 import { useReverseEquipmentMovement } from "@/hooks/use-equipment-movements";
 import { useInventoryItem } from "@/hooks/use-inventory-items";
@@ -39,6 +40,10 @@ export default function EquipmentDetailPage() {
   const item = equipData?.data;
   const { data: catalogItemData } = useInventoryItem(item?.itemId);
   const canMutate = !isSiteManager(store);
+
+  // A site manager reverses only movements that started at one of their sites.
+  const historyMovements = (traceData?.data?.history ?? []).map((h) => h.movement);
+  const mayReverse = useOriginCheck(historyMovements);
 
   const [mode, setMode] = useState<RecordMode<IndividualEquipmentItem>>(closedMode);
   const [msg, setMsg] = useState<string | null>(null);
@@ -175,7 +180,7 @@ export default function EquipmentDetailPage() {
                         )}
                       </td>
                       <td>
-                        {canReverse && canMutate ? (
+                        {canReverse && mayReverse(h.movement) ? (
                           <button
                             type="button"
                             className="text-xs text-bad hover:underline disabled:opacity-50"

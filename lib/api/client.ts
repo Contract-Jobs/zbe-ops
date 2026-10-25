@@ -65,6 +65,12 @@ export class ApiError extends Error {
   }
 }
 
+// "FORBIDDEN: site manager can only access their own site" -> " (site manager can only access their own site)"
+function reason403(message: string): string {
+  const reason = message.replace(/^FORBIDDEN:\s*/i, "").trim();
+  return reason && !/^forbidden$/i.test(reason) ? ` (${reason})` : "";
+}
+
 // ---- Core request function ----
 
 interface RequestOptions {
@@ -130,8 +136,17 @@ async function request<T, X extends object = object>(
       message: response.statusText || "Unknown error",
     }
     if (typeof window !== "undefined" && method !== "GET") {
-      const displayMsg = errorPayload.message;
+      // A 403 is "not allowed", not a failure: say so plainly. The server's
+      // reason (after "FORBIDDEN:") is safe to show, so it follows.
+      const displayMsg =
+        response.status === 403
+          ? `You don't have permission to do this.${reason403(errorPayload.message)}`
+          : errorPayload.message;
       toast.error(displayMsg.charAt(0).toUpperCase() + displayMsg.slice(1));
+    }
+    if (response.status === 403 && typeof window !== "undefined") {
+      // Unexpected 403 usually means the role changed: re-read the session.
+      window.dispatchEvent(new CustomEvent("zbe:forbidden"));
     }
     throw new ApiError(response.status, errorPayload)
   }

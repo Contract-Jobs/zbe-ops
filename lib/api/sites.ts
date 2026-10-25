@@ -28,7 +28,8 @@ export interface UpdateSitePayload {
   managerId?: string;
 }
 
-export type SiteListParams = ListParams<{ status?: string[]; licenseId?: string[] }>;
+// managerId: only the sites managed by this user (an auth user id, not a UUID).
+export type SiteListParams = ListParams<{ status?: string[]; licenseId?: string[]; managerId?: string }>;
 export type SiteLifecycleParams = ListParams<{ eventType?: string[] }>;
 
 export function listSites(params: SiteListParams = {}) {
@@ -105,8 +106,16 @@ export function claimSiteTask(siteId: string, taskId: string, payload: { notes?:
   return apiClient.post<SiteTask>(`/api/sites/${siteId}/tasks/${taskId}/claim`, payload);
 }
 
+// Direct, no approval step. A site manager may complete tasks on their own
+// sites; an admin on any. `review` text is admin-only. Already completed: 409.
 export function completeSiteTask(siteId: string, taskId: string, payload: { review?: string } = {}) {
   return apiClient.post<SiteTask>(`/api/sites/${siteId}/tasks/${taskId}/complete`, payload);
+}
+
+// Re-opens a completed task (clears completed date/by and the claim; notes are
+// kept). Same access as completing. Not completed: 409.
+export function uncompleteSiteTask(siteId: string, taskId: string) {
+  return apiClient.post<SiteTask>(`/api/sites/${siteId}/tasks/${taskId}/uncomplete`, {});
 }
 
 export type SiteTaskListParams = ListParams<{

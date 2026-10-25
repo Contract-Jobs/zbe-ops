@@ -19,10 +19,13 @@ export default function LicensesPage() {
   const [filters, setFilters] = useState<QueryFilterValues>({});
 
   const { data: licensesData, isLoading } = useLicenses();
-  const { data: licenseAnalytics } = useLicenseAnalytics({
-    dateFrom: filters.dateFrom || undefined,
-    dateTo: filters.dateTo || undefined,
-  });
+  const { data: licenseAnalytics } = useLicenseAnalytics(
+    {
+      dateFrom: filters.dateFrom || undefined,
+      dateTo: filters.dateTo || undefined,
+    },
+    { enabled: canMutate },
+  );
   const { data: sites } = useSites();
   const deleteMutation = useDeleteLicense();
   const restoreMutation = useRestoreLicense();
@@ -110,6 +113,7 @@ export default function LicensesPage() {
                     <dt className="kicker">Sites</dt>
                     <dd className="mt-1 font-mono text-lg">{sites?.data.filter(s => s.licenseId === l.id).length || 0}</dd>
                   </div>
+                  {canMutate ? (
                   <div>
                     <dt className="kicker" title="Cash received, plus sales to sites counted when sold">In</dt>
                     {/* A brand-new (or otherwise transaction-less) license has
@@ -117,10 +121,13 @@ export default function LicensesPage() {
                         filter()[0], and etb() already treats undefined as 0. */}
                     <dd className="mt-1 break-words">{etb(licenseAnalytics?.data.find(lic => lic.licenseId === l.id)?.totalReceived)}</dd>
                   </div>
+                  ) : null}
+                  {canMutate ? (
                   <div>
                     <dt className="kicker">Out</dt>
                     <dd className="mt-1 break-words">{etb(licenseAnalytics?.data.find(lic => lic.licenseId === l.id)?.totalSpent)}</dd>
                   </div>
+                  ) : null}
                 </dl>
               </article>
             );

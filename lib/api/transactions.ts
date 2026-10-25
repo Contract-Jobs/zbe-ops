@@ -17,6 +17,8 @@ export interface CreateTransactionPayload {
     note?: string | null;
     description?: string
     transactionDate?: string
+    // Taxes contained in `amount`; together they cannot exceed it. Up to 10.
+    taxes?: { taxType: "vat" | "other"; label?: string; amount: string; rate?: string }[]
 }
 
 export type TransactionListParams = ListParams<{
