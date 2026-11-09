@@ -17,10 +17,9 @@ import {
   useDisposeEquipment,
   useDegradeEquipment,
 } from "@/hooks/use-equipment-movements";
-import { useEquipmentList, useEquipment } from "@/hooks/use-equipment";
-import { useInventoryItems } from "@/hooks/use-inventory-items";
+import { useEquipment } from "@/hooks/use-equipment";
+import { useAllEquipment, useAllInventoryItems, useAllLicenses } from "@/hooks/use-all-options";
 import { useInventoryNodeId, useInventoryNode } from "@/hooks/use-inventories";
-import { useLicenses } from "@/hooks/use-licenses";
 import type { LocationKind } from "@/lib/types";
 import { SearchableSelect } from "@/components/ui";
 
@@ -81,17 +80,15 @@ export function EquipmentMovementForm({
   onCancel,
 }: EquipmentMovementFormProps) {
   const store = useStore();
-  const { data: licensesData } = useLicenses();
+  const { data: licensesData } = useAllLicenses();
   const licenses = licensesData?.data ?? store.licenses;
-  // SearchableSelect filters client-side over whatever's fetched — there's
-  // no server-side search wired to it, so both lists below need a real pull
-  // instead of the endpoints' default page size of 10 (was silently
-  // limiting the picker/name-lookup to the first 10 records).
-  const { data: eqData } = useEquipmentList({ limit: 50 });
+  // SearchableSelect filters client-side over whatever's fetched, so both
+  // lists below pull every page (a single page silently hid the rest).
+  const { data: eqData } = useAllEquipment({}, !equipmentId && !isSiteManager(store));
   const equipment = eqData?.data ?? [];
   // tracking: "individual" — the catalog also holds bulk (quantity-tracked)
   // equipment items, which this form must never offer.
-  const { data: eqItemsData } = useInventoryItems({ category: "equipment", limit: 50, tracking: "individual" });
+  const { data: eqItemsData } = useAllInventoryItems({ category: "equipment", tracking: "individual" });
   const equipmentItems = eqItemsData?.data ?? [];
 
   // Sales leave a warehouse; a site manager can never create one.
@@ -137,6 +134,10 @@ export function EquipmentMovementForm({
   const { nodeId: destNodeId } = useInventoryNodeId(destKind, destRefId || undefined);
 
   const [msg, setMsg] = useState<string | null>(null);
+
+  // access-control.md §5.3: a site manager can move equipment to a warehouse
+  // or keep it at their site, never to another site.
+  const managerTransfer = manager && type === "transfer";
 
   const includesTax = taxToggle?.forType === type ? taxToggle.value : type === "purchase";
   const priceKind = type === "sale" ? "sale" : "purchase";
@@ -212,6 +213,7 @@ export function EquipmentMovementForm({
         });
       } else if (type === "transfer") {
         if (!destNodeId) throw new Error("Destination is required");
+        if (managerTransfer && destKind === "site") throw new Error("Site managers can only send equipment to a warehouse");
         if (!resolvedTransfer) throw new Error("Could not determine the destination type");
         const payload = { individualItemId: eId, destinationInventoryId: destNodeId, note, movementDate: parsedDate };
         if (resolvedTransfer === "deploy_to_site") await deployMutation.mutateAsync(payload);
@@ -432,7 +434,7 @@ export function EquipmentMovementForm({
               {fixedDestination.name}
             </div>
           ) : (
-            <LocationSelect kind={toKind} id={toId} onKind={setToKind} onId={setToId} />
+            <LocationSelect kind={toKind} id={toId} onKind={setToKind} onId={setToId} allowSite={!managerTransfer} />
           )}
         </div>
       )}

@@ -13,9 +13,9 @@ import {
   useConsumeInventoryItem,
   useLogInventoryLoss,
 } from "@/hooks/use-inventory-movements";
-import { useInventoryItems, useCreateInventoryItem } from "@/hooks/use-inventory-items";
+import { useCreateInventoryItem } from "@/hooks/use-inventory-items";
+import { useAllInventoryItems, useAllLicenses } from "@/hooks/use-all-options";
 import { useInventoryNodeId } from "@/hooks/use-inventories";
-import { useLicenses } from "@/hooks/use-licenses";
 import type { LocationKind } from "@/lib/types";
 import { SearchableSelect } from "@/components/ui";
 import type { QuantityMovementType } from "@/types/api";
@@ -35,6 +35,8 @@ export interface BulkEquipmentMovementFormProps {
   defaultDestination?: { id: string; type: LocationKind };
   fixedSource?: { id: string; type: LocationKind; name: string };
   fixedDestination?: { id: string; type: LocationKind; name: string };
+  // Moving from a balance row: that row's license, preselected and locked.
+  lockedLicense?: { id: string; name: string };
   allowedActions?: QuantityMovementType[];
   title?: string;
   noBg?: boolean,
@@ -48,6 +50,7 @@ export function BulkEquipmentMovementForm({
   defaultDestination,
   fixedSource,
   fixedDestination,
+  lockedLicense,
   allowedActions,
   title,
   onSuccess,
@@ -57,11 +60,11 @@ export function BulkEquipmentMovementForm({
   const store = useStore();
   const manager = isSiteManager(store);
 
-  const { data: licensesData } = useLicenses();
+  const { data: licensesData } = useAllLicenses();
   const licenses = licensesData?.data ?? store.licenses;
   // Full catalog pull, not the endpoint's default page size of 10 —
   // SearchableSelect below filters client-side, no server search wired.
-  const { data: itemsData } = useInventoryItems({ category: "equipment", limit: 50, tracking: 'quantity' });
+  const { data: itemsData } = useAllInventoryItems({ category: "equipment", tracking: "quantity" });
   const materials = itemsData?.data ?? store.materials;
 
   const allActions: Array<{ type: QuantityMovementType; label: string; disabled?: boolean }> = [
@@ -87,7 +90,7 @@ export function BulkEquipmentMovementForm({
   const [quantity, setQuantity] = useState("1");
   const [unitCost, setUnitCost] = useState("");
   const [clientName, setClientName] = useState("");
-  const [licenseId, setLicenseId] = useState("");
+  const [licenseId, setLicenseId] = useState(lockedLicense?.id ?? "");
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
   const [movementDate, setMovementDate] = useState("");
@@ -114,6 +117,10 @@ export function BulkEquipmentMovementForm({
   const { nodeId: destNodeId } = useInventoryNodeId(destKind, destRefId || undefined);
 
   const [msg, setMsg] = useState<string | null>(null);
+
+  // access-control.md §5.3: a site manager can move equipment to a warehouse
+  // or keep it at their site, never to another site.
+  const managerTransfer = manager && type === "transfer";
 
   const includesTax = taxToggle?.forType === type ? taxToggle.value : type === "purchase";
   const itemVatExempt = materials.some((m) => m.id === mId && "vatExempt" in m && m.vatExempt === true);
@@ -180,6 +187,7 @@ export function BulkEquipmentMovementForm({
         });
       } else if (type === "transfer") {
         if (!sourceNodeId || !destNodeId) throw new Error("Source and destination are required for transfer");
+        if (managerTransfer && destKind === "site") throw new Error("Site managers can only send equipment to a warehouse");
         await transferMutation.mutateAsync({
           itemId: mId,
           note,
@@ -364,7 +372,12 @@ export function BulkEquipmentMovementForm({
         </div>
       )}
 
-      {["purchase", "sale"].includes(type) && (
+      {lockedLicense && type === "sale" ? (
+        <div className="mb-3 text-sm">
+          License
+          <div className="field mt-1 cursor-not-allowed bg-black/5 text-black/50">{lockedLicense.name}</div>
+        </div>
+      ) : ["purchase", "sale"].includes(type) && (
         <label className="mb-3 block text-sm">
           License{type === "sale" ? " (only if this location holds more than one)" : ""}
           <select className="field mt-1" value={licenseId} onChange={(e) => setLicenseId(e.target.value)}>
@@ -405,7 +418,7 @@ export function BulkEquipmentMovementForm({
               {fixedDestination.name}
             </div>
           ) : (
-            <LocationSelect kind={toKind} id={toId} onKind={setToKind} onId={setToId} />
+            <LocationSelect kind={toKind} id={toId} onKind={setToKind} onId={setToId} allowSite={!managerTransfer} />
           )}
         </div>
       )}

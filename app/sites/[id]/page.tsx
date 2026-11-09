@@ -152,6 +152,7 @@ export default function SiteDetailPage() {
   const [ledgerToolsOpen, setLedgerToolsOpen] = useState(false);
   // The balance row being moved: its item and the license that stock is under.
   const [moveMaterialId, setMoveMaterialId] = useState<{ itemId: string; license: { id: string; name: string } } | null>(null);
+  const [moveBulkEq, setMoveBulkEq] = useState<{ itemId: string; license: { id: string; name: string } } | null>(null);
   const [adjustBalance, setAdjustBalance] = useState<{ itemId: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
   const [marketTarget, setMarketTarget] = useState<{ itemId: string; itemName: string; unit: string; marketValue?: string | null; averageUnitValue?: string | null } | null>(null);
   const [historyTarget, setHistoryTarget] = useState<{ itemId: string; itemName: string; unit: string } | null>(null);
@@ -174,6 +175,9 @@ export default function SiteDetailPage() {
 
   const manager = isSiteManager(store);
   const canMutate = !manager;
+  // Moving stock/plant out of a site is allowed for its own manager
+  // (access-control.md §5.3); the not-your-site case returns early below.
+  const canMove = !manager || allowed.has(id ?? "");
   const user = currentUser(store);
   const isClosed = site?.status === "closed";
 
@@ -652,7 +656,7 @@ export default function SiteDetailPage() {
                       <th className="text-left">Average Unit Price</th>
                       <th className="text-left">Market Value</th>
                       <th className="text-left">Total Market Value</th>
-                      {canMutate && <th className="text-left">Action</th>}
+                      {canMove && <th className="text-left">Action</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -674,7 +678,7 @@ export default function SiteDetailPage() {
                         <MarketValueCells marketValue={m.marketValue} totalMarketValue={m.totalMarketValue} />
 
                         <td>
-                          {canMutate && (
+                          {canMove && (
                             <RowActions
                               ariaLabel={`Actions for ${m.itemName}`}
                               primary={{ label: "Move", onClick: () => setMoveMaterialId({ itemId: m.itemId, license: { id: m.licenseId, name: m.licenseName } }) }}
@@ -719,7 +723,7 @@ export default function SiteDetailPage() {
                       <th>License</th>
                       <th className="text-left">Quantity</th>
                       <th className="text-left">Average Unit Value</th>
-                      {canMutate && <th className="text-left">Action</th>}
+                      {canMove && <th className="text-left">Action</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -738,10 +742,10 @@ export default function SiteDetailPage() {
                           {b.averageUnitValue ? etb(b.averageUnitValue) : "—"}
                         </td>
                         <td>
-                          {canMutate && (
+                          {canMove && (
                             <RowActions
                               ariaLabel={`Actions for ${b.itemName}`}
-                              primary={{ label: "Move", onClick: () => setMoveMaterialId({ itemId: b.itemId, license: { id: b.licenseId, name: b.licenseName } }) }}
+                              primary={{ label: "Move", onClick: () => setMoveBulkEq({ itemId: b.itemId, license: { id: b.licenseId, name: b.licenseName } }) }}
                               items={[
                                 { label: "Report loss", onClick: () => setAdjustBalance({ itemId: b.itemId, materialName: b.itemName, unit: b.unit, currentQuantity: b.quantity }) },
                                 { label: "History", onClick: () => setHistoryTarget({ itemId: b.itemId, itemName: b.itemName, unit: b.unit }) },
@@ -807,7 +811,7 @@ export default function SiteDetailPage() {
                           {etb(e.bookValue)}
                         </td>
                         <td>
-                          {canMutate && !isClosed && (
+                          {canMove && !isClosed && (
                             <button className="text-xs text-blue-600/80 hover:text-black hover:underline" onClick={() => setMoveEquipmentId(e.id)}>Move</button>
                           )}
                         </td>
@@ -949,6 +953,20 @@ export default function SiteDetailPage() {
             allowedActions={["purchase"]}
             onSuccess={() => setPurchaseMaterialOpen(false)}
             onCancel={() => setPurchaseMaterialOpen(false)}
+          />
+        </ModalPanel>
+      ) : null}
+
+      {moveBulkEq ? (
+        <ModalPanel kicker="Site Inventory" title="Move Bulk Equipment" onClose={() => setMoveBulkEq(null)}>
+          <BulkEquipmentMovementForm
+            noBg
+            equipmentId={moveBulkEq.itemId}
+            lockedLicense={moveBulkEq.license}
+            fixedSource={{ id: site.id, type: "site", name: site.name }}
+            allowedActions={["transfer", "loss"]}
+            onSuccess={() => setMoveBulkEq(null)}
+            onCancel={() => setMoveBulkEq(null)}
           />
         </ModalPanel>
       ) : null}

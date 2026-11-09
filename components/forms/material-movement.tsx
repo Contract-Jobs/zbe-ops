@@ -13,10 +13,8 @@ import {
   useConsumeInventoryItem,
   useLogInventoryLoss,
 } from "@/hooks/use-inventory-movements";
-import { useInventoryItems } from "@/hooks/use-inventory-items";
+import { useAllInventoryItems, useAllLicenses, useAllSites } from "@/hooks/use-all-options";
 import { useInventoryNodeId } from "@/hooks/use-inventories";
-import { useLicenses } from "@/hooks/use-licenses";
-import { useSites } from "@/hooks/use-sites";
 import type { LocationKind } from "@/lib/types";
 import { SearchableSelect } from "@/components/ui";
 import type { QuantityMovementType } from "@/types/api";
@@ -63,14 +61,14 @@ export function MaterialMovementForm({
   const store = useStore();
   const manager = isSiteManager(store);
 
-  const { data: licensesData } = useLicenses();
+  const { data: licensesData } = useAllLicenses();
   const licenses = licensesData?.data ?? store.licenses;
-  // Full catalog pull, not the endpoint's default page size of 10 —
-  // SearchableSelect below filters client-side, no server search wired.
-  const { data: itemsData } = useInventoryItems({ category: "material", limit: 50, tracking: "quantity" });
+  // Every page of the catalog — SearchableSelect below filters client-side,
+  // so a single page would silently hide the rest.
+  const { data: itemsData } = useAllInventoryItems({ category: "material", tracking: "quantity" });
   const materials = itemsData?.data ?? store.materials;
   // Only active sites can buy; the server re-checks at stage and at approval.
-  const { data: sitesData } = useSites({ status: ["active"], limit: 50 });
+  const { data: sitesData } = useAllSites({ status: ["active"] });
   const buyerSites = (sitesData?.data ?? []).filter((s) => !s.deletedAt && s.status === "active");
 
   const allActions: Array<{ type: QuantityMovementType; label: string; disabled?: boolean }> = [

@@ -78,6 +78,7 @@ function InventoryLocationView({ id }: { id: string }) {
 
   // The balance row being moved: its item and the license that stock is under.
   const [moveMaterialId, setMoveMaterialId] = useState<{ itemId: string; license: { id: string; name: string } } | null>(null);
+  const [moveBulkEq, setMoveBulkEq] = useState<{ itemId: string; license: { id: string; name: string } } | null>(null);
   const [adjustBalance, setAdjustBalance] = useState<{ itemId: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
   const [historyTarget, setHistoryTarget] = useState<{ itemId: string; itemName: string; unit: string } | null>(null);
@@ -263,7 +264,7 @@ function InventoryLocationView({ id }: { id: string }) {
                       {canMutate && (
                         <RowActions
                               ariaLabel={`Actions for ${b.itemName}`}
-                              primary={{ label: "Move", onClick: () => setMoveMaterialId({ itemId: b.itemId, license: { id: b.licenseId, name: b.licenseName } }) }}
+                              primary={{ label: "Move", onClick: () => setMoveBulkEq({ itemId: b.itemId, license: { id: b.licenseId, name: b.licenseName } }) }}
                               items={[
                                 { label: "Report loss", onClick: () => setAdjustBalance({ itemId: b.itemId, materialName: b.itemName, unit: b.unit, currentQuantity: b.quantity }) },
                                 { label: "History", onClick: () => setHistoryTarget({ itemId: b.itemId, itemName: b.itemName, unit: b.unit }) },
@@ -375,6 +376,20 @@ function InventoryLocationView({ id }: { id: string }) {
             allowedActions={["purchase"]}
             onSuccess={() => setPurchaseMaterialOpen(false)}
             onCancel={() => setPurchaseMaterialOpen(false)}
+          />
+        </ModalPanel>
+      ) : null}
+
+      {moveBulkEq ? (
+        <ModalPanel kicker={`${locationType} Inventory`} title="Move Bulk Equipment" onClose={() => setMoveBulkEq(null)}>
+          <BulkEquipmentMovementForm
+            noBg
+            equipmentId={moveBulkEq.itemId}
+            lockedLicense={moveBulkEq.license}
+            fixedSource={{ id: refId, type: locationType as "site" | "warehouse", name: locationName }}
+            allowedActions={locationType === "warehouse" ? ["transfer", "sale", "loss"] : ["transfer", "loss"]}
+            onSuccess={() => setMoveBulkEq(null)}
+            onCancel={() => setMoveBulkEq(null)}
           />
         </ModalPanel>
       ) : null}

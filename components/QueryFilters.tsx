@@ -5,12 +5,9 @@ import type { ReactNode } from "react";
 import { Field } from "@/components/ui";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { useCategories } from "@/hooks/use-categories";
-import { useInventoryItems } from "@/hooks/use-inventory-items";
+import { useAllInventoryItems, useAllLicenses, useAllSites, useAllWarehouses } from "@/hooks/use-all-options";
 import { useInventoryNodes } from "@/hooks/use-inventories";
-import { useLicenses } from "@/hooks/use-licenses";
-import { useSites } from "@/hooks/use-sites";
 import { useUsers } from "@/hooks/use-users";
-import { useWarehouses } from "@/hooks/use-warehouses";
 import { QUANTITY_MOVEMENT_LABELS } from "@/lib/movement-labels";
 import { isSiteManager, useStore, visibleSiteIds } from "@/lib/store";
 import type {
@@ -611,7 +608,7 @@ function StaticSelect({
 }
 
 function LicenseSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const { data } = useLicenses({ limit: 50 });
+  const { data } = useAllLicenses();
   const options = (data?.data ?? []).filter((license) => !license.deletedAt);
   return (
     <Wrap>
@@ -692,7 +689,7 @@ function SiteSelect({
   const store = useStore();
   const manager = isSiteManager(store);
   const allowed = visibleSiteIds(store);
-  const { data } = useSites({ limit: 50 });
+  const { data } = useAllSites();
   const options = (data?.data ?? []).filter((site) => !site.deletedAt && (!manager || allowed.has(site.id)));
   return (
     <Wrap>
@@ -711,7 +708,7 @@ function SiteSelect({
 }
 
 function WarehouseSelect({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  const { data } = useWarehouses({ limit: 50 });
+  const { data } = useAllWarehouses();
   const options = (data?.data ?? []).filter((warehouse) => !warehouse.deletedAt);
   return (
     <Wrap>
@@ -738,7 +735,7 @@ function ItemSelect({
   category: InventoryItemCategory;
   onChange: (value: string) => void;
 }) {
-  const { data } = useInventoryItems({ category, limit: 50 });
+  const { data } = useAllInventoryItems({ category });
   const options = (data?.data ?? []).filter((item) => !item.deletedAt);
   return (
     <Wrap wide>

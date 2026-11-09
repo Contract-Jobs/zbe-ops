@@ -72,6 +72,7 @@ export default function WarehouseDetailPage() {
 
   // The balance row being moved: its item and the license that stock is under.
   const [moveMaterialId, setMoveMaterialId] = useState<{ itemId: string; license: { id: string; name: string } } | null>(null);
+  const [moveBulkEq, setMoveBulkEq] = useState<{ itemId: string; license: { id: string; name: string } } | null>(null);
   const [adjustBalance, setAdjustBalance] = useState<{ itemId: string; materialName: string; unit: string; currentQuantity: number } | null>(null);
   const [moveEquipmentId, setMoveEquipmentId] = useState<string | null>(null);
   const [purchaseMaterialOpen, setPurchaseMaterialOpen] = useState(false);
@@ -265,7 +266,7 @@ export default function WarehouseDetailPage() {
                       {canMutate && (
                         <RowActions
                               ariaLabel={`Actions for ${b.itemName}`}
-                              primary={{ label: "Move", onClick: () => setMoveMaterialId({ itemId: b.itemId, license: { id: b.licenseId, name: b.licenseName } }) }}
+                              primary={{ label: "Move", onClick: () => setMoveBulkEq({ itemId: b.itemId, license: { id: b.licenseId, name: b.licenseName } }) }}
                               items={[
                                 { label: "Report loss", onClick: () => setAdjustBalance({ itemId: b.itemId, materialName: b.itemName, unit: b.unit, currentQuantity: b.quantity }) },
                                 { label: "History", onClick: () => setHistoryTarget({ itemId: b.itemId, itemName: b.itemName, unit: b.unit }) },
@@ -389,6 +390,20 @@ export default function WarehouseDetailPage() {
             allowedActions={["purchase"]}
             onSuccess={() => setPurchaseEquipmentOpen(false)}
             onCancel={() => setPurchaseEquipmentOpen(false)}
+          />
+        </ModalPanel>
+      ) : null}
+
+      {moveBulkEq ? (
+        <ModalPanel kicker="Warehouse Inventory" title="Move Bulk Equipment" onClose={() => setMoveBulkEq(null)}>
+          <BulkEquipmentMovementForm
+            noBg
+            equipmentId={moveBulkEq.itemId}
+            lockedLicense={moveBulkEq.license}
+            fixedSource={{ id: warehouse.id, type: "warehouse", name: warehouse.name }}
+            allowedActions={["transfer", "sale", "loss"]}
+            onSuccess={() => setMoveBulkEq(null)}
+            onCancel={() => setMoveBulkEq(null)}
           />
         </ModalPanel>
       ) : null}

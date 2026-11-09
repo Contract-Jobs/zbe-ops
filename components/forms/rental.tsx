@@ -5,7 +5,7 @@ import { Field, FormActions } from "@/components/ui";
 import { LocationSelect } from "@/components/LocationSelect";
 import { isSiteManager, useStore } from "@/lib/store";
 import { useCreateRental, useAdjustRental, useReturnRental } from "@/hooks/use-rentals";
-import { useInventoryItems } from "@/hooks/use-inventory-items";
+import { useAllInventoryItems } from "@/hooks/use-all-options";
 import type { IndividualEquipmentItem, License, RentalCreatePayload } from "@/types/api";
 import type { LocationKind } from "@/lib/types";
 
@@ -24,9 +24,8 @@ export function RentalForm({
   // A site manager can only start a rental for their own site: the API refuses
   // a warehouse-only rental, so a site is the only choice they get.
   const manager = isSiteManager(useStore());
-  // Full catalog pull, not the endpoint's default page size of 10 — this
-  // feeds a plain <select>, not a server-searched picker.
-  const { data: eqItemsData } = useInventoryItems({ category: "equipment", limit: 50 });
+  // Every page of the catalog — this feeds a plain <select>.
+  const { data: eqItemsData } = useAllInventoryItems({ category: "equipment" });
   const equipmentItems = eqItemsData?.data ?? [];
   const [error, setError] = useState<string | null>(null);
 

@@ -2,8 +2,7 @@
 
 import { locationName } from "@/lib/store";
 import type { LocationKind } from "@/lib/types";
-import { useSites } from "@/hooks/use-sites";
-import { useWarehouses } from "@/hooks/use-warehouses";
+import { useAllSites, useAllWarehouses } from "@/hooks/use-all-options";
 
 export function LocationSelect({
   kind,
@@ -20,8 +19,8 @@ export function LocationSelect({
   allowWarehouse?: boolean;
   allowSite?: boolean;
 }) {
-  const { data: sitesData } = useSites({ limit: 100 });
-  const { data: warehousesData } = useWarehouses({ limit: 50 });
+  const { data: sitesData } = useAllSites();
+  const { data: warehousesData } = useAllWarehouses();
 
   const options =
     kind === "warehouse"
